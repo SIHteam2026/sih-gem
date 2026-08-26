@@ -1,0 +1,20 @@
+{
+  "sample_gst_invoice_1.pdf": {
+    "gstin": "27AABCU9603R1ZN",
+    "legal_name": "TATA CONSULTANCY SERVICES LIMITED",
+    "status": "Active",
+    "total_amount": "118000.00"
+  },
+  "sample_gst_invoice_2.pdf": {
+    "gstin": "29AAACI4818K1ZW",
+    "legal_name": "INFOSYS LIMITED",
+    "status": "Active",
+    "total_amount": "59000.00"
+  },
+  "sample_gst_status_3.pdf": {
+    "gstin": "27AABCR0216R1Z9",
+    "legal_name": "RELIANCE RETAIL LIMITED",
+    "status": "Cancelled",
+    "total_amount": "25000.00"
+  }
+}
