@@ -23,6 +23,10 @@ class GSTClaim(BaseModel):
         default=None,
         description="Status of the GST registration or claim (e.g. Active, Inactive, Cancelled).",
     )
+    total_amount: Optional[str] = Field(
+        default=None,
+        description="Total invoice or claim amount in rupees if present (e.g. 118000.00).",
+    )
 
 
 def extract_gst_fields(raw_text: str, model: str = "gemini-3.6-flash") -> dict:
@@ -35,14 +39,14 @@ def extract_gst_fields(raw_text: str, model: str = "gemini-3.6-flash") -> dict:
         model: Gemini model identifier (defaults to "gemini-3.6-flash").
 
     Returns:
-        A dictionary containing the extracted fields: 'gstin', 'legal_name', and 'status'.
+        A dictionary containing the extracted fields: 'gstin', 'legal_name', 'status', and 'total_amount'.
     """
     api_key = os.getenv("GEMINI_API_KEY")
     client = genai.Client(api_key=api_key) if api_key else genai.Client()
 
     prompt = (
         "Extract the GST identification number (gstin), legal business name (legal_name), "
-        "and status (status) from the following text:\n\n"
+        "status (status), and total invoice/claim amount (total_amount) from the following text:\n\n"
         f"{raw_text}"
     )
 
