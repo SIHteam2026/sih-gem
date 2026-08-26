@@ -6,8 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 try:
     from backend.app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
+    from backend.app.extractors.gemini_gst import extract_gst_fields
 except ImportError:
     from app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
+    from app.extractors.gemini_gst import extract_gst_fields
 
 app = FastAPI(title="Evidence Engine API")
 
@@ -49,17 +51,32 @@ async def verify_gst(file: UploadFile = File(...)):
         temp_file.flush()
 
     try:
+        # Step 1: Run PDF text extractor to get raw text and document metadata
         extracted = extract_text_from_pdf(temp_path)
+        raw_text = extracted.get("raw_text", "")
         sha256_hash = compute_file_hash(file_bytes)
 
+        # Step 2: Pass extracted raw text into Gemini extractor
+        try:
+            extraction_result = extract_gst_fields(raw_text)
+        except Exception as gemini_err:
+            extraction_result = {
+                "gstin": None,
+                "legal_name": None,
+                "status": None,
+                "error": str(gemini_err),
+            }
+
+        # Step 3: Return structured JSON result
         return {
             "status": "success",
             "filename": file.filename,
-            "raw_text": extracted.get("raw_text", ""),
             "sha256": sha256_hash,
             "page_count": extracted.get("page_count", 0),
             "is_scanned": extracted.get("is_scanned", False),
-            "stage": "ready_for_pipeline",
+            "raw_text": raw_text,
+            "extraction": extraction_result,
+            "stage": "extracted",
         }
     except Exception as e:
         raise HTTPException(
