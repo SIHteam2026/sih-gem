@@ -1,4 +1,4 @@
-﻿annotated-doc==0.0.5
+annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.14.2
 certifi==2026.7.22
@@ -23,6 +23,7 @@ pydantic==2.13.4
 pydantic_core==2.46.4
 PyJWT==2.13.0
 pymupdf>=1.24.0
+python-dotenv==1.2.3
 python-multipart==0.0.32
 realtime==2.31.0
 starlette==1.6.0
