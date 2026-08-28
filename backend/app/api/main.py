@@ -1,8 +1,16 @@
-﻿import os
+﻿import asyncio
+import inspect
+import json
+import logging
+import os
 import tempfile
 from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 try:
     from backend.app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
@@ -51,23 +59,31 @@ async def verify_gst(file: UploadFile = File(...)):
         temp_file.flush()
 
     try:
-        # Step 1: Run PDF text extractor to get raw text and document metadata
+        # Step 1: Run PDF text extractor to extract raw text and document metadata
         extracted = extract_text_from_pdf(temp_path)
         raw_text = extracted.get("raw_text", "")
         sha256_hash = compute_file_hash(file_bytes)
 
-        # Step 2: Pass extracted raw text into Gemini extractor
+        # Step 2: Pass raw text into Gemini extractor and await result
         try:
-            extraction_result = extract_gst_fields(raw_text)
+            if inspect.iscoroutinefunction(extract_gst_fields):
+                extraction_result = await extract_gst_fields(raw_text)
+            else:
+                extraction_result = await asyncio.to_thread(extract_gst_fields, raw_text)
         except Exception as gemini_err:
             extraction_result = {
                 "gstin": None,
                 "legal_name": None,
                 "status": None,
+                "total_amount": None,
                 "error": str(gemini_err),
             }
 
-        # Step 3: Return structured JSON result
+        # Step 3: Log AI extraction output to console for debugging
+        print(f"\n[AI Extraction Output]: {json.dumps(extraction_result, indent=2, default=str)}\n")
+        logger.info("AI Extraction Output for %s: %s", file.filename, extraction_result)
+
+        # Step 4: Return structured JSON result
         return {
             "status": "success",
             "filename": file.filename,
