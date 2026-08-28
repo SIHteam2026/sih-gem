@@ -18,11 +18,13 @@ try:
     from backend.app.extractors.gemini_gst import extract_gst_fields
     from backend.app.api.gov_fetcher import verify_gstin_external
     from backend.app.rules.gst_rules import evaluate_gst
+    from backend.app.db.client import get_supabase_client
 except ImportError:
     from app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
     from app.extractors.gemini_gst import extract_gst_fields
     from app.api.gov_fetcher import verify_gstin_external
     from app.rules.gst_rules import evaluate_gst
+    from app.db.client import get_supabase_client
 
 app = FastAPI(title="Evidence Engine API")
 
@@ -39,6 +41,27 @@ app.add_middleware(
 @app.get("/health")
 def health_check():
     return {"status": "Engine Running", "layer": "Evidence Engine"}
+
+
+@app.get("/api/history/gst")
+async def get_gst_history():
+    """Fetches the 20 most recent GST verification records from Supabase."""
+    try:
+        db_client = get_supabase_client()
+        response = await asyncio.to_thread(
+            lambda: db_client.table("gst_verifications")
+            .select("*")
+            .order("created_at", desc=True)
+            .limit(20)
+            .execute()
+        )
+        return response.data if response and hasattr(response, "data") else []
+    except Exception as e:
+        logger.error("Failed to fetch GST verification history from Supabase: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch verification history: {str(e)}",
+        )
 
 
 @app.post("/api/verify/gst")
@@ -135,12 +158,30 @@ async def verify_gst(file: UploadFile = File(...)):
         print(f"[Verification Result]: {json.dumps(verification_result, indent=2, default=str)}\n")
         logger.info("Verification finalized for %s: %s", file.filename, verification_result.get("status"))
 
-        # Step 6: Unified JSON Response with the three parent keys
-        return {
+        # Step 6: Assemble Unified JSON Response Payload
+        response_payload = {
             "extracted_data": extracted_data,
             "gov_registry_data": gov_registry_data,
             "verification_result": verification_result,
         }
+
+        # Step 7: Persist record to Supabase gst_verifications table
+        try:
+            db_client = get_supabase_client()
+            db_record = {
+                "gstin": extracted_data.get("gstin"),
+                "company_name": gov_registry_data.get("legal_name") or extracted_data.get("legal_name"),
+                "status": str(verification_result.get("status", "UNKNOWN")),
+                "full_payload": response_payload,
+            }
+            await asyncio.to_thread(
+                lambda: db_client.table("gst_verifications").insert(db_record).execute()
+            )
+            logger.info("Successfully persisted record to gst_verifications table in Supabase.")
+        except Exception as db_err:
+            logger.warning("Supabase insertion to gst_verifications failed (non-blocking): %s", db_err)
+
+        return response_payload
 
     except HTTPException:
         raise
