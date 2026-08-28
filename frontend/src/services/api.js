@@ -2,7 +2,7 @@
  * API service for verifying GST documents against backend endpoints.
  */
 
-const API_BASE_URL = 'http://127.0.0.1:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
 
 /**
  * Verifies an uploaded GST PDF document.
