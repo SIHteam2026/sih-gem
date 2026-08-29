@@ -45,6 +45,7 @@ import ComplianceQueue from "@/components/ComplianceQueue";
 import DocumentChat from "@/components/DocumentChat";
 import FraudAnalyzer from "@/components/FraudAnalyzer";
 import ExecutiveReport from "@/components/ExecutiveReport";
+import LegalActionCenter from "@/components/LegalActionCenter";
 
 interface TenderRequirement {
   requirement_id?: string;
@@ -850,6 +851,23 @@ export default function TenderPage() {
                     reportData={reportResult}
                     bidderName="Apex Infrastructure Pvt. Ltd."
                     tenderId={file?.name || "GeM/2026/B/894120"}
+                  />
+
+                  {/* Legal Action Center: Shortfall Notices & Letter of Award Drafting */}
+                  <LegalActionCenter
+                    complianceData={{
+                      bidder_name: "Bharat Tech Solutions",
+                      tender_id: file?.name || "GeM/2026/B/894120",
+                      missing_documents: ["Valid GST Registration Certificate (GSTR-3B)", "OEM Authorization Form"],
+                    }}
+                    tenderData={{
+                      tender_id: file?.name || "GeM/2026/B/894120",
+                      title: file?.name ? `Tender - ${file.name}` : "Supply of IT Infrastructure & Server Racks",
+                    }}
+                    winnerData={{
+                      bidder_name: "Apex Infrastructure Pvt. Ltd.",
+                      total_value: "INR 1,45,00,000",
+                    }}
                   />
                 </motion.div>
               )}

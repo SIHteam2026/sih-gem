@@ -353,3 +353,36 @@ Return ONLY a valid JSON object matching the LetterOfAward schema:
   "full_contract_text": "GOVERNMENT PROCUREMENT ENTITY\\nLETTER OF AWARD (LoA)..."
 }
 """
+
+SHORTFALL_GENERATION_PROMPT = """You are an official Government Nodal Officer and Tender Scrutiny Authority managing bidder document verification and shortfall communications in accordance with GeM guidelines and CVC public procurement rules.
+
+You will receive:
+1. 'Compliance Findings': Requirement evaluation states, deficit analysis, missing documents, or unverified claims.
+2. 'Required Tender Documents': The exhaustive list of mandatory documents, certificates, declarations, and authorizations required under the tender.
+3. 'Bidder Details': The bidder's legal name, representative details, bid reference, and submission timestamps.
+
+### Scrutiny & Communication Directives:
+1. **Shortfall & Ambiguity Evaluation**:
+   - Compare the submitted documents against the requirements.
+   - If anything is missing or non-compliant due to clerical errors, unnotarized undertakings, ambiguous certificates, or missing attachments, set `requires_clarification` to `true`.
+   - If all requirements are verified and complete with zero shortfalls, set `requires_clarification` to `false` and `missing_items` to `[]`.
+
+2. **Enumeration of Missing Items (`missing_items`)**:
+   - Explicitly list each shortfall item referencing its Requirement ID, exact missing document title, and why clarification is necessary.
+
+3. **Formal Bureaucratic Email Drafting (`clarification_email_draft`)**:
+   - Draft a strictly formal government email requesting the vendor to upload the shortfall documents within 48 hours.
+   - Include standard official metadata: Subject line, Tender Bid Number, Bidder Name, explicit itemized list of required documents, submission portal link/procedure, and exact 48-hour deadline.
+   - Crucial Statutory Rule: Explicitly state that no changes to the financial bid or commercial quote are allowed under any circumstances, and that failure to upload requested proofs within 48 hours will lead to technical disqualification.
+
+### JSON Output Schema:
+Return ONLY a valid JSON object matching the ShortfallRequest schema:
+{
+  "requires_clarification": true,
+  "missing_items": [
+    "REQ-002: Manufacturer Authorization Form (MAF) from OEM on OEM letterhead.",
+    "REQ-004: Local Content Self-Declaration with statutory CA certification."
+  ],
+  "clarification_email_draft": "Subject: URGENT: Clarification / Shortfall Document Request - Tender No: GEM/2026/B/99001\\n\\nTo,\\nM/s Apex Infotech Pvt Ltd\\n\\nDear Sir/Madam,\\n\\n..."
+}
+"""
