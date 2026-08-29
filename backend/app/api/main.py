@@ -38,6 +38,8 @@ try:
     from backend.app.models.fraud import FraudAnalysisResult
     from backend.app.ai.llm_translation_service import normalize_document_language
     from backend.app.models.translation import TranslationResult
+    from backend.app.ai.llm_contract_service import generate_award_contract
+    from backend.app.models.contract import LetterOfAward
 except ImportError:
     from app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
     from app.extractors.gemini_gst import extract_gst_fields
@@ -61,11 +63,19 @@ except ImportError:
     from app.models.fraud import FraudAnalysisResult
     from app.ai.llm_translation_service import normalize_document_language
     from app.models.translation import TranslationResult
+    from app.ai.llm_contract_service import generate_award_contract
+    from app.models.contract import LetterOfAward
 
 
 class TranslationPayload(BaseModel):
     """Pydantic model for document translation requests."""
     raw_text: str = Field(..., description="Raw text of the document to detect and normalize.")
+
+
+class ContractGenerationPayload(BaseModel):
+    """Pydantic model for contract generation requests."""
+    tender_data: dict = Field(default_factory=dict, description="Tender requirements and specifications.")
+    winner_data: dict = Field(default_factory=dict, description="Awarded bidder details and financial quotes.")
 
 
 class ChatQuery(BaseModel):
@@ -388,6 +398,29 @@ async def analyze_fraud_endpoint(bidder_data: dict):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Fraud analysis failed: {str(err)}",
+        )
+
+
+@app.post("/api/contract/generate", response_model=LetterOfAward)
+async def generate_contract_endpoint(payload: ContractGenerationPayload):
+    """Drafts a formal, legally binding Letter of Award (LoA) contract agreement
+    for the awarded bidder incorporating standard Indian government procurement terms."""
+    try:
+        contract = await generate_award_contract(payload.tender_data, payload.winner_data)
+        logger.info(
+            "Contract generation successful: Ref: %s, Vendor: %s, Value: %.2f",
+            contract.contract_reference_number,
+            contract.vendor_name,
+            contract.total_award_value,
+        )
+        return contract
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error("Contract generation failed: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Contract generation failed: {str(err)}",
         )
 
 

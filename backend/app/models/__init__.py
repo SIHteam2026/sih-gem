@@ -1,5 +1,6 @@
 """Models package initialization."""
 
+from .contract import LetterOfAward
 from .document import DocumentCategory, DocumentClassificationResult
 from .evaluation import ComplianceFinding, ComplianceState
 from .evidence import ExtractedEvidence
@@ -18,6 +19,7 @@ __all__ = [
     "FinancialEvaluationResult",
     "FinalAuditReport",
     "FraudAnalysisResult",
+    "LetterOfAward",
     "RequirementCategory",
     "TenderRequirement",
     "TenderAnalysisResult",
