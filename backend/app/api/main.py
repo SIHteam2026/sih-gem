@@ -40,6 +40,8 @@ try:
     from backend.app.models.translation import TranslationResult
     from backend.app.ai.llm_contract_service import generate_award_contract
     from backend.app.models.contract import LetterOfAward
+    from backend.app.ai.llm_shortfall_service import generate_shortfall_notice
+    from backend.app.models.shortfall import ShortfallRequest
 except ImportError:
     from app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
     from app.extractors.gemini_gst import extract_gst_fields
@@ -65,6 +67,8 @@ except ImportError:
     from app.models.translation import TranslationResult
     from app.ai.llm_contract_service import generate_award_contract
     from app.models.contract import LetterOfAward
+    from app.ai.llm_shortfall_service import generate_shortfall_notice
+    from app.models.shortfall import ShortfallRequest
 
 
 class TranslationPayload(BaseModel):
@@ -421,6 +425,28 @@ async def generate_contract_endpoint(payload: ContractGenerationPayload):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Contract generation failed: {str(err)}",
+        )
+
+
+@app.post("/api/clarification/generate", response_model=ShortfallRequest)
+async def generate_clarification_endpoint(compliance_data: dict):
+    """Evaluates compliance findings and document proofs to identify shortfalls
+    and draft a formal 48-hour government clarification notice."""
+    try:
+        shortfall = await generate_shortfall_notice(compliance_data)
+        logger.info(
+            "Shortfall notice generated: Requires Clarification: %s, Missing Items: %d",
+            shortfall.requires_clarification,
+            len(shortfall.missing_items),
+        )
+        return shortfall
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error("Shortfall generation failed: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Shortfall generation failed: {str(err)}",
         )
 
 

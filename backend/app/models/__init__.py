@@ -7,6 +7,7 @@ from .evidence import ExtractedEvidence
 from .financial import FinancialEvaluationResult
 from .fraud import FraudAnalysisResult
 from .report import FinalAuditReport
+from .shortfall import ShortfallRequest
 from .tender import RequirementCategory, TenderAnalysisResult, TenderRequirement
 from .translation import TranslationResult
 
@@ -21,6 +22,7 @@ __all__ = [
     "FraudAnalysisResult",
     "LetterOfAward",
     "RequirementCategory",
+    "ShortfallRequest",
     "TenderRequirement",
     "TenderAnalysisResult",
     "TranslationResult",
