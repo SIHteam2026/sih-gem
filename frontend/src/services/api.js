@@ -129,8 +129,54 @@ export async function analyzeTender(file) {
   }
 }
 
+/**
+ * Classifies an uploaded document to determine its type and validity.
+ * 
+ * @param {File | Blob} file - The document file to classify.
+ * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @throws {Error} Clear error message if validation, network request, or server response fails.
+ */
+export async function classifyDocument(file) {
+  if (!file) {
+    throw new Error('A valid document file is required.');
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/document/classify`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {
+        // Fallback to response status text if response is not JSON
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error classifying document:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
+    }
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
 export default {
   verifyGSTDocument,
   fetchVerificationHistory,
   analyzeTender,
+  classifyDocument,
 };
