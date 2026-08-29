@@ -34,6 +34,8 @@ try:
     from backend.app.services.boq_parser import extract_financial_tables
     from backend.app.ai.llm_report_service import generate_final_report
     from backend.app.models.report import FinalAuditReport
+    from backend.app.ai.llm_fraud_service import analyze_vendor_risk
+    from backend.app.models.fraud import FraudAnalysisResult
 except ImportError:
     from app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
     from app.extractors.gemini_gst import extract_gst_fields
@@ -53,6 +55,8 @@ except ImportError:
     from app.services.boq_parser import extract_financial_tables
     from app.ai.llm_report_service import generate_final_report
     from app.models.report import FinalAuditReport
+    from app.ai.llm_fraud_service import analyze_vendor_risk
+    from app.models.fraud import FraudAnalysisResult
 
 
 class ChatQuery(BaseModel):
@@ -330,6 +334,29 @@ async def generate_report_endpoint(audit_data: dict):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Report generation failed: {str(err)}",
+        )
+
+
+@app.post("/api/fraud/analyze", response_model=FraudAnalysisResult)
+async def analyze_fraud_endpoint(bidder_data: dict):
+    """Analyzes bidder documentation, registration metadata, and BOQ history
+    to detect fraud anomalies, calculate a trust score, and assess collusion risk."""
+    try:
+        result = await analyze_vendor_risk(bidder_data)
+        logger.info(
+            "Fraud analysis completed: Trust Score: %.1f, Suspicious: %s, Collusion Risk: %s",
+            result.trust_score,
+            result.is_suspicious,
+            result.collusion_risk_level,
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error("Fraud analysis failed: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Fraud analysis failed: {str(err)}",
         )
 
 
