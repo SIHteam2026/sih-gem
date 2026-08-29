@@ -11,21 +11,24 @@ import fitz  # PyMuPDF
 
 try:
     from backend.app.services.ocr_service import extract_text_with_ocr
+    from backend.app.services.redaction_service import redact_sensitive_data
 except ImportError:
     from app.services.ocr_service import extract_text_with_ocr
+    from app.services.redaction_service import redact_sensitive_data
 
 logger = logging.getLogger(__name__)
 
 
 async def extract_text_from_pdf(file_bytes: bytes) -> str:
     """Loads PDF bytes into a fitz.Document, iterates through all pages,
-    cleans whitespace, and automatically falls back to OCR if digital text is insufficient.
+    cleans whitespace, automatically falls back to OCR if digital text is insufficient,
+    and redacts sensitive PII before returning.
 
     Args:
         file_bytes (bytes): The raw byte content of the PDF file.
 
     Returns:
-        str: Cleaned text extracted across all pages.
+        str: Fully sanitized and redacted text extracted across all pages.
 
     Raises:
         HTTPException: If no readable text is found in the PDF via both direct extraction and OCR (400 Bad Request).
@@ -62,4 +65,6 @@ async def extract_text_from_pdf(file_bytes: bytes) -> str:
             detail="No readable text found in the PDF. Please upload a searchable document.",
         )
 
-    return cleaned_text
+    # Sanitize and redact sensitive PII
+    redacted_text = await redact_sensitive_data(cleaned_text)
+    return redacted_text
