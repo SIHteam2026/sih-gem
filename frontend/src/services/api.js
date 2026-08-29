@@ -347,6 +347,55 @@ export async function verifyBid(tenderFile, bidderFile, requirementId) {
   }
 }
 
+/**
+ * Asks a natural language procurement question with optional context text.
+ *
+ * @param {string} question - The procurement question to ask the AI.
+ * @param {string} [contextText] - Optional context text (e.g. tender clause, document extract).
+ * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @throws {Error} Clear error message if validation, network request, or server response fails.
+ */
+export async function askProcurementQuestion(question, contextText = '') {
+  if (!question || !String(question).trim()) {
+    throw new Error('A non-empty question is required to query the procurement assistant.');
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/chat/ask`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        question: String(question).trim(),
+        context_text: String(contextText || '').trim(),
+      }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {
+        // Fallback to response status text if response is not JSON
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error querying procurement assistant:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
+    }
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
 export default {
   verifyGSTDocument,
   fetchVerificationHistory,
@@ -356,4 +405,5 @@ export default {
   compareEntities,
   batchClassifyDocuments,
   verifyBid,
+  askProcurementQuestion,
 };

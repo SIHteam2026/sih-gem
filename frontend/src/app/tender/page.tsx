@@ -24,6 +24,9 @@ import {
   XCircle,
   HelpCircle,
   Zap,
+  MessageSquare,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { analyzeTender, verifyBid } from "@/services/api";
@@ -31,6 +34,7 @@ import Navbar from "@/components/Navbar";
 import BidderUpload from "@/components/BidderUpload";
 import BatchUpload from "@/components/BatchUpload";
 import ComplianceQueue from "@/components/ComplianceQueue";
+import DocumentChat from "@/components/DocumentChat";
 
 interface TenderRequirement {
   requirement_id?: string;
@@ -55,6 +59,9 @@ export default function TenderPage() {
 
   // Step 2 Bidder Evidence for cross-verification
   const [bidderDocFile, setBidderDocFile] = useState<File | null>(null);
+
+  // Chat panel visibility
+  const [chatOpen, setChatOpen] = useState<boolean>(true);
 
   // Deep AI Requirement Verification State
   const [verifyingReqId, setVerifyingReqId] = useState<string | null>(null);
@@ -140,6 +147,47 @@ export default function TenderPage() {
     if (typeof evidence === "string") return [evidence];
     return [JSON.stringify(evidence)];
   };
+
+  // Build a human-readable document context string to feed into the chat assistant.
+  // Combines tender filename + all extracted requirement descriptions and evidence items.
+  const buildDocumentContext = (): string => {
+    const parts: string[] = [];
+
+    if (file?.name) {
+      parts.push(`Tender Document: ${file.name}`);
+    }
+
+    if (analysisResult) {
+      const reqs = getRequirements();
+      if (reqs.length > 0) {
+        parts.push(`\n--- Extracted Requirements (${reqs.length} criteria) ---`);
+        reqs.forEach((req, idx) => {
+          const reqId = req.requirement_id || req.id || `REQ-${String(idx + 1).padStart(3, "0")}`;
+          const category = req.category || "General";
+          const desc = req.description || "";
+          const evList = getEvidenceList(req.evidence_required);
+          parts.push(
+            `\n[${reqId}] ${category}${req.mandatory || req.is_mandatory ? " (MANDATORY)" : ""}` +
+              (desc ? `\n  Description: ${desc}` : "") +
+              (evList.length > 0 ? `\n  Evidence Required: ${evList.join(", ")}` : "")
+          );
+        });
+      } else if (typeof analysisResult === "string") {
+        parts.push(`\n--- Analysis Text ---\n${analysisResult}`);
+      } else {
+        // Fallback: stringify top-level fields other than large arrays
+        const summary = Object.entries(analysisResult)
+          .filter(([, v]) => typeof v === "string" || typeof v === "number")
+          .map(([k, v]) => `${k}: ${v}`)
+          .join("\n");
+        if (summary) parts.push(`\n--- Tender Summary ---\n${summary}`);
+      }
+    }
+
+    return parts.join("\n").slice(0, 6000); // cap to avoid huge payloads
+  };
+
+  const documentContext = buildDocumentContext();
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
@@ -558,8 +606,61 @@ export default function TenderPage() {
                 </div>
               </div>
 
-              {/* Ingestion Component Render */}
-              {bidderMode === "single" ? <BidderUpload /> : <BatchUpload />}
+              {/* Two-column layout: Upload component + DocumentChat side-panel */}
+              <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
+                {/* Left column: Ingestion component (takes up 3/5 on xl) */}
+                <div className="xl:col-span-3">
+                  {bidderMode === "single" ? <BidderUpload /> : <BatchUpload />}
+                </div>
+
+                {/* Right column: DocumentChat side-panel (takes up 2/5 on xl) */}
+                <div className="xl:col-span-2 flex flex-col gap-0 rounded-xl overflow-hidden border border-indigo-200 shadow-sm">
+                  {/* Collapsible panel header */}
+                  <button
+                    type="button"
+                    onClick={() => setChatOpen((prev) => !prev)}
+                    className="flex items-center justify-between w-full px-5 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4" />
+                      AI Procurement Assistant
+                      {!documentContext && (
+                        <span className="text-[11px] font-normal text-indigo-200 ml-1">
+                          (analyze a tender first for full context)
+                        </span>
+                      )}
+                    </span>
+                    {chatOpen ? (
+                      <ChevronUp className="w-4 h-4 opacity-80" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 opacity-80" />
+                    )}
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {chatOpen && (
+                      <motion.div
+                        key="chat-panel"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                      >
+                        <DocumentChat
+                          documentContext={documentContext}
+                          title="Procurement Q&A"
+                          placeholder={
+                            documentContext
+                              ? "Ask about the extracted tender requirements, eligibility rules, evidence to submit…"
+                              : "Ask a general procurement or GeM compliance question…"
+                          }
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
 
               <div className="flex justify-between items-center p-4 bg-white rounded-xl border border-gray-200">
                 <button
@@ -580,6 +681,7 @@ export default function TenderPage() {
               </div>
             </motion.div>
           )}
+
 
           {/* STEP 3: Compliance Review Queue & Reasoning Trace */}
           {activeTab === "queue" && (
