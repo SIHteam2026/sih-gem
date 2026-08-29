@@ -253,6 +253,100 @@ export async function compareEntities(name1, name2) {
   }
 }
 
+/**
+ * Batch classifies documents packaged in a zip archive.
+ * 
+ * @param {File | Blob} zipFile - The zip file containing documents to classify.
+ * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @throws {Error} Clear error message if validation, network request, or server response fails.
+ */
+export async function batchClassifyDocuments(zipFile) {
+  if (!zipFile) {
+    throw new Error('A valid ZIP archive file is required for batch classification.');
+  }
+
+  const formData = new FormData();
+  formData.append('file', zipFile);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/document/batch-classify`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {
+        // Fallback to response status text if response is not JSON
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error in batch document classification:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
+    }
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Verifies a bidder evidence document against a tender requirement.
+ * 
+ * @param {File | Blob} tenderFile - The tender RFP / criteria document.
+ * @param {File | Blob} bidderFile - The bidder evidence document.
+ * @param {string | number} requirementId - The target requirement ID to evaluate against.
+ * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @throws {Error} Clear error message if validation, network request, or server response fails.
+ */
+export async function verifyBid(tenderFile, bidderFile, requirementId) {
+  if (!tenderFile || !bidderFile || !requirementId) {
+    throw new Error('Tender file, bidder file, and requirement ID are all required to verify a bid.');
+  }
+
+  const formData = new FormData();
+  formData.append('tender_file', tenderFile);
+  formData.append('bidder_file', bidderFile);
+  formData.append('requirement_id', String(requirementId));
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/verify/bid`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {
+        // Fallback to response status text if response is not JSON
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error verifying bid evidence:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
+    }
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
 export default {
   verifyGSTDocument,
   fetchVerificationHistory,
@@ -260,4 +354,6 @@ export default {
   classifyDocument,
   fetchTenderHistory,
   compareEntities,
+  batchClassifyDocuments,
+  verifyBid,
 };

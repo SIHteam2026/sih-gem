@@ -17,11 +17,19 @@ import {
   ShieldCheck,
   Building2,
   SlidersHorizontal,
+  FolderArchive,
+  Play,
+  RotateCcw,
+  Check,
+  XCircle,
+  HelpCircle,
+  Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { analyzeTender } from "@/services/api";
+import { analyzeTender, verifyBid } from "@/services/api";
 import Navbar from "@/components/Navbar";
 import BidderUpload from "@/components/BidderUpload";
+import BatchUpload from "@/components/BatchUpload";
 import ComplianceQueue from "@/components/ComplianceQueue";
 
 interface TenderRequirement {
@@ -37,16 +45,34 @@ interface TenderRequirement {
 
 export default function TenderPage() {
   const [activeTab, setActiveTab] = useState<"tender" | "bidder" | "queue">("tender");
+  const [bidderMode, setBidderMode] = useState<"single" | "batch">("single");
+
+  // Step 1: Tender File & Extraction
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<any | null>(null);
+
+  // Step 2 Bidder Evidence for cross-verification
+  const [bidderDocFile, setBidderDocFile] = useState<File | null>(null);
+
+  // Deep AI Requirement Verification State
+  const [verifyingReqId, setVerifyingReqId] = useState<string | null>(null);
+  const [verificationMap, setVerificationMap] = useState<Record<string, any>>({});
+  const [verificationError, setVerificationError] = useState<Record<string, string>>({});
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setFile(e.target.files[0]);
       setError(null);
       setAnalysisResult(null);
+      setVerificationMap({});
+    }
+  };
+
+  const handleBidderDocChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setBidderDocFile(e.target.files[0]);
     }
   };
 
@@ -67,6 +93,32 @@ export default function TenderPage() {
       setError(err?.message || "An unexpected error occurred while analyzing the tender.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Deep AI Requirement Verification Trigger
+  const handleVerifyRequirement = async (reqId: string) => {
+    if (!file) {
+      setError("Please upload and analyze a tender document first.");
+      return;
+    }
+
+    // If no bidder doc selected yet, use tender file or prompt
+    const docToVerify = bidderDocFile || file;
+
+    setVerifyingReqId(reqId);
+    setVerificationError((prev) => ({ ...prev, [reqId]: "" }));
+
+    try {
+      const result = await verifyBid(file, docToVerify, reqId);
+      setVerificationMap((prev) => ({ ...prev, [reqId]: result }));
+    } catch (err: any) {
+      setVerificationError((prev) => ({
+        ...prev,
+        [reqId]: err?.message || "Deep verification failed for this requirement.",
+      }));
+    } finally {
+      setVerifyingReqId(null);
     }
   };
 
@@ -132,7 +184,7 @@ export default function TenderPage() {
               <div className="text-left">
                 <p className="leading-tight">Tender Extraction</p>
                 <p className={`text-[11px] font-normal ${activeTab === "tender" ? "text-blue-100" : "text-gray-400"}`}>
-                  Extract RFP Criteria
+                  Extract RFP Criteria & Verify
                 </p>
               </div>
             </button>
@@ -157,7 +209,7 @@ export default function TenderPage() {
               <div className="text-left">
                 <p className="leading-tight">Bidder Evidence</p>
                 <p className={`text-[11px] font-normal ${activeTab === "bidder" ? "text-indigo-100" : "text-gray-400"}`}>
-                  Classify PDF Evidence
+                  Single & Batch ZIP Ingestion
                 </p>
               </div>
             </button>
@@ -191,7 +243,7 @@ export default function TenderPage() {
 
         {/* Tab Content Panes with Smooth Transitions */}
         <AnimatePresence mode="wait">
-          {/* STEP 1: Tender Extraction View */}
+          {/* STEP 1: Tender Extraction & Deep Requirement Verification */}
           {activeTab === "tender" && (
             <motion.div
               key="tab-tender"
@@ -289,7 +341,7 @@ export default function TenderPage() {
                 </div>
               </div>
 
-              {/* Extracted Tender Requirements Cards */}
+              {/* Extracted Tender Requirements Cards with Deep AI Verification Trigger */}
               {analysisResult && (
                 <div className="space-y-6">
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -309,7 +361,7 @@ export default function TenderPage() {
                       onClick={() => setActiveTab("bidder")}
                       className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
                     >
-                      Proceed to Step 2: Bidder Upload
+                      Proceed to Step 2: Bidder Ingestion
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -321,12 +373,16 @@ export default function TenderPage() {
                         const category = req.category || "General Requirement";
                         const isMandatory = req.mandatory === true || req.is_mandatory === true;
                         const evidenceList = getEvidenceList(req.evidence_required);
+                        const isVerifyingThis = verifyingReqId === reqId;
+                        const vResult = verificationMap[reqId];
+                        const vError = verificationError[reqId];
 
                         return (
                           <div
                             key={reqId || index}
-                            className="bg-white rounded-xl shadow-sm border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all p-6 space-y-4"
+                            className="bg-white rounded-xl shadow-sm border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all p-6 space-y-5"
                           >
+                            {/* Header row */}
                             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-gray-100">
                               <div className="flex items-center gap-2.5">
                                 <span className="font-mono font-bold text-xs px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
@@ -338,18 +394,21 @@ export default function TenderPage() {
                                 </span>
                               </div>
 
-                              {isMandatory ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300 uppercase tracking-wide">
-                                  <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
-                                  Mandatory
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
-                                  Optional
-                                </span>
-                              )}
+                              <div className="flex items-center gap-2">
+                                {isMandatory ? (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300 uppercase tracking-wide">
+                                    <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                                    Mandatory
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                                    Optional
+                                  </span>
+                                )}
+                              </div>
                             </div>
 
+                            {/* Description */}
                             <div>
                               <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Description</h5>
                               <p className="text-sm text-gray-700 leading-relaxed bg-gray-50/80 p-3.5 rounded-lg border border-gray-100">
@@ -357,6 +416,7 @@ export default function TenderPage() {
                               </p>
                             </div>
 
+                            {/* Evidence Required */}
                             {evidenceList.length > 0 && (
                               <div>
                                 <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
@@ -371,6 +431,69 @@ export default function TenderPage() {
                                   ))}
                                 </ul>
                               </div>
+                            )}
+
+                            {/* Deep AI Verification Interactive Action Button */}
+                            <div className="pt-2 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+                              <span className="text-xs text-gray-500">
+                                Evaluate bidder compliance against criterion <strong>{reqId}</strong>
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() => handleVerifyRequirement(reqId)}
+                                disabled={isVerifyingThis}
+                                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-xs ${
+                                  isVerifyingThis
+                                    ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                                    : "bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white cursor-pointer"
+                                }`}
+                              >
+                                {isVerifyingThis ? (
+                                  <>
+                                    <svg className="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                    </svg>
+                                    Running Deep Check...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Zap className="w-3.5 h-3.5 text-yellow-300" />
+                                    Run Deep AI Verification
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
+                            {/* Deep Verification Outcome Display */}
+                            {vError && (
+                              <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
+                                <strong>Verification Error:</strong> {vError}
+                              </div>
+                            )}
+
+                            {vResult && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                className="p-4 bg-emerald-50/80 rounded-lg border border-emerald-200 space-y-2 text-xs text-emerald-900"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-bold flex items-center gap-1 text-emerald-800">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                    Deep AI Bid Verification Outcome
+                                  </span>
+                                  {vResult.status && (
+                                    <span className="px-2 py-0.5 font-bold rounded bg-emerald-200/80 text-emerald-900 uppercase">
+                                      {vResult.status}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-gray-800 leading-relaxed font-sans">
+                                  {vResult.reasoning || vResult.explanation || vResult.message || JSON.stringify(vResult)}
+                                </p>
+                              </motion.div>
                             )}
                           </div>
                         );
@@ -395,7 +518,7 @@ export default function TenderPage() {
             </motion.div>
           )}
 
-          {/* STEP 2: Bidder Document Upload & Classification */}
+          {/* STEP 2: Bidder Document Ingestion: Single File & Batch ZIP Upload */}
           {activeTab === "bidder" && (
             <motion.div
               key="tab-bidder"
@@ -405,7 +528,38 @@ export default function TenderPage() {
               transition={{ duration: 0.25 }}
               className="space-y-6"
             >
-              <BidderUpload />
+              {/* Ingestion Mode Toggle */}
+              <div className="flex items-center justify-center">
+                <div className="bg-gray-200/80 p-1 rounded-xl flex items-center gap-1 shadow-inner">
+                  <button
+                    type="button"
+                    onClick={() => setBidderMode("single")}
+                    className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                      bidderMode === "single"
+                        ? "bg-white text-indigo-700 shadow-sm"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    Single Document Classifier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBidderMode("batch")}
+                    className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                      bidderMode === "batch"
+                        ? "bg-white text-violet-700 shadow-sm"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    <FolderArchive className="w-3.5 h-3.5" />
+                    Bulk ZIP Archive Ingestion
+                  </button>
+                </div>
+              </div>
+
+              {/* Ingestion Component Render */}
+              {bidderMode === "single" ? <BidderUpload /> : <BatchUpload />}
 
               <div className="flex justify-between items-center p-4 bg-white rounded-xl border border-gray-200">
                 <button
@@ -445,14 +599,14 @@ export default function TenderPage() {
                   onClick={() => setActiveTab("bidder")}
                   className="px-4 py-2 text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                 >
-                  ← Back to Bidder Document Upload
+                  ← Back to Bidder Ingestion
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab("tender")}
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
                 >
-                  Start New Tender Evaluation
+                  Start New Evaluation
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
