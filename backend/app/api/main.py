@@ -19,12 +19,16 @@ try:
     from backend.app.api.gov_fetcher import verify_gstin_external
     from backend.app.rules.gst_rules import evaluate_gst
     from backend.app.db.client import get_supabase_client
+    from backend.app.services.tender_service import analyze_tender
+    from backend.app.models.tender import TenderAnalysisResult
 except ImportError:
     from app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
     from app.extractors.gemini_gst import extract_gst_fields
     from app.api.gov_fetcher import verify_gstin_external
     from app.rules.gst_rules import evaluate_gst
     from app.db.client import get_supabase_client
+    from app.services.tender_service import analyze_tender
+    from app.models.tender import TenderAnalysisResult
 
 app = FastAPI(title="Evidence Engine API")
 
@@ -61,6 +65,41 @@ async def get_gst_history():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch verification history: {str(e)}",
+        )
+
+
+@app.post("/api/tender/analyze", response_model=TenderAnalysisResult)
+async def analyze_tender_endpoint(file: UploadFile = File(...)):
+    """Analyzes an uploaded tender document and extracts compliance requirements."""
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file format. Only PDF files are supported.",
+        )
+
+    try:
+        file_bytes = await file.read()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to read uploaded tender document: {str(e)}",
+        )
+
+    if not file_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded tender file is empty.",
+        )
+
+    try:
+        result = await analyze_tender(file_bytes)
+        logger.info("Tender analysis completed successfully for %s", file.filename)
+        return result
+    except Exception as err:
+        logger.error("Tender analysis failed for %s: %s", file.filename, err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Tender analysis failed: {str(err)}",
         )
 
 
