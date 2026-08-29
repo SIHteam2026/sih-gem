@@ -174,9 +174,90 @@ export async function classifyDocument(file) {
   }
 }
 
+/**
+ * Fetches historical tender analysis records.
+ * 
+ * @returns {Promise<Array | Object>} The parsed JSON array of tender history records.
+ * @throws {Error} Clear error message if validation, network request, or server response fails.
+ */
+export async function fetchTenderHistory() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/history/tender`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {
+        // Fallback to response status text if response is not JSON
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching tender history:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
+    }
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Compares two entity / company names for similarity and matching.
+ * 
+ * @param {string} name1 - First entity name.
+ * @param {string} name2 - Second entity name.
+ * @returns {Promise<Object>} The parsed JSON response comparing the entities.
+ * @throws {Error} Clear error message if validation, network request, or server response fails.
+ */
+export async function compareEntities(name1, name2) {
+  try {
+    const queryParams = new URLSearchParams({
+      name1: String(name1 || ''),
+      name2: String(name2 || ''),
+    });
+
+    const response = await fetch(`${API_BASE_URL}/api/entity/compare?${queryParams.toString()}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {
+        // Fallback to response status text if response is not JSON
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error comparing entities:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
+    }
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
 export default {
   verifyGSTDocument,
   fetchVerificationHistory,
   analyzeTender,
   classifyDocument,
+  fetchTenderHistory,
+  compareEntities,
 };
