@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck, PlusCircle, History } from "lucide-react";
+import { ShieldCheck, PlusCircle, History, FileText } from "lucide-react";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -35,6 +35,18 @@ export default function Navbar() {
             >
               <PlusCircle className="w-4 h-4" />
               <span>New Verification</span>
+            </Link>
+
+            <Link
+              href="/tender"
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
+                pathname === "/tender"
+                  ? "bg-blue-50 text-blue-700 font-semibold"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              <span>Tender Intelligence</span>
             </Link>
 
             <Link
