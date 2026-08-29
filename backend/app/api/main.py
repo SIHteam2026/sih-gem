@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import inspect
 import json
 import logging
@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
+from pydantic import BaseModel, Field
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -29,6 +30,7 @@ try:
     from backend.app.models.entity import EntityMatchResult
     from backend.app.services.master_pipeline import run_master_verification
     from backend.app.services.zip_processor import process_bidder_zip
+    from backend.app.ai.chat_service import answer_procurement_question
 except ImportError:
     from app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
     from app.extractors.gemini_gst import extract_gst_fields
@@ -44,6 +46,14 @@ except ImportError:
     from app.models.entity import EntityMatchResult
     from app.services.master_pipeline import run_master_verification
     from app.services.zip_processor import process_bidder_zip
+    from app.ai.chat_service import answer_procurement_question
+
+
+class ChatQuery(BaseModel):
+    """Pydantic model for procurement Q&A queries."""
+    question: str = Field(..., description="The user's question regarding the procurement documents.")
+    context_text: str = Field(..., description="The context text extracted from tender or bidder documents.")
+
 
 app = FastAPI(title="Evidence Engine API")
 
@@ -236,6 +246,23 @@ def compare_entities_endpoint(
 ):
     """Normalizes and compares two entity names using fuzzy sequence matching."""
     return compare_entities(name1, name2)
+
+
+@app.post("/api/chat/ask")
+async def chat_ask_endpoint(query: ChatQuery):
+    """Answers a user inquiry strictly using the provided tender or bidder document context."""
+    try:
+        answer = await answer_procurement_question(
+            question=query.question,
+            context_text=query.context_text,
+        )
+        return {"answer": answer, "question": query.question}
+    except Exception as e:
+        logger.error("Chat Q&A endpoint error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Chat Q&A failed: {str(e)}",
+        )
 
 
 @app.post("/api/verify/bid")
