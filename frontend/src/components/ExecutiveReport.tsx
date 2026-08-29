@@ -261,6 +261,42 @@ export default function ExecutiveReport({
           </div>
         </div>
       </div>
+
+      {/* Bottom CPO Summary Card Action Footer */}
+      <div className="bg-slate-100/90 px-8 py-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-4 font-sans print:hidden">
+        <div className="flex items-center gap-2 text-xs text-slate-600">
+          <Shield className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+          <span className="font-medium">
+            Official CPO Vigilance Verdict · Ready for statutory audit submission
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={handlePrint}
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-extrabold rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer"
+        >
+          <Printer className="w-4 h-4 text-white" />
+          Export Official PDF Report
+        </button>
+      </div>
+
+      {/* Print-specific style overrides */}
+      <style jsx global>{`
+        @media print {
+          /* Hide non-printable navigation, buttons, and UI controls */
+          header, navbar, nav, button, .print\\:hidden {
+            display: none !important;
+          }
+          body {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+          }
+          .shadow-md, .shadow-sm, .shadow-2xs {
+            box-shadow: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
