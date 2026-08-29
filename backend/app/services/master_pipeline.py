@@ -5,8 +5,9 @@ Executes the unified multi-stage intelligence pipeline:
 2. AI Tender requirement analysis and ambiguity detection.
 3. Target requirement selection.
 4. Bidder document PDF text extraction.
-5. AI Evidence and verbatim proof extraction.
-6. AI Contradiction and compliance state evaluation.
+5. Deterministic regex checks (e.g. GSTIN, PAN) with fast-fail.
+6. AI Evidence and verbatim proof extraction.
+7. AI Contradiction and compliance state evaluation.
 """
 
 import logging
@@ -28,20 +29,37 @@ try:
     from backend.app.ai.llm_evaluator_service import evaluate_compliance
     from backend.app.ai.llm_evidence_service import extract_evidence_with_llm
     from backend.app.ai.llm_service import analyze_tender_with_llm
+    from backend.app.rules.validators import run_deterministic_checks
     from backend.app.services.pdf_parser import extract_text_from_pdf
 except ImportError:
     try:
         from app.ai.llm_evaluator_service import evaluate_compliance
         from app.ai.llm_evidence_service import extract_evidence_with_llm
         from app.ai.llm_service import analyze_tender_with_llm
+        from app.rules.validators import run_deterministic_checks
         from app.services.pdf_parser import extract_text_from_pdf
     except ImportError:
         from ai.llm_evaluator_service import evaluate_compliance
         from ai.llm_evidence_service import extract_evidence_with_llm
         from ai.llm_service import analyze_tender_with_llm
+        from rules.validators import run_deterministic_checks
         from services.pdf_parser import extract_text_from_pdf
 
 logger = logging.getLogger(__name__)
+
+
+def _identify_document_type(matched_req: Any, text: str) -> str:
+    """Identifies the expected document type from the requirement and bidder document text."""
+    category_str = str(getattr(matched_req, "category", "")).upper()
+    desc_str = str(getattr(matched_req, "description", "")).upper()
+    evidence_str = str(getattr(matched_req, "evidence_required", "")).upper()
+    text_upper = (text or "").upper()
+
+    if "GST" in category_str or "GST" in desc_str or "GST" in evidence_str or "FORM GST" in text_upper:
+        return "GST_CERTIFICATE"
+    elif "PAN" in desc_str or "PAN" in evidence_str or "PAN" in category_str or "PERMANENT ACCOUNT" in text_upper:
+        return "PAN_CARD"
+    return "OTHER"
 
 
 async def run_master_verification(
@@ -100,17 +118,52 @@ async def run_master_verification(
             detail=f"Target requirement '{target_requirement_id}' was not found in the analyzed tender.",
         )
 
-    # 4. Extract text from bidder proof document
+    # 4. Extract text from bidder proof document and identify document type
     bidder_text = await extract_text_from_pdf(bidder_doc_bytes)
+    doc_type = _identify_document_type(matched_req, bidder_text)
 
-    # 5. Extract evidence for the specific target requirement
+    # 5. Deterministic Regex Validation (Fast-fail check)
+    if doc_type in ("GST_CERTIFICATE", "PAN_CARD"):
+        check_result = await run_deterministic_checks(
+            document_type=doc_type,
+            extracted_text=bidder_text,
+        )
+        if not check_result.get("is_valid", False):
+            validation_errors = check_result.get("validation_errors", [])
+            logger.info(
+                "Deterministic validation failed for %s (%s). Skipping LLM evaluation.",
+                matched_req.requirement_id,
+                doc_type,
+            )
+            req_dict = matched_req.model_dump() if hasattr(matched_req, "model_dump") else matched_req
+            evidence_dict = {
+                "requirement_id": matched_req.requirement_id,
+                "is_present": False,
+                "extracted_values": {"validation_errors": validation_errors},
+                "source_quote": "; ".join(validation_errors),
+                "extraction_confidence": 1.0,
+            }
+            finding_dict = {
+                "requirement_id": matched_req.requirement_id,
+                "state": "NON_COMPLIANT",
+                "risk_level": "HIGH",
+                "reasoning_trace": f"Deterministic regex validation failed: {'; '.join(validation_errors)}",
+            }
+            return {
+                "tender_id": tender_analysis.tender_id,
+                "requirement": req_dict,
+                "extracted_evidence": evidence_dict,
+                "compliance_finding": finding_dict,
+            }
+
+    # 6. Extract evidence for the specific target requirement via LLM
     extracted_evidence = await extract_evidence_with_llm(
         document_text=bidder_text,
         requirement_id=matched_req.requirement_id,
         requirement_description=matched_req.description,
     )
 
-    # 6. Evaluate compliance state and contradiction
+    # 7. Evaluate compliance state and contradiction via LLM
     req_dict = matched_req.model_dump() if hasattr(matched_req, "model_dump") else matched_req
     evidence_dict = (
         extracted_evidence.model_dump()
@@ -129,7 +182,7 @@ async def run_master_verification(
         else compliance_finding
     )
 
-    # 7. Assemble Unified Verification Dictionary
+    # 8. Assemble Unified Verification Dictionary
     unified_report = {
         "tender_id": tender_analysis.tender_id,
         "requirement": req_dict,
