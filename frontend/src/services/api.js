@@ -576,6 +576,55 @@ export async function generateAwardContract(tenderData, winnerData) {
   }
 }
 
+/**
+ * Performs complete end-to-end master evaluation of a tender and bidder documents in a single call.
+ *
+ * @param {File} tenderFile - The tender PDF file.
+ * @param {File} [bidderFile] - The bidder PDF/evidence file.
+ * @returns {Promise<Object>} The unified master evaluation JSON response from the server.
+ * @throws {Error} Clear error message if validation, network request, or server response fails.
+ */
+export async function evaluateComplete(tenderFile, bidderFile) {
+  if (!tenderFile) {
+    throw new Error('Tender document file is required for complete evaluation.');
+  }
+
+  const formData = new FormData();
+  formData.append('tender_file', tenderFile);
+  if (bidderFile) {
+    formData.append('bidder_file', bidderFile);
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/evaluate/complete`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {
+        // Fallback to response status text if response is not JSON
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error executing complete evaluation:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
+    }
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
 export default {
   verifyGSTDocument,
   fetchVerificationHistory,
@@ -590,4 +639,5 @@ export default {
   generateExecutiveReport,
   generateShortfallNotice,
   generateAwardContract,
+  evaluateComplete,
 };
