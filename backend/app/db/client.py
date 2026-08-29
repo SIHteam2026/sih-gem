@@ -1,9 +1,9 @@
-﻿import asyncio
+import asyncio
 from datetime import datetime, timezone
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 from dotenv import find_dotenv, load_dotenv
 from supabase import Client, create_client
 
@@ -63,3 +63,39 @@ async def insert_tender_analysis(tender_id: str, analysis_data: Dict[str, Any]) 
         logger.info("Successfully persisted tender analysis for %s to Supabase.", tender_id)
     except Exception as db_err:
         logger.warning("Failed to persist tender analysis to Supabase (non-blocking): %s", db_err)
+
+
+async def insert_bid_evaluation(bid_id: str, evaluation_data: Dict[str, Any]) -> None:
+    """Inserts a bid evaluation record into the Supabase bid_evaluations table."""
+    try:
+        db_client = get_supabase_client()
+        record = {
+            "bid_id": bid_id,
+            "evaluation_data": evaluation_data,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await asyncio.to_thread(
+            lambda: db_client.table("bid_evaluations").insert(record).execute()
+        )
+        logger.info("Successfully persisted bid evaluation for %s to Supabase.", bid_id)
+    except Exception as db_err:
+        logger.warning("Failed to persist bid evaluation to Supabase (non-blocking): %s", db_err)
+
+
+async def get_bid_evaluations(limit: int = 20) -> List[Dict[str, Any]]:
+    """Fetches recent bid evaluations from Supabase."""
+    try:
+        db_client = get_supabase_client()
+        response = await asyncio.to_thread(
+            lambda: (
+                db_client.table("bid_evaluations")
+                .select("*")
+                .order("created_at", desc=True)
+                .limit(limit)
+                .execute()
+            )
+        )
+        return response.data if response and hasattr(response, "data") else []
+    except Exception as exc:
+        logger.warning("Failed to fetch bid evaluations: %s", exc)
+        return []
