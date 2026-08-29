@@ -32,6 +32,7 @@ try:
     from backend.app.ai.llm_service import analyze_tender_with_llm
     from backend.app.rules.validators import run_deterministic_checks
     from backend.app.services.pdf_parser import extract_text_from_pdf
+    from backend.app.services.rag_service import retrieve_relevant_clauses
 except ImportError:
     try:
         from app.ai.llm_evaluator_service import evaluate_compliance
@@ -39,12 +40,14 @@ except ImportError:
         from app.ai.llm_service import analyze_tender_with_llm
         from app.rules.validators import run_deterministic_checks
         from app.services.pdf_parser import extract_text_from_pdf
+        from app.services.rag_service import retrieve_relevant_clauses
     except ImportError:
         from ai.llm_evaluator_service import evaluate_compliance
         from ai.llm_evidence_service import extract_evidence_with_llm
         from ai.llm_service import analyze_tender_with_llm
         from rules.validators import run_deterministic_checks
         from services.pdf_parser import extract_text_from_pdf
+        from services.rag_service import retrieve_relevant_clauses
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +222,12 @@ async def run_master_verification(
         requirement_description=matched_req.description,
     )
 
-    # 7. Evaluate compliance state and contradiction via LLM
+    # 7. Retrieve official legal context via ChromaDB RAG
+    legal_context = await retrieve_relevant_clauses(
+        "MSME exemptions, financial turnover requirements, and document compliance"
+    )
+
+    # 8. Evaluate compliance state and contradiction via LLM grounded in official rulebook
     req_dict = matched_req.model_dump() if hasattr(matched_req, "model_dump") else matched_req
     evidence_dict = (
         extracted_evidence.model_dump()
@@ -230,6 +238,7 @@ async def run_master_verification(
     compliance_finding = await evaluate_compliance(
         requirement=req_dict,
         evidence=evidence_dict,
+        legal_context=legal_context,
     )
 
     finding_dict = (
@@ -238,7 +247,7 @@ async def run_master_verification(
         else compliance_finding
     )
 
-    # 8. Assemble Unified Verification Dictionary
+    # 9. Assemble Unified Verification Dictionary
     finding_state = str(finding_dict.get("state", "")).upper()
     recommendation = (
         "ACCEPT"
@@ -256,6 +265,7 @@ async def run_master_verification(
         "extracted_evidence": evidence_dict,
         "compliance_finding": finding_dict,
         "final_recommendation": recommendation,
+        "legal_context": legal_context,
     }
 
     logger.info(

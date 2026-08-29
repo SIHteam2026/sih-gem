@@ -73,12 +73,17 @@ def _normalize_risk_level(risk_str: str) -> str:
     return "MEDIUM"
 
 
-async def evaluate_compliance(requirement: dict, evidence: dict) -> ComplianceFinding:
+async def evaluate_compliance(
+    requirement: dict,
+    evidence: dict,
+    legal_context: str | None = None,
+) -> ComplianceFinding:
     """Evaluates whether extracted bidder evidence satisfies a tender requirement.
 
     Args:
         requirement (dict): Structured tender requirement object.
         evidence (dict): Extracted bidder evidence object.
+        legal_context (str | None): Optional official legal context retrieved from RAG.
 
     Returns:
         ComplianceFinding: Validated compliance determination model.
@@ -93,13 +98,18 @@ async def evaluate_compliance(requirement: dict, evidence: dict) -> ComplianceFi
     if current_key:
         genai.configure(api_key=current_key)
 
-    prompt = (
-        f"{CONTRADICTION_ANALYSIS_PROMPT}\n\n"
+    prompt_parts = [CONTRADICTION_ANALYSIS_PROMPT]
+    if legal_context and legal_context.strip():
+        prompt_parts.append(f"### Government Rulebook & Legal Guidance:\n{legal_context.strip()}")
+
+    prompt_parts.append(
         "### Tender Requirement:\n"
         f"{json.dumps(requirement, indent=2, default=str)}\n\n"
         "### Extracted Bidder Evidence:\n"
         f"{json.dumps(evidence, indent=2, default=str)}"
     )
+
+    prompt = "\n\n".join(prompt_parts)
 
     generation_config = {
         "response_mime_type": "application/json",
