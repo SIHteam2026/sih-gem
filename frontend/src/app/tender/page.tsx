@@ -16,6 +16,7 @@ import {
 import { motion } from "framer-motion";
 import { analyzeTender } from "@/services/api";
 import Navbar from "@/components/Navbar";
+import BidderUpload from "@/components/BidderUpload";
 
 interface TenderRequirement {
   requirement_id?: string;
@@ -199,7 +200,7 @@ export default function TenderPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            className="space-y-6"
+            className="space-y-8"
           >
             {/* Header Summary Banner */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -208,14 +209,14 @@ export default function TenderPage() {
                   <ClipboardList className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-extrabold text-gray-900">Extracted Tender Requirements</h3>
+                  <h3 className="text-xl font-extrabold text-gray-900">Step 1: Extracted Tender Requirements</h3>
                   <p className="text-sm text-gray-500 mt-0.5">
-                    Found {requirements.length} requirement {requirements.length === 1 ? "criterion" : "criteria"} in document
+                    Found {requirements.length} requirement {requirements.length === 1 ? "criterion" : "criteria"} in tender document
                   </p>
                 </div>
               </div>
               <span className="self-start sm:self-auto px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-300">
-                ✅ Analysis Complete
+                ✅ Extraction Complete
               </span>
             </div>
 
@@ -296,6 +297,11 @@ export default function TenderPage() {
                 </p>
               </div>
             )}
+
+            {/* Step 2: Bidder Upload & Classification Component directly below requirements */}
+            <div className="pt-2">
+              <BidderUpload />
+            </div>
 
             {/* Raw JSON Payload Viewer */}
             <div className="bg-gray-900 rounded-xl overflow-hidden shadow-sm border border-gray-800">
