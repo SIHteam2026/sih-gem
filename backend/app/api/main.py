@@ -43,6 +43,7 @@ try:
         insert_tender_analysis,
         insert_bid_evaluation,
         get_bid_evaluations,
+        get_analytics_summary,
     )
     from backend.app.services.tender_service import analyze_tender
     from backend.app.models.tender import TenderAnalysisResult
@@ -197,6 +198,33 @@ async def get_gst_history():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch verification history: {str(exc)}",
         )
+
+
+# ---------------------------------------------------------------------------
+# Analytics Summary for Administrative Reporting
+# ---------------------------------------------------------------------------
+@app.get("/api/analytics/summary")
+async def get_analytics_summary_endpoint():
+    """Queries all historical tender evaluations and returns an aggregated analytics payload
+    containing total bids processed, approval rate percentage, average trust score,
+    and total fraud flags triggered."""
+    try:
+        summary = await get_analytics_summary()
+        logger.info(
+            "Analytics summary fetched: %d bids processed (Approval rate: %.1f%%, Avg trust score: %.1f, Fraud flags: %d)",
+            summary.get("total_bids_processed", 0),
+            summary.get("approval_rate_percentage", 0.0),
+            summary.get("average_trust_score", 0.0),
+            summary.get("total_fraud_flags_triggered", 0),
+        )
+        return summary
+    except Exception as err:
+        logger.error("Failed to generate analytics summary: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate analytics summary: {str(err)}",
+        )
+
 
 # ---------------------------------------------------------------------------
 # Tender analysis endpoint
