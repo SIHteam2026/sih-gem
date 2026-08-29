@@ -6,7 +6,7 @@ import os
 import tempfile
 import uuid
 from pathlib import Path
-from fastapi import FastAPI, File, HTTPException, UploadFile, status
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 
@@ -25,6 +25,8 @@ try:
     from backend.app.services.pdf_parser import extract_text_from_pdf as extract_pdf_text_service
     from backend.app.services.document_classifier import classify_document
     from backend.app.models.document import DocumentClassificationResult
+    from backend.app.services.entity_resolution import compare_entities
+    from backend.app.models.entity import EntityMatchResult
 except ImportError:
     from app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
     from app.extractors.gemini_gst import extract_gst_fields
@@ -36,6 +38,8 @@ except ImportError:
     from app.services.pdf_parser import extract_text_from_pdf as extract_pdf_text_service
     from app.services.document_classifier import classify_document
     from app.models.document import DocumentClassificationResult
+    from app.services.entity_resolution import compare_entities
+    from app.models.entity import EntityMatchResult
 
 app = FastAPI(title="Evidence Engine API")
 
@@ -178,6 +182,15 @@ async def classify_document_endpoint(file: UploadFile = File(...)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Document classification failed: {str(err)}",
         )
+
+
+@app.get("/api/entity/compare", response_model=EntityMatchResult)
+def compare_entities_endpoint(
+    name1: str = Query(..., description="First entity/corporate name to compare."),
+    name2: str = Query(..., description="Second entity/corporate name to compare."),
+):
+    """Normalizes and compares two entity names using fuzzy sequence matching."""
+    return compare_entities(name1, name2)
 
 
 @app.post("/api/verify/gst")
