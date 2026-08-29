@@ -1,11 +1,11 @@
-﻿"""Tender Intelligence Engine Pydantic Models.
+"""Tender Intelligence Engine Pydantic Models.
 
 Defines the core data models and enums for parsing, categorizing, and analyzing
 tender requirements and compliance criteria.
 """
 
 from enum import Enum
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -26,6 +26,14 @@ class TenderRequirement(BaseModel):
     evidence_required: List[str] = Field(
         default_factory=list,
         description="List of required evidence documents or proofs.",
+    )
+    is_ambiguous: bool = Field(
+        default=False,
+        description="Flag indicating if the requirement contains vague or underspecified criteria.",
+    )
+    ambiguity_reason: Optional[str] = Field(
+        default=None,
+        description="Explanation of missing metrics or ambiguity in the clause.",
     )
 
 

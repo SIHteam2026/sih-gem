@@ -1,57 +1,49 @@
-﻿"""Tender Intelligence Service Module.
+"""Tender Intelligence Service Module.
 
 Provides services for analyzing tender documents, parsing compliance criteria,
-and generating structured tender requirement models.
+and generating structured tender requirement models via the live AI extraction pipeline.
 """
 
+import sys
+from pathlib import Path
+
+# Ensure project root and backend paths are available for imports
+_current_file = Path(__file__).resolve()
+_backend_dir = _current_file.parent.parent.parent
+_root_dir = _backend_dir.parent
+for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
 try:
-    from backend.app.models.tender import (
-        RequirementCategory,
-        TenderAnalysisResult,
-        TenderRequirement,
-    )
+    from backend.app.models.tender import TenderAnalysisResult
+    from backend.app.services.pdf_parser import extract_text_from_pdf
+    from backend.app.ai.llm_service import analyze_tender_with_llm
 except ImportError:
-    from app.models.tender import (
-        RequirementCategory,
-        TenderAnalysisResult,
-        TenderRequirement,
-    )
+    try:
+        from app.models.tender import TenderAnalysisResult
+        from app.services.pdf_parser import extract_text_from_pdf
+        from app.ai.llm_service import analyze_tender_with_llm
+    except ImportError:
+        from models.tender import TenderAnalysisResult
+        from services.pdf_parser import extract_text_from_pdf
+        from ai.llm_service import analyze_tender_with_llm
 
 
 async def analyze_tender(file_bytes: bytes) -> TenderAnalysisResult:
-    """Analyzes tender document bytes and extracts structured compliance requirements.
+    """Analyzes tender document bytes and extracts structured compliance requirements
+    using the live PDF extraction and Gemini AI intelligence pipeline.
 
     Args:
-        file_bytes (bytes): Raw bytes of the uploaded tender document.
+        file_bytes (bytes): Raw bytes of the uploaded tender PDF document.
 
     Returns:
-        TenderAnalysisResult: Structured requirements matching the Master Directive.
+        TenderAnalysisResult: Validated Pydantic model with extracted requirements and ambiguity analysis.
     """
-    mock_requirements = [
-        TenderRequirement(
-            requirement_id="REQ-GST-01",
-            category=RequirementCategory.GST,
-            description="Bidder must possess a valid and active GST registration.",
-            mandatory=True,
-            evidence_required=["GSTIN"],
-        ),
-        TenderRequirement(
-            requirement_id="REQ-OEM-01",
-            category=RequirementCategory.OEM_AUTH,
-            description="Bidder must provide an authentic manufacturer authorization from the OEM.",
-            mandatory=True,
-            evidence_required=["OEM authorization letter"],
-        ),
-        TenderRequirement(
-            requirement_id="REQ-LC-01",
-            category=RequirementCategory.LOCAL_CONTENT,
-            description="Minimum local content requirement of >=20% under Public Procurement / Make in India policy.",
-            mandatory=True,
-            evidence_required=["Declaration"],
-        ),
-    ]
+    # Step 1: Extract cleaned text from PDF bytes
+    text = await extract_text_from_pdf(file_bytes)
 
-    return TenderAnalysisResult(
-        tender_id="TENDER-MOCK-2026-001",
-        requirements=mock_requirements,
-    )
+    # Step 2: Pass extracted text through Gemini LLM with Ambiguity Radar
+    result = await analyze_tender_with_llm(text)
+
+    return result
