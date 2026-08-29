@@ -6,7 +6,7 @@ import os
 import tempfile
 import uuid
 from pathlib import Path
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile, status
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 
@@ -27,6 +27,7 @@ try:
     from backend.app.models.document import DocumentClassificationResult
     from backend.app.services.entity_resolution import compare_entities
     from backend.app.models.entity import EntityMatchResult
+    from backend.app.services.master_pipeline import run_master_verification
 except ImportError:
     from app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
     from app.extractors.gemini_gst import extract_gst_fields
@@ -40,6 +41,7 @@ except ImportError:
     from app.models.document import DocumentClassificationResult
     from app.services.entity_resolution import compare_entities
     from app.models.entity import EntityMatchResult
+    from app.services.master_pipeline import run_master_verification
 
 app = FastAPI(title="Evidence Engine API")
 
@@ -191,6 +193,58 @@ def compare_entities_endpoint(
 ):
     """Normalizes and compares two entity names using fuzzy sequence matching."""
     return compare_entities(name1, name2)
+
+
+@app.post("/api/verify/bid")
+async def verify_bid_endpoint(
+    tender_file: UploadFile = File(...),
+    bidder_file: UploadFile = File(...),
+    requirement_id: str = Form(...),
+):
+    """Executes the master verification pipeline against a tender requirement and bidder proof document."""
+    # Validate PDF formats
+    for f, name in [(tender_file, "Tender document"), (bidder_file, "Bidder document")]:
+        if not f.filename or not f.filename.lower().endswith(".pdf"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid format for {name}. Only PDF files are supported.",
+            )
+
+    try:
+        tender_bytes = await tender_file.read()
+        bidder_bytes = await bidder_file.read()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to read uploaded files: {str(e)}",
+        )
+
+    if not tender_bytes or not bidder_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded files cannot be empty.",
+        )
+
+    try:
+        result = await run_master_verification(
+            tender_bytes=tender_bytes,
+            bidder_doc_bytes=bidder_bytes,
+            target_requirement_id=requirement_id,
+        )
+        logger.info(
+            "Bid verification completed successfully for requirement %s (finding: %s)",
+            requirement_id,
+            result.get("compliance_finding", {}).get("state"),
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error("Master verification pipeline failed: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Master verification pipeline failed: {str(err)}",
+        )
 
 
 @app.post("/api/verify/gst")
