@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import inspect
 import json
 import logging
@@ -21,6 +21,9 @@ try:
     from backend.app.db.client import get_supabase_client
     from backend.app.services.tender_service import analyze_tender
     from backend.app.models.tender import TenderAnalysisResult
+    from backend.app.services.pdf_parser import extract_text_from_pdf as extract_pdf_text_service
+    from backend.app.services.document_classifier import classify_document
+    from backend.app.models.document import DocumentClassificationResult
 except ImportError:
     from app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
     from app.extractors.gemini_gst import extract_gst_fields
@@ -29,6 +32,9 @@ except ImportError:
     from app.db.client import get_supabase_client
     from app.services.tender_service import analyze_tender
     from app.models.tender import TenderAnalysisResult
+    from app.services.pdf_parser import extract_text_from_pdf as extract_pdf_text_service
+    from app.services.document_classifier import classify_document
+    from app.models.document import DocumentClassificationResult
 
 app = FastAPI(title="Evidence Engine API")
 
@@ -100,6 +106,49 @@ async def analyze_tender_endpoint(file: UploadFile = File(...)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Tender analysis failed: {str(err)}",
+        )
+
+
+@app.post("/api/document/classify", response_model=DocumentClassificationResult)
+async def classify_document_endpoint(file: UploadFile = File(...)):
+    """Extracts text from an uploaded PDF and classifies the bidder document type."""
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file format. Only PDF files are supported.",
+        )
+
+    try:
+        file_bytes = await file.read()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to read uploaded document: {str(e)}",
+        )
+
+    if not file_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is empty.",
+        )
+
+    try:
+        raw_text = await extract_pdf_text_service(file_bytes)
+        result = classify_document(raw_text)
+        logger.info(
+            "Document classification for %s: %s (confidence: %.2f)",
+            file.filename,
+            result.category.value,
+            result.confidence,
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error("Document classification failed for %s: %s", file.filename, err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Document classification failed: {str(err)}",
         )
 
 
