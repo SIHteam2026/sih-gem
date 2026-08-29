@@ -31,6 +31,7 @@ try:
     from backend.app.services.master_pipeline import run_master_verification
     from backend.app.services.zip_processor import process_bidder_zip
     from backend.app.ai.chat_service import answer_procurement_question
+    from backend.app.services.boq_parser import extract_financial_tables
 except ImportError:
     from app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
     from app.extractors.gemini_gst import extract_gst_fields
@@ -47,6 +48,7 @@ except ImportError:
     from app.services.master_pipeline import run_master_verification
     from app.services.zip_processor import process_bidder_zip
     from app.ai.chat_service import answer_procurement_question
+    from app.services.boq_parser import extract_financial_tables
 
 
 class ChatQuery(BaseModel):
@@ -236,6 +238,47 @@ async def batch_classify_documents_endpoint(file: UploadFile = File(...)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Batch document classification failed: {str(err)}",
+        )
+
+
+@app.post("/api/document/extract-tables")
+async def extract_tables_endpoint(file: UploadFile = File(...)):
+    """Extracts structured financial and BoQ tables from an uploaded PDF document."""
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file format. Only PDF files are supported.",
+        )
+
+    try:
+        file_bytes = await file.read()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to read uploaded document: {str(e)}",
+        )
+
+    if not file_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is empty.",
+        )
+
+    try:
+        tables = await extract_financial_tables(file_bytes)
+        logger.info(
+            "Table extraction completed for %s: %d rows extracted",
+            file.filename,
+            len(tables),
+        )
+        return tables
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error("Financial table extraction failed for %s: %s", file.filename, err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to extract financial tables: {str(err)}",
         )
 
 
