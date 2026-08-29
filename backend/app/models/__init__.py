@@ -7,6 +7,7 @@ from .financial import FinancialEvaluationResult
 from .fraud import FraudAnalysisResult
 from .report import FinalAuditReport
 from .tender import RequirementCategory, TenderAnalysisResult, TenderRequirement
+from .translation import TranslationResult
 
 __all__ = [
     "ComplianceFinding",
@@ -20,4 +21,5 @@ __all__ = [
     "RequirementCategory",
     "TenderRequirement",
     "TenderAnalysisResult",
+    "TranslationResult",
 ]

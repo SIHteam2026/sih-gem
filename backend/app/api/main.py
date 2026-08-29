@@ -36,6 +36,8 @@ try:
     from backend.app.models.report import FinalAuditReport
     from backend.app.ai.llm_fraud_service import analyze_vendor_risk
     from backend.app.models.fraud import FraudAnalysisResult
+    from backend.app.ai.llm_translation_service import normalize_document_language
+    from backend.app.models.translation import TranslationResult
 except ImportError:
     from app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
     from app.extractors.gemini_gst import extract_gst_fields
@@ -57,6 +59,13 @@ except ImportError:
     from app.models.report import FinalAuditReport
     from app.ai.llm_fraud_service import analyze_vendor_risk
     from app.models.fraud import FraudAnalysisResult
+    from app.ai.llm_translation_service import normalize_document_language
+    from app.models.translation import TranslationResult
+
+
+class TranslationPayload(BaseModel):
+    """Pydantic model for document translation requests."""
+    raw_text: str = Field(..., description="Raw text of the document to detect and normalize.")
 
 
 class ChatQuery(BaseModel):
@@ -287,6 +296,28 @@ async def extract_tables_endpoint(file: UploadFile = File(...)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to extract financial tables: {str(err)}",
+        )
+
+
+@app.post("/api/document/translate", response_model=TranslationResult)
+async def translate_document_endpoint(payload: TranslationPayload):
+    """Detects regional Indian languages and normalizes document text to formal legal English."""
+    try:
+        result = await normalize_document_language(payload.raw_text)
+        logger.info(
+            "Document translation completed: Language: %s, IsEnglish: %s, Confidence: %s",
+            result.detected_language,
+            result.is_english,
+            result.translation_confidence,
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error("Document translation failed: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Document translation failed: {str(err)}",
         )
 
 
