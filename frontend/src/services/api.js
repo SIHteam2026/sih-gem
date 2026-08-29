@@ -347,6 +347,235 @@ export async function verifyBid(tenderFile, bidderFile, requirementId) {
   }
 }
 
+/**
+ * Asks a natural language procurement question with optional context text.
+ *
+ * @param {string} question - The procurement question to ask the AI.
+ * @param {string} [contextText] - Optional context text (e.g. tender clause, document extract).
+ * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @throws {Error} Clear error message if validation, network request, or server response fails.
+ */
+export async function askProcurementQuestion(question, contextText = '') {
+  if (!question || !String(question).trim()) {
+    throw new Error('A non-empty question is required to query the procurement assistant.');
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/chat/ask`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        question: String(question).trim(),
+        context_text: String(contextText || '').trim(),
+      }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {
+        // Fallback to response status text if response is not JSON
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error querying procurement assistant:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
+    }
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Analyzes a bidder's data for fraud risk indicators using AI.
+ *
+ * @param {Object} bidderData - The bidder profile / submission data to evaluate.
+ * @returns {Promise<Object>} The parsed JSON fraud risk analysis response.
+ * @throws {Error} Clear error message if validation, network request, or server response fails.
+ */
+export async function analyzeFraudRisk(bidderData) {
+  if (!bidderData) {
+    throw new Error('Bidder data payload is required for fraud risk analysis.');
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/fraud/analyze`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(bidderData),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {
+        // Fallback to response status text if response is not JSON
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error analyzing fraud risk:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
+    }
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Generates an executive-level procurement audit report from compiled audit data.
+ *
+ * @param {Object} auditData - The compiled audit data to use for report generation.
+ * @returns {Promise<Object>} The parsed JSON executive report response.
+ * @throws {Error} Clear error message if validation, network request, or server response fails.
+ */
+export async function generateExecutiveReport(auditData) {
+  if (!auditData) {
+    throw new Error('Audit data payload is required for executive report generation.');
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/report/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(auditData),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {
+        // Fallback to response status text if response is not JSON
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error generating executive report:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
+    }
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Generates a formal clarification / shortfall notice for non-compliant bidders.
+ *
+ * @param {Object} complianceData - Data regarding bidder compliance and missing documents.
+ * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @throws {Error} Clear error message if validation, network request, or server response fails.
+ */
+export async function generateShortfallNotice(complianceData) {
+  if (!complianceData) {
+    throw new Error('Compliance data payload is required to generate a shortfall notice.');
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/clarification/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(complianceData),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {
+        // Fallback to response status text if response is not JSON
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error generating shortfall notice:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
+    }
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Generates a formal Award of Contract document for the winning bidder.
+ *
+ * @param {Object} tenderData - Details of the tender document and requirements.
+ * @param {Object} winnerData - Details of the winning bidder and offer.
+ * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @throws {Error} Clear error message if validation, network request, or server response fails.
+ */
+export async function generateAwardContract(tenderData, winnerData) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/contract/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        tender_data: tenderData || {},
+        winner_data: winnerData || {},
+      }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {
+        // Fallback to response status text if response is not JSON
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error generating award contract:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
+    }
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
 export default {
   verifyGSTDocument,
   fetchVerificationHistory,
@@ -356,4 +585,9 @@ export default {
   compareEntities,
   batchClassifyDocuments,
   verifyBid,
+  askProcurementQuestion,
+  analyzeFraudRisk,
+  generateExecutiveReport,
+  generateShortfallNotice,
+  generateAwardContract,
 };
