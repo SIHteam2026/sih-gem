@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import tempfile
+import uuid
 from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +19,7 @@ try:
     from backend.app.extractors.gemini_gst import extract_gst_fields
     from backend.app.api.gov_fetcher import verify_gstin_external
     from backend.app.rules.gst_rules import evaluate_gst
-    from backend.app.db.client import get_supabase_client
+    from backend.app.db.client import get_supabase_client, insert_tender_analysis
     from backend.app.services.tender_service import analyze_tender
     from backend.app.models.tender import TenderAnalysisResult
 except ImportError:
@@ -26,7 +27,7 @@ except ImportError:
     from app.extractors.gemini_gst import extract_gst_fields
     from app.api.gov_fetcher import verify_gstin_external
     from app.rules.gst_rules import evaluate_gst
-    from app.db.client import get_supabase_client
+    from app.db.client import get_supabase_client, insert_tender_analysis
     from app.services.tender_service import analyze_tender
     from app.models.tender import TenderAnalysisResult
 
@@ -68,6 +69,27 @@ async def get_gst_history():
         )
 
 
+@app.get("/api/history/tender")
+async def get_tender_history():
+    """Fetches the 20 most recent tender analysis records from Supabase."""
+    try:
+        db_client = get_supabase_client()
+        response = await asyncio.to_thread(
+            lambda: db_client.table("tender_analyses")
+            .select("*")
+            .order("created_at", desc=True)
+            .limit(20)
+            .execute()
+        )
+        return response.data if response and hasattr(response, "data") else []
+    except Exception as e:
+        logger.error("Failed to fetch tender analysis history from Supabase: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch tender history: {str(e)}",
+        )
+
+
 @app.post("/api/tender/analyze", response_model=TenderAnalysisResult)
 async def analyze_tender_endpoint(file: UploadFile = File(...)):
     """Analyzes an uploaded tender document and extracts compliance requirements."""
@@ -93,7 +115,13 @@ async def analyze_tender_endpoint(file: UploadFile = File(...)):
 
     try:
         result = await analyze_tender(file_bytes)
-        logger.info("Tender analysis completed successfully for %s", file.filename)
+        tender_id = result.tender_id or str(uuid.uuid4())
+        result.tender_id = tender_id
+
+        # Persist tender analysis to Supabase
+        await insert_tender_analysis(tender_id, result.model_dump())
+
+        logger.info("Tender analysis completed successfully for %s (ID: %s)", file.filename, tender_id)
         return result
     except Exception as err:
         logger.error("Tender analysis failed for %s: %s", file.filename, err)

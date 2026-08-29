@@ -1,6 +1,9 @@
-﻿import logging
+﻿import asyncio
+from datetime import datetime, timezone
+import logging
 import os
 from pathlib import Path
+from typing import Any, Dict
 from dotenv import find_dotenv, load_dotenv
 from supabase import Client, create_client
 
@@ -35,3 +38,28 @@ def get_supabase_client() -> Client:
             "Supabase client is not initialized. Please verify SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
         )
     return supabase
+
+
+async def insert_tender_analysis(tender_id: str, analysis_data: Dict[str, Any]) -> None:
+    """Inserts a tender analysis record into the Supabase tender_analyses table.
+
+    Uses an asynchronous non-blocking executor and safely catches any database
+    exceptions to avoid disrupting the main API workflow.
+
+    Args:
+        tender_id (str): The unique identifier for the tender.
+        analysis_data (dict): The complete tender analysis dictionary (stored as JSONB).
+    """
+    try:
+        db_client = get_supabase_client()
+        record = {
+            "tender_id": tender_id,
+            "analysis_data": analysis_data,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await asyncio.to_thread(
+            lambda: db_client.table("tender_analyses").insert(record).execute()
+        )
+        logger.info("Successfully persisted tender analysis for %s to Supabase.", tender_id)
+    except Exception as db_err:
+        logger.warning("Failed to persist tender analysis to Supabase (non-blocking): %s", db_err)
