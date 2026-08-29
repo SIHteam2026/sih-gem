@@ -32,6 +32,8 @@ try:
     from backend.app.services.zip_processor import process_bidder_zip
     from backend.app.ai.chat_service import answer_procurement_question
     from backend.app.services.boq_parser import extract_financial_tables
+    from backend.app.ai.llm_report_service import generate_final_report
+    from backend.app.models.report import FinalAuditReport
 except ImportError:
     from app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
     from app.extractors.gemini_gst import extract_gst_fields
@@ -49,6 +51,8 @@ except ImportError:
     from app.services.zip_processor import process_bidder_zip
     from app.ai.chat_service import answer_procurement_question
     from app.services.boq_parser import extract_financial_tables
+    from app.ai.llm_report_service import generate_final_report
+    from app.models.report import FinalAuditReport
 
 
 class ChatQuery(BaseModel):
@@ -305,6 +309,27 @@ async def chat_ask_endpoint(query: ChatQuery):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Chat Q&A failed: {str(e)}",
+        )
+
+
+@app.post("/api/report/generate", response_model=FinalAuditReport)
+async def generate_report_endpoint(audit_data: dict):
+    """Synthesizes aggregate compliance findings, financial BOQ audits, and entity match results
+    into an executive procurement audit report and decision."""
+    try:
+        report = await generate_final_report(audit_data)
+        logger.info(
+            "Executive audit report generated successfully with recommendation: %s",
+            report.final_recommendation,
+        )
+        return report
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error("Executive audit report generation failed: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Report generation failed: {str(err)}",
         )
 
 
