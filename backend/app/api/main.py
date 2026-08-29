@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import inspect
 import json
 import logging
@@ -28,6 +28,7 @@ try:
     from backend.app.services.entity_resolution import compare_entities
     from backend.app.models.entity import EntityMatchResult
     from backend.app.services.master_pipeline import run_master_verification
+    from backend.app.services.zip_processor import process_bidder_zip
 except ImportError:
     from app.parsers.pdf_extractor import compute_file_hash, extract_text_from_pdf
     from app.extractors.gemini_gst import extract_gst_fields
@@ -42,6 +43,7 @@ except ImportError:
     from app.services.entity_resolution import compare_entities
     from app.models.entity import EntityMatchResult
     from app.services.master_pipeline import run_master_verification
+    from app.services.zip_processor import process_bidder_zip
 
 app = FastAPI(title="Evidence Engine API")
 
@@ -183,6 +185,47 @@ async def classify_document_endpoint(file: UploadFile = File(...)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Document classification failed: {str(err)}",
+        )
+
+
+@app.post("/api/document/batch-classify")
+async def batch_classify_documents_endpoint(file: UploadFile = File(...)):
+    """Extracts, parses, and classifies all PDF documents from an uploaded bidder ZIP archive."""
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file format. Only ZIP archives (.zip) are supported.",
+        )
+
+    try:
+        file_bytes = await file.read()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to read uploaded ZIP file: {str(e)}",
+        )
+
+    if not file_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded ZIP file is empty.",
+        )
+
+    try:
+        inventory = await process_bidder_zip(file_bytes)
+        logger.info(
+            "Batch classification completed for %s: %d documents processed",
+            file.filename,
+            len(inventory),
+        )
+        return inventory
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error("Batch classification failed for %s: %s", file.filename, err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Batch document classification failed: {str(err)}",
         )
 
 
