@@ -2,7 +2,7 @@
 
 Provides round-robin load distribution and automatic fault-tolerant failover
 across multiple Groq API keys (GROQ_KEY_1 to GROQ_KEY_6) using the
-llama-3.3-70b-versatile model.
+openai/gpt-oss-120b model.
 """
 
 import asyncio
@@ -40,7 +40,7 @@ load_dotenv(find_dotenv(usecwd=True))
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_MODEL = "openai/gpt-oss-120b"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 
@@ -135,7 +135,7 @@ class AIRouter:
         Args:
             prompt: User prompt content.
             system_prompt: Optional system prompt instructions.
-            model: Target model (defaults to llama-3.3-70b-versatile).
+            model: Target model (defaults to openai/gpt-oss-120b).
             temperature: Sampling temperature.
             max_tokens: Maximum output tokens.
             response_format: Optional response format (e.g. {"type": "json_object"}).
@@ -254,7 +254,7 @@ class AIRouter:
         Args:
             prompt: User prompt content.
             system_prompt: Optional system instructions.
-            model: Target model (defaults to llama-3.3-70b-versatile).
+            model: Target model (defaults to openai/gpt-oss-120b).
             temperature: Sampling temperature.
 
         Returns:
