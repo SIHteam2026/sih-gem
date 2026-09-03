@@ -1,8 +1,7 @@
-"""LLM Service for audit explainability, transparency reporting, and decision justifications."""
+"""LLM Service for audit explainability, transparency reporting, and decision justifications using Groq Multi-Key Router."""
 
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -15,32 +14,25 @@ for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from dotenv import find_dotenv, load_dotenv
 from fastapi import HTTPException, status
-import google.generativeai as genai
 
 try:
     from backend.app.ai.prompts import AUDIT_EXPLAINABILITY_PROMPT
+    from backend.app.services.ai_router import ai_router
 except ImportError:
     try:
         from app.ai.prompts import AUDIT_EXPLAINABILITY_PROMPT
+        from app.services.ai_router import ai_router
     except ImportError:
         from prompts import AUDIT_EXPLAINABILITY_PROMPT
-
-# Load environment variables
-load_dotenv(find_dotenv(usecwd=True))
+        from services.ai_router import ai_router
 
 logger = logging.getLogger(__name__)
-
-# Configure Gemini API
-api_key = os.getenv("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
 
 
 async def generate_audit_explainability(evaluation_result: dict) -> str:
     """Generates a plain-English, non-technical justification explaining why a bidder
-    passed, failed, or was flagged for review, citing specific RAG rules and fraud scores.
+    passed, failed, or was flagged for review, citing specific RAG rules and fraud scores using Groq LLM.
 
     Args:
         evaluation_result (dict): Complete evaluation dossier or MasterEvaluationResponse dict.
@@ -57,63 +49,27 @@ async def generate_audit_explainability(evaluation_result: dict) -> str:
             detail="No evaluation result provided for explainability analysis.",
         )
 
-    # Ensure API key is configured
-    current_key = os.getenv("GEMINI_API_KEY")
-    if current_key:
-        genai.configure(api_key=current_key)
-
     prompt = (
         f"{AUDIT_EXPLAINABILITY_PROMPT}\n\n"
         f"### Master Evaluation Dossier:\n"
         f"{json.dumps(evaluation_result, indent=2, default=str)}"
     )
 
-    generation_config = {
-        "temperature": 0.2,
-    }
+    try:
+        justification = await ai_router.generate_text(
+            prompt=prompt,
+            temperature=0.2,
+        )
+        return justification.strip()
 
-    # Candidate models prioritized with gemini-1.5-flash
-    candidate_models = [
-        "gemini-1.5-flash",
-        "gemini-3.6-flash",
-        "gemini-3.1-pro-preview",
-        "gemini-2.0-flash",
-        "gemini-2.5-flash",
-    ]
-    last_error = None
-
-    for model_name in candidate_models:
-        try:
-            model = genai.GenerativeModel(
-                model_name=model_name,
-                generation_config=generation_config,
-            )
-
-            response = await model.generate_content_async(prompt)
-
-            if not response or not response.text:
-                raise ValueError("Received empty response from Gemini API.")
-
-            justification = response.text.strip()
-            return justification
-
-        except HTTPException:
-            raise
-        except Exception as err:
-            last_error = err
-            err_str = str(err)
-            logger.warning(
-                "Model %s encountered error (%s). Trying fallback candidate...",
-                model_name,
-                err_str[:120],
-            )
-            continue
-
-    logger.error("All Gemini candidate models failed: %s", last_error)
-    raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail=f"Failed to generate audit explainability narrative: {str(last_error)}",
-    )
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error("Groq AI router error during explainability generation: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate audit explainability narrative: {str(err)}",
+        ) from err
 
 
 if __name__ == "__main__":

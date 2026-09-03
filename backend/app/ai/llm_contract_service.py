@@ -1,9 +1,8 @@
-"""LLM Service for automated Letter of Award (LoA) legal drafting and contract generation."""
+"""LLM Service for automated Letter of Award (LoA) legal drafting and contract generation using Groq Multi-Key Router."""
 
 import datetime
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -16,36 +15,29 @@ for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from dotenv import find_dotenv, load_dotenv
 from fastapi import HTTPException, status
-import google.generativeai as genai
 from pydantic import ValidationError
 
 try:
     from backend.app.ai.prompts import CONTRACT_GENERATION_PROMPT
     from backend.app.models.contract import LetterOfAward
+    from backend.app.services.ai_router import ai_router
 except ImportError:
     try:
         from app.ai.prompts import CONTRACT_GENERATION_PROMPT
         from app.models.contract import LetterOfAward
+        from app.services.ai_router import ai_router
     except ImportError:
         from prompts import CONTRACT_GENERATION_PROMPT
         from models.contract import LetterOfAward
-
-# Load environment variables
-load_dotenv(find_dotenv(usecwd=True))
+        from services.ai_router import ai_router
 
 logger = logging.getLogger(__name__)
-
-# Configure Gemini API
-api_key = os.getenv("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
 
 
 async def generate_award_contract(tender_data: dict, winner_data: dict) -> LetterOfAward:
     """Generates an official, legally binding Letter of Award (LoA) contract note
-    for the selected winning bidder using Gemini AI legal reasoning.
+    for the selected winning bidder using Groq AI legal reasoning.
 
     Args:
         tender_data (dict): Tender details, scope of work, technical requirements, and delivery expectations.
@@ -63,11 +55,6 @@ async def generate_award_contract(tender_data: dict, winner_data: dict) -> Lette
             detail="Tender data and winner data are required for contract generation.",
         )
 
-    # Ensure API key is configured
-    current_key = os.getenv("GEMINI_API_KEY")
-    if current_key:
-        genai.configure(api_key=current_key)
-
     payload = {
         "tender_data": tender_data or {},
         "winner_data": winner_data or {},
@@ -79,107 +66,74 @@ async def generate_award_contract(tender_data: dict, winner_data: dict) -> Lette
         f"{json.dumps(payload, indent=2, default=str)}"
     )
 
-    generation_config = {
-        "response_mime_type": "application/json",
-        "temperature": 0.2,
-    }
+    try:
+        raw_json = await ai_router.generate_json(
+            prompt=prompt,
+            temperature=0.2,
+        )
 
-    # Candidate models prioritized with gemini-1.5-pro for deep legal drafting
-    candidate_models = ["gemini-1.5-pro", "gemini-3.6-flash", "gemini-2.5-pro", "gemini-1.5-flash"]
-    last_error = None
+        if isinstance(raw_json, list) and len(raw_json) > 0:
+            parsed_dict = raw_json[0]
+        elif isinstance(raw_json, dict):
+            parsed_dict = raw_json
+        else:
+            parsed_dict = {}
 
-    for model_name in candidate_models:
-        try:
-            model = genai.GenerativeModel(
-                model_name=model_name,
-                generation_config=generation_config,
+        # Sanitize fallback values if missing
+        today_str = datetime.date.today().isoformat()
+        if "date_of_issue" not in parsed_dict or not parsed_dict["date_of_issue"]:
+            parsed_dict["date_of_issue"] = today_str
+
+        if "contract_reference_number" not in parsed_dict or not parsed_dict["contract_reference_number"]:
+            tender_id = tender_data.get("tender_id", "TENDER") if isinstance(tender_data, dict) else "TENDER"
+            parsed_dict["contract_reference_number"] = f"LOA/GEM/{datetime.date.today().year}/{tender_id}"
+
+        if "vendor_name" not in parsed_dict or not parsed_dict["vendor_name"]:
+            vendor = (
+                winner_data.get("company_name") or winner_data.get("vendor_name")
+                if isinstance(winner_data, dict)
+                else "Awarded Bidder"
             )
+            parsed_dict["vendor_name"] = str(vendor or "Awarded Bidder")
 
-            response = await model.generate_content_async(prompt)
-
-            if not response or not response.text:
-                raise ValueError("Received empty response from Gemini API.")
-
-            raw_json = json.loads(response.text.strip())
-
-            if isinstance(raw_json, list) and len(raw_json) > 0:
-                parsed_dict = raw_json[0]
-            elif isinstance(raw_json, dict):
-                parsed_dict = raw_json
-            else:
-                parsed_dict = {}
-
-            # Sanitize fallback values if missing
-            today_str = datetime.date.today().isoformat()
-            if "date_of_issue" not in parsed_dict or not parsed_dict["date_of_issue"]:
-                parsed_dict["date_of_issue"] = today_str
-
-            if "contract_reference_number" not in parsed_dict or not parsed_dict["contract_reference_number"]:
-                tender_id = tender_data.get("tender_id", "TENDER") if isinstance(tender_data, dict) else "TENDER"
-                parsed_dict["contract_reference_number"] = f"LOA/GEM/{datetime.date.today().year}/{tender_id}"
-
-            if "vendor_name" not in parsed_dict or not parsed_dict["vendor_name"]:
-                vendor = (
-                    winner_data.get("company_name") or winner_data.get("vendor_name")
-                    if isinstance(winner_data, dict)
-                    else "Awarded Bidder"
-                )
-                parsed_dict["vendor_name"] = str(vendor or "Awarded Bidder")
-
-            if "total_award_value" in parsed_dict:
-                try:
-                    parsed_dict["total_award_value"] = float(parsed_dict["total_award_value"])
-                except (ValueError, TypeError):
-                    parsed_dict["total_award_value"] = 0.0
-            else:
-                parsed_dict["total_award_value"] = 0.0
-
-            clauses = parsed_dict.get("legal_clauses", [])
-            if isinstance(clauses, list):
-                parsed_dict["legal_clauses"] = [str(c) for c in clauses]
-            elif isinstance(clauses, str):
-                parsed_dict["legal_clauses"] = [clauses]
-            else:
-                parsed_dict["legal_clauses"] = []
-
-            if "full_contract_text" not in parsed_dict or not parsed_dict["full_contract_text"]:
-                parsed_dict["full_contract_text"] = "LETTER OF AWARD (LOA)\nContract text generated."
-
-            # Validate against LetterOfAward Pydantic schema
+        if "total_award_value" in parsed_dict:
             try:
-                validated_result = LetterOfAward(**parsed_dict)
-                return validated_result
-            except ValidationError as val_err:
-                logger.error("Pydantic schema validation error on LetterOfAward: %s", val_err)
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Contract generation AI output failed schema validation: {str(val_err)}",
-                ) from val_err
+                parsed_dict["total_award_value"] = float(parsed_dict["total_award_value"])
+            except (ValueError, TypeError):
+                parsed_dict["total_award_value"] = 0.0
+        else:
+            parsed_dict["total_award_value"] = 0.0
 
-        except HTTPException:
-            raise
-        except Exception as err:
-            last_error = err
-            err_str = str(err)
-            if "not found" in err_str.lower() or "no longer available" in err_str.lower() or "404" in err_str:
-                logger.warning(
-                    "Model %s unavailable (%s). Trying fallback candidate...",
-                    model_name,
-                    err_str,
-                )
-                continue
-            else:
-                logger.error("Gemini API error during contract generation: %s", err)
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Gemini API contract generation error: {str(err)}",
-                ) from err
+        clauses = parsed_dict.get("legal_clauses", [])
+        if isinstance(clauses, list):
+            parsed_dict["legal_clauses"] = [str(c) for c in clauses]
+        elif isinstance(clauses, str):
+            parsed_dict["legal_clauses"] = [clauses]
+        else:
+            parsed_dict["legal_clauses"] = []
 
-    logger.error("All Gemini candidate models failed: %s", last_error)
-    raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail=f"Failed to generate contract award with AI: {str(last_error)}",
-    )
+        if "full_contract_text" not in parsed_dict or not parsed_dict["full_contract_text"]:
+            parsed_dict["full_contract_text"] = "LETTER OF AWARD (LOA)\nContract text generated."
+
+        # Validate against LetterOfAward Pydantic schema
+        try:
+            validated_result = LetterOfAward(**parsed_dict)
+            return validated_result
+        except ValidationError as val_err:
+            logger.error("Pydantic schema validation error on LetterOfAward: %s", val_err)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Contract generation AI output failed schema validation: {str(val_err)}",
+            ) from val_err
+
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error("Groq AI router error during contract generation: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Groq API contract generation error: {str(err)}",
+        ) from err
 
 
 if __name__ == "__main__":
