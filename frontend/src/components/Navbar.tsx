@@ -2,67 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck, PlusCircle, History, FileText } from "lucide-react";
+import { CircleHelp, ChevronDown } from "lucide-react";
+
+const links = [{ href: "/tender", label: "Reviews" }, { href: "/", label: "Tenders" }, { href: "/history", label: "History" }];
 
 export default function Navbar() {
   const pathname = usePathname();
-
-  return (
-    <header className="w-full bg-white border-b border-gray-200 sticky top-0 z-50 shadow-xs">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo / Brand */}
-          <Link
-            href="/"
-            className="flex items-center gap-2.5 font-bold text-gray-900 text-lg hover:opacity-90 transition-opacity"
-          >
-            <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <span className="hidden sm:inline">SIH Evidence Engine</span>
-            <span className="sm:hidden">SIH Engine</span>
-          </Link>
-
-          {/* Navigation Links */}
-          <nav className="flex items-center gap-1 sm:gap-2">
-            <Link
-              href="/"
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
-                pathname === "/"
-                  ? "bg-blue-50 text-blue-700 font-semibold"
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-              }`}
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>New Verification</span>
-            </Link>
-
-            <Link
-              href="/tender"
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
-                pathname === "/tender"
-                  ? "bg-blue-50 text-blue-700 font-semibold"
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-              }`}
-            >
-              <FileText className="w-4 h-4" />
-              <span>Tender Intelligence</span>
-            </Link>
-
-            <Link
-              href="/history"
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
-                pathname === "/history"
-                  ? "bg-blue-50 text-blue-700 font-semibold"
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-              }`}
-            >
-              <History className="w-4 h-4" />
-              <span>History Logs</span>
-            </Link>
-          </nav>
-        </div>
-      </div>
-    </header>
-  );
+  return <header className="border-b border-[#d9ddd9] bg-[#fffefa]/95 backdrop-blur-sm"><div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8"><Link href="/" className="focus-ring flex items-center gap-3 rounded-sm"><span className="grid h-8 w-8 place-items-center border border-[#163a5f] bg-[#163a5f] text-xs font-semibold tracking-tight text-white">IS</span><span className="text-sm font-semibold tracking-[-0.01em] text-[#162333]">IShowSolution</span></Link><nav className="hidden items-center gap-1 sm:flex" aria-label="Main navigation">{links.map((link) => { const current = pathname === link.href || (link.href === "/tender" && pathname.startsWith("/tender")); return <Link key={link.href} href={link.href} className={`focus-ring rounded-sm px-3 py-2 text-sm transition-colors ${current ? "bg-[#edf2f3] font-medium text-[#163a5f]" : "text-[#586570] hover:text-[#162333]"}`}>{link.label}</Link>; })}</nav><div className="flex items-center gap-3 text-sm text-[#586570]"><button className="focus-ring hidden rounded-sm p-2 hover:text-[#162333] sm:inline-flex" aria-label="Help"><CircleHelp className="h-4 w-4" /></button><button className="focus-ring inline-flex items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-[#f1f2ef]"><span className="grid h-6 w-6 place-items-center rounded-full bg-[#e5e6e1] text-[10px] font-semibold text-[#344554]">PO</span><span className="hidden sm:inline">Officer</span><ChevronDown className="h-3.5 w-3.5" /></button></div></div></header>;
 }
