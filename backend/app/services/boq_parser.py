@@ -1,4 +1,4 @@
-﻿"""Bill of Quantities (BoQ) & Financial Table Extraction Service.
+"""Bill of Quantities (BoQ) & Financial Table Extraction Service.
 
 Provides asynchronous extraction of structured table grids from financial PDF documents,
 BoQ schedules, and price bids using pdfplumber and pandas.
@@ -7,7 +7,10 @@ BoQ schedules, and price bids using pdfplumber and pandas.
 import io
 import logging
 from typing import Any, Dict, List
-import pdfplumber
+try:
+    import pdfplumber
+except Exception:
+    pdfplumber = None
 
 logger = logging.getLogger(__name__)
 
