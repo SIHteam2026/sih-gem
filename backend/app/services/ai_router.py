@@ -40,7 +40,10 @@ load_dotenv(find_dotenv(usecwd=True))
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "openai/gpt-oss-120b"
+# ``llama-3.3-70b-versatile`` was retired for developer/free tier users in
+# August 2026.  Keep the deployed default on Groq's supported GPT-OSS model,
+# while allowing a deployment to select another model without a code change.
+DEFAULT_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip() or "openai/gpt-oss-120b"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 
@@ -120,6 +123,30 @@ class AIRouter:
         start = self._sync_lock_index % len(keys)
         self._sync_lock_index = (self._sync_lock_index + 1) % len(keys)
         return [(start + i) % len(keys) for i in range(len(keys))]
+
+    @staticmethod
+    def _is_model_not_found_error(exc: Exception) -> bool:
+        """Return whether Groq rejected the requested model, not the API key.
+
+        Retrying a 404 model error against every key only delays the response
+        and produces the misleading "all keys failed" message.
+        """
+        status_code = getattr(exc, "status_code", None)
+        message = str(exc).lower()
+        return status_code == 404 and (
+            "model" in message or "model_not_found" in message
+        )
+
+    @staticmethod
+    def _model_unavailable_exception(model: str) -> HTTPException:
+        return HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"Configured Groq model '{model}' is unavailable for this API key. "
+                "Set GROQ_MODEL to a model returned by Groq's /models endpoint "
+                "and restart the backend."
+            ),
+        )
 
     async def generate_text(
         self,
@@ -224,6 +251,10 @@ class AIRouter:
                         return content.strip()
 
             except Exception as exc:
+                if self._is_model_not_found_error(exc):
+                    logger.error("Groq model '%s' is unavailable: %s", target_model, exc)
+                    raise self._model_unavailable_exception(target_model) from exc
+
                 last_exception = exc
                 err_msg = str(exc)
                 logger.warning(
@@ -346,6 +377,10 @@ class AIRouter:
                         return data["choices"][0]["message"]["content"].strip()
 
             except Exception as exc:
+                if self._is_model_not_found_error(exc):
+                    logger.error("Groq model '%s' is unavailable: %s", target_model, exc)
+                    raise self._model_unavailable_exception(target_model) from exc
+
                 last_exception = exc
                 logger.warning(
                     "Groq sync key #%d (%s) failed on attempt %d/%d: %s. Retrying next key...",

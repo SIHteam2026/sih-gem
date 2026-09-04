@@ -111,6 +111,38 @@ async def test_fallback_on_429():
         print("[PASS] test_fallback_on_429 passed")
 
 
+async def test_model_not_found_is_not_retried_across_keys():
+    """A retired/unavailable model is configuration failure, not key failure."""
+    os.environ["GROQ_KEY_1"] = "key-A"
+    os.environ["GROQ_KEY_2"] = "key-B"
+    attempted_keys = []
+
+    class ModelNotFoundError(Exception):
+        status_code = 404
+
+    def mock_client_init(api_key):
+        attempted_keys.append(api_key)
+        client = MagicMock()
+        client.chat = MagicMock()
+        client.chat.completions = MagicMock()
+        client.chat.completions.create = AsyncMock(
+            side_effect=ModelNotFoundError("model_not_found: requested model does not exist")
+        )
+        return client
+
+    with patch("backend.app.services.ai_router.AsyncGroq", side_effect=mock_client_init):
+        router = AIRouter()
+        try:
+            await router.generate_text("Test Prompt", model="retired-model")
+            assert False, "Expected unavailable model error"
+        except Exception as exc:
+            assert getattr(exc, "status_code", None) == 503
+            assert "retired-model" in str(getattr(exc, "detail", ""))
+
+    assert attempted_keys == ["key-A"]
+    print("[PASS] test_model_not_found_is_not_retried_across_keys passed")
+
+
 async def test_services_with_groq_router():
     # Mock groq client that returns JSON appropriate for each service
     def mock_client_factory(api_key):
@@ -277,6 +309,7 @@ def main():
     test_key_loading()
     asyncio.run(test_round_robin_indices())
     asyncio.run(test_fallback_on_429())
+    asyncio.run(test_model_not_found_is_not_retried_across_keys())
     asyncio.run(test_services_with_groq_router())
     print("\n>>> ALL TESTS PASSED SUCCESSFULLY! <<<")
 
