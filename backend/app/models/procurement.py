@@ -6,8 +6,16 @@ Procurement -> Tender -> Bidder -> BidSubmission -> Documents.
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import Any, List, Optional
 from pydantic import BaseModel, Field
+
+try:
+    from backend.app.models.tender import TenderRequirement
+except ImportError:
+    try:
+        from app.models.tender import TenderRequirement
+    except ImportError:
+        from models.tender import TenderRequirement
 
 
 class ProcurementStatus(str, Enum):
@@ -151,9 +159,10 @@ class Tender(TenderBase):
 
 
 class TenderWithDetails(Tender):
-    """Tender with associated tender specification documents and bidder submissions."""
+    """Tender with associated tender specification documents, bidder submissions, and requirements."""
     documents: List[Document] = Field(default_factory=list, description="Tender RFP/NIT specification documents.")
     submissions: List[BidSubmissionWithDetails] = Field(default_factory=list, description="Bidder submissions for this tender.")
+    requirements: List[TenderRequirement] = Field(default_factory=list, description="Structured tender requirements extracted from intelligence analysis.")
 
 
 # ---------------------------------------------------------------------------
