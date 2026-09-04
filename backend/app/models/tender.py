@@ -5,6 +5,7 @@ tender requirements, structured conditions, applicability, expected evidence,
 source provenance, and ambiguity radar.
 """
 
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field
@@ -40,6 +41,7 @@ class RequirementCategory(str, Enum):
 class AmbiguityType(str, Enum):
     """Enumeration of requirement ambiguity classifications."""
     NONE = "NONE"
+    VAGUE_TERMINOLOGY = "VAGUE_TERMINOLOGY"
     THRESHOLD_MISSING = "THRESHOLD_MISSING"
     TIMEFRAME_MISSING = "TIMEFRAME_MISSING"
     SCOPE_UNCLEAR = "SCOPE_UNCLEAR"
@@ -47,6 +49,7 @@ class AmbiguityType(str, Enum):
     EVIDENCE_UNCLEAR = "EVIDENCE_UNCLEAR"
     APPLICABILITY_UNCLEAR = "APPLICABILITY_UNCLEAR"
     DATE_DEFINITION_UNCLEAR = "DATE_DEFINITION_UNCLEAR"
+    SUBJECTIVE_EVALUATION = "SUBJECTIVE_EVALUATION"
     OTHER = "OTHER"
 
 
@@ -171,8 +174,12 @@ class TenderRequirement(BaseModel):
     
     Preserves full backward compatibility with legacy top-level fields while
     providing rich additive structured condition, applicability, evidence,
-    provenance, and ambiguity models.
+    provenance, ambiguity, and persistence models.
     """
+    # Persistence identifiers (Optional for in-flight extraction, populated on DB persistence)
+    id: Optional[str] = Field(default=None, description="Unique UUID of the persisted requirement record.")
+    tender_id: Optional[str] = Field(default=None, description="Associated canonical tender ID or reference.")
+
     # Legacy top-level fields (Maintained for full backward compatibility)
     requirement_id: str = Field(..., description="Unique identifier for the requirement.")
     category: RequirementCategory = Field(..., description="Category of the requirement.")
@@ -220,6 +227,8 @@ class TenderRequirement(BaseModel):
         default=None,
         description="Structured ambiguity classification and rationale.",
     )
+    created_at: Optional[datetime] = Field(default=None, description="Creation timestamp.")
+    updated_at: Optional[datetime] = Field(default=None, description="Last update timestamp.")
 
 
 class TenderAnalysisResult(BaseModel):

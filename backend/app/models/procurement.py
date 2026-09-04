@@ -6,8 +6,16 @@ Procurement -> Tender -> Bidder -> BidSubmission -> Documents.
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import Any, List, Optional
 from pydantic import BaseModel, Field
+
+try:
+    from backend.app.models.tender import TenderRequirement
+except ImportError:
+    try:
+        from app.models.tender import TenderRequirement
+    except ImportError:
+        from models.tender import TenderRequirement
 
 
 class ProcurementStatus(str, Enum):
@@ -152,9 +160,10 @@ class Tender(TenderBase):
 
 
 class TenderWithDetails(Tender):
-    """Tender with associated tender specification documents and bidder submissions."""
+    """Tender with associated tender specification documents, bidder submissions, and requirements."""
     documents: List[Document] = Field(default_factory=list, description="Tender RFP/NIT specification documents.")
     submissions: List[BidSubmissionWithDetails] = Field(default_factory=list, description="Bidder submissions for this tender.")
+    requirements: List[TenderRequirement] = Field(default_factory=list, description="Structured tender requirements extracted from intelligence analysis.")
 
 
 # ---------------------------------------------------------------------------
@@ -188,3 +197,79 @@ class ProcurementHierarchy(Procurement):
     """Full canonical procurement hierarchy: Procurement -> Tenders -> Submissions -> Documents."""
     tenders: List[TenderWithDetails] = Field(default_factory=list, description="Associated tenders in this procurement.")
     documents: List[Document] = Field(default_factory=list, description="Top-level procurement documents.")
+
+
+# ---------------------------------------------------------------------------
+# Ingestion Contract Models
+# ---------------------------------------------------------------------------
+class IngestionDocumentInput(BaseModel):
+    """Input payload model for document metadata."""
+    filename: str = Field(..., min_length=1, description="Original document filename.")
+    document_type: Optional[DocumentType] = Field(None, description="Category of the document.")
+    mime_type: str = Field(default="application/pdf", description="MIME type.")
+    file_size: Optional[int] = Field(None, description="File size in bytes.")
+    storage_path: Optional[str] = Field(None, description="Storage location reference or URL.")
+    content_text: Optional[str] = Field(None, description="Extracted raw text content.")
+
+
+class IngestionProcurementInfo(BaseModel):
+    """Input payload model for top-level procurement details."""
+    title: str = Field(..., min_length=1, description="Procurement workspace title.")
+    organization: str = Field(..., min_length=1, description="Issuing government agency or department.")
+
+
+class IngestionTenderInfo(BaseModel):
+    """Input payload model for tender RFP details."""
+    tender_reference: str = Field(..., min_length=1, description="Official tender reference number.")
+    title: str = Field(..., min_length=1, description="Tender title or work description.")
+    description: Optional[str] = Field(None, description="Scope of work or tender summary.")
+    estimated_value: Optional[float] = Field(None, description="Estimated budget in INR.")
+    category: Optional[str] = Field(None, description="Procurement category.")
+    documents: List[IngestionDocumentInput] = Field(default_factory=list, description="Tender specification documents.")
+
+
+class IngestionBidderInfo(BaseModel):
+    """Input payload model for bidder profile details."""
+    legal_name: str = Field(..., min_length=1, description="Registered legal name of the bidder.")
+    gstin: Optional[str] = Field(None, description="15-character GSTIN identifier.")
+    pan: Optional[str] = Field(None, description="10-character PAN identifier.")
+    email: Optional[str] = Field(None, description="Contact email.")
+
+
+class IngestionSubmissionInfo(BaseModel):
+    """Input payload model for submission metadata."""
+    external_submission_reference: Optional[str] = Field(None, description="External submission ID.")
+    submitted_at: Optional[datetime] = Field(default_factory=datetime.utcnow, description="Submission timestamp.")
+    status: str = Field(default="SUBMITTED", description="Submission status.")
+
+
+class IngestionBidderPackageInput(BaseModel):
+    """Input payload model grouping a bidder, their submission, and attached proof documents."""
+    bidder: IngestionBidderInfo = Field(..., description="Bidder entity profile.")
+    submission: Optional[IngestionSubmissionInfo] = Field(default_factory=IngestionSubmissionInfo, description="Submission metadata.")
+    documents: List[IngestionDocumentInput] = Field(default_factory=list, description="Attached evidence documents.")
+
+
+class ProcurementIngestionPayload(BaseModel):
+    """Canonical input payload contract for ingesting an external procurement package."""
+    source_system: str = Field(..., min_length=1, description="Source system identifier (e.g., MOCK_GEM, REAL_GEM).")
+    external_reference: str = Field(..., min_length=1, description="Unique external reference identifier.")
+    procurement: IngestionProcurementInfo = Field(..., description="Procurement metadata.")
+    tender: IngestionTenderInfo = Field(..., description="Tender metadata and RFP specification documents.")
+    bidders: List[IngestionBidderPackageInput] = Field(default_factory=list, description="List of bidder packages.")
+
+
+class ProcurementIngestionResult(BaseModel):
+    """Result returned by the ingestion service."""
+    procurement_id: str = Field(..., description="Internal UUID of the procurement workspace.")
+    source_system: str = Field(..., description="Source system identifier.")
+    external_reference: str = Field(..., description="External procurement reference ID.")
+    tender_id: str = Field(..., description="Internal UUID of the created/resolved tender.")
+    bidder_count: int = Field(default=0, description="Total bidders ingested.")
+    submission_count: int = Field(default=0, description="Total submissions ingested.")
+    document_count: int = Field(default=0, description="Total documents registered.")
+    status: ProcurementStatus = Field(..., description="Final procurement status.")
+    was_created: bool = Field(..., description="True if new procurement was created, False if existing record was matched.")
+    message: str = Field(..., description="Human-readable execution outcome summary.")
+    hierarchy: Optional[ProcurementHierarchy] = Field(None, description="Full canonical procurement hierarchy.")
+

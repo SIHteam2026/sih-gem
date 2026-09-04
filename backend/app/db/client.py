@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 from dotenv import find_dotenv, load_dotenv
 from supabase import Client, create_client
 
@@ -64,41 +64,64 @@ async def insert_tender_analysis(tender_id: str, analysis_data: Dict[str, Any]) 
     except Exception as db_err:
         logger.warning("Failed to persist tender analysis to Supabase (non-blocking): %s", db_err)
 
-
-async def insert_bid_evaluation(bid_id: str, evaluation_data: Dict[str, Any]) -> None:
-    """Inserts a bid evaluation record into the Supabase bid_evaluations table."""
+async def insert_bid_evaluation(
+    tender_id: str,
+    bidder_name: str | None = None,
+    evaluation_data: Dict[str, Any] | None = None,
+    bid_id: str | None = None,
+) -> None:
+    """Inserts a bid evaluation record into Supabase (supporting bidder_evaluations and bid_evaluations)."""
     try:
         db_client = get_supabase_client()
+        eval_payload = evaluation_data if evaluation_data is not None else {}
+        if isinstance(bidder_name, dict) and evaluation_data is None:
+            eval_payload = bidder_name
+            bidder_name = "Unknown"
+
         record = {
-            "bid_id": bid_id,
-            "evaluation_data": evaluation_data,
+            "tender_id": tender_id,
+            "bidder_name": bidder_name or "Unknown",
+            "bid_id": bid_id or tender_id,
+            "evaluation_data": eval_payload,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
-        await asyncio.to_thread(
-            lambda: db_client.table("bid_evaluations").insert(record).execute()
-        )
-        logger.info("Successfully persisted bid evaluation for %s to Supabase.", bid_id)
+        try:
+            await asyncio.to_thread(
+                lambda: db_client.table("bidder_evaluations").insert(record).execute()
+            )
+        except Exception:
+            await asyncio.to_thread(
+                lambda: db_client.table("bid_evaluations").insert(record).execute()
+            )
+        logger.info("Successfully persisted bid evaluation for %s (%s).", tender_id, bidder_name)
     except Exception as db_err:
         logger.warning("Failed to persist bid evaluation to Supabase (non-blocking): %s", db_err)
 
 
-async def get_bid_evaluations(limit: int = 20) -> List[Dict[str, Any]]:
-    """Fetches recent bid evaluations from Supabase."""
+async def get_bid_evaluations(tender_id: str | None = None, limit: int = 50) -> List[Dict[str, Any]]:
+    """Fetches evaluation records for a specific tender or recent evaluations."""
     try:
         db_client = get_supabase_client()
-        response = await asyncio.to_thread(
-            lambda: (
-                db_client.table("bid_evaluations")
-                .select("*")
-                .order("created_at", desc=True)
-                .limit(limit)
-                .execute()
-            )
-        )
-        return response.data if response and hasattr(response, "data") else []
+        query = db_client.table("bidder_evaluations").select("*")
+        if tender_id:
+            query = query.eq("tender_id", tender_id)
+        query = query.order("created_at", desc=True).limit(limit)
+
+        response = await asyncio.to_thread(lambda: query.execute())
+        if response and hasattr(response, "data") and response.data:
+            return response.data
+
+        # Fallback to bid_evaluations table
+        query2 = db_client.table("bid_evaluations").select("*")
+        if tender_id:
+            query2 = query2.eq("tender_id", tender_id)
+        query2 = query2.order("created_at", desc=True).limit(limit)
+        response2 = await asyncio.to_thread(lambda: query2.execute())
+        return response2.data if response2 and hasattr(response2, "data") else []
     except Exception as exc:
         logger.warning("Failed to fetch bid evaluations: %s", exc)
         return []
+
 
 
 async def get_analytics_summary() -> Dict[str, Any]:
@@ -354,5 +377,166 @@ async def get_procurement_hierarchy(procurement_id: str) -> Dict[str, Any]:
         )
         tender["documents"] = t_doc_res.data if t_doc_res and t_doc_res.data else []
 
+        # Fetch tender requirements
+        try:
+            req_res = await asyncio.to_thread(
+                lambda: db_client.table("tender_requirements").select("*").eq("tender_id", tender_id).order("requirement_id").execute()
+            )
+            tender["requirements"] = req_res.data if req_res and req_res.data else []
+        except Exception:
+            tender["requirements"] = []
+
     procurement["tenders"] = tenders
     return procurement
+
+
+async def get_tender_by_id_or_ref(tender_id_or_ref: str) -> Optional[Dict[str, Any]]:
+    """Looks up a canonical tender by UUID id or tender_reference string."""
+    try:
+        db_client = get_supabase_client()
+        is_uuid = False
+        try:
+            import uuid as _uuid
+            _uuid.UUID(str(tender_id_or_ref))
+            is_uuid = True
+        except ValueError:
+            is_uuid = False
+
+        if is_uuid:
+            res = await asyncio.to_thread(
+                lambda: db_client.table("tenders").select("*").eq("id", str(tender_id_or_ref)).execute()
+            )
+            if res and hasattr(res, "data") and res.data:
+                return res.data[0]
+
+        # Lookup by tender_reference
+        res_ref = await asyncio.to_thread(
+            lambda: db_client.table("tenders").select("*").eq("tender_reference", str(tender_id_or_ref)).execute()
+        )
+        if res_ref and hasattr(res_ref, "data") and res_ref.data:
+            return res_ref.data[0]
+
+        return None
+    except Exception as exc:
+        logger.warning("Error looking up tender '%s': %s", tender_id_or_ref, exc)
+        return None
+
+
+async def save_tender_requirements(
+    tender_id_or_ref: str,
+    requirements: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Idempotently saves structured tender requirements linked to canonical tenders.
+    
+    If a canonical tender exists in public.tenders, requirements are persisted to
+    public.tender_requirements with atomic replacement/upsert per tender to guarantee idempotency.
+    Also retains snapshot in tender_analyses.
+    """
+    try:
+        db_client = get_supabase_client()
+        canonical_tender = await get_tender_by_id_or_ref(tender_id_or_ref)
+        resolved_tender_id = canonical_tender["id"] if canonical_tender else None
+
+        # Build normalized database rows
+        db_rows = []
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        for req in requirements:
+            req_dict = dict(req)
+            row = {
+                "requirement_id": req_dict.get("requirement_id", "REQ-001"),
+                "category": str(req_dict.get("category", "OTHER")),
+                "title": req_dict.get("title"),
+                "description": req_dict.get("description", ""),
+                "mandatory": bool(req_dict.get("mandatory", True)),
+                "structured_condition": req_dict.get("structured_condition") or req_dict.get("condition"),
+                "applicability": req_dict.get("applicability"),
+                "evidence_spec": req_dict.get("evidence_specs", [{}])[0] if req_dict.get("evidence_specs") else req_dict.get("evidence"),
+                "source_provenance": req_dict.get("source_provenance") or req_dict.get("provenance"),
+                "ambiguity": req_dict.get("ambiguity"),
+                "evidence_required": req_dict.get("evidence_required", []),
+                "is_ambiguous": bool(req_dict.get("is_ambiguous", False)),
+                "ambiguity_reason": req_dict.get("ambiguity_reason"),
+                "updated_at": now_iso,
+            }
+            if resolved_tender_id:
+                row["tender_id"] = resolved_tender_id
+            db_rows.append(row)
+
+        saved_rows = []
+        if resolved_tender_id:
+            try:
+                # Idempotent replacement: delete existing requirements for this tender
+                await asyncio.to_thread(
+                    lambda: db_client.table("tender_requirements").delete().eq("tender_id", resolved_tender_id).execute()
+                )
+                if db_rows:
+                    resp = await asyncio.to_thread(
+                        lambda: db_client.table("tender_requirements").insert(db_rows).execute()
+                    )
+                    if resp and hasattr(resp, "data") and resp.data:
+                        saved_rows = resp.data
+                        logger.info(
+                            "Persisted %d requirements to tender_requirements for tender %s",
+                            len(saved_rows),
+                            resolved_tender_id,
+                        )
+            except Exception as db_ins_err:
+                logger.warning("Could not persist to public.tender_requirements table: %s", db_ins_err)
+
+        # Retain snapshot in tender_analyses
+        snapshot_payload = {
+            "tender_id": tender_id_or_ref,
+            "canonical_tender_id": resolved_tender_id,
+            "requirements": requirements,
+            "persisted_at": now_iso,
+        }
+        await insert_tender_analysis(tender_id_or_ref, snapshot_payload)
+
+        return saved_rows if saved_rows else db_rows
+    except Exception as exc:
+        logger.warning("Failed to save tender requirements (non-blocking): %s", exc)
+        return requirements
+
+
+async def get_tender_requirements(tender_id_or_ref: str) -> List[Dict[str, Any]]:
+    """Retrieves structured requirements for a canonical tender or snapshot."""
+    try:
+        db_client = get_supabase_client()
+        canonical_tender = await get_tender_by_id_or_ref(tender_id_or_ref)
+        resolved_tender_id = canonical_tender["id"] if canonical_tender else None
+
+        # 1. Try querying normalized tender_requirements table
+        if resolved_tender_id:
+            try:
+                res = await asyncio.to_thread(
+                    lambda: db_client.table("tender_requirements").select("*").eq("tender_id", resolved_tender_id).order("requirement_id").execute()
+                )
+                if res and hasattr(res, "data") and res.data:
+                    return res.data
+            except Exception as tr_err:
+                logger.debug("tender_requirements table query failed: %s", tr_err)
+
+        # 2. Fallback: Query tender_analyses JSONB snapshot
+        try:
+            snap_res = await asyncio.to_thread(
+                lambda: (
+                    db_client.table("tender_analyses")
+                    .select("*")
+                    .eq("tender_id", str(tender_id_or_ref))
+                    .order("created_at", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+            )
+            if snap_res and hasattr(snap_res, "data") and snap_res.data:
+                analysis = snap_res.data[0].get("analysis_data", {}) or {}
+                if "requirements" in analysis and isinstance(analysis["requirements"], list):
+                    return analysis["requirements"]
+        except Exception as snap_err:
+            logger.debug("tender_analyses snapshot query failed: %s", snap_err)
+
+        return []
+    except Exception as exc:
+        logger.warning("Error fetching requirements for tender '%s': %s", tender_id_or_ref, exc)
+        return []

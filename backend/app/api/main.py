@@ -44,9 +44,15 @@ try:
         insert_bid_evaluation,
         get_bid_evaluations,
         get_analytics_summary,
+        save_tender_requirements,
+        get_tender_requirements,
     )
-    from backend.app.services.tender_service import analyze_tender
-    from backend.app.models.tender import TenderAnalysisResult
+    from backend.app.services.tender_service import (
+        analyze_tender,
+        persist_tender_requirements,
+        get_requirements_for_tender,
+    )
+    from backend.app.models.tender import TenderAnalysisResult, TenderRequirement
     from backend.app.services.pdf_parser import (
         extract_text_from_pdf as extract_pdf_text_service,
     )
@@ -96,9 +102,15 @@ except ImportError:
         insert_tender_analysis,
         insert_bid_evaluation,
         get_bid_evaluations,
+        save_tender_requirements,
+        get_tender_requirements,
     )
-    from app.services.tender_service import analyze_tender
-    from app.models.tender import TenderAnalysisResult
+    from app.services.tender_service import (
+        analyze_tender,
+        persist_tender_requirements,
+        get_requirements_for_tender,
+    )
+    from app.models.tender import TenderAnalysisResult, TenderRequirement
     from app.services.pdf_parser import (
         extract_text_from_pdf as extract_pdf_text_service,
     )
@@ -227,11 +239,16 @@ async def get_analytics_summary_endpoint():
 
 
 # ---------------------------------------------------------------------------
-# Tender analysis endpoint
+# Tender analysis & requirements endpoints
 # ---------------------------------------------------------------------------
 @app.post("/api/tender/analyze", response_model=TenderAnalysisResult)
-async def analyze_tender_endpoint(file: UploadFile = File(...)):
-    """Extracts text from an uploaded PDF tender and performs strict AI analysis."""
+async def analyze_tender_endpoint(
+    file: UploadFile = File(...),
+    tender_id: Optional[str] = Form(None),
+):
+    """Extracts text from an uploaded PDF tender, performs strict AI analysis,
+    and idempotently persists structured requirements linked to the canonical tender.
+    """
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -253,20 +270,65 @@ async def analyze_tender_endpoint(file: UploadFile = File(...)):
         )
 
     try:
-        result = await analyze_tender(file_bytes)
-        tender_id = result.tender_id or str(uuid.uuid4())
-        result.tender_id = tender_id
+        result = await analyze_tender(file_bytes, tender_id=tender_id)
+        effective_tender_id = tender_id or result.tender_id or str(uuid.uuid4())
+        result.tender_id = effective_tender_id
 
-        # Persist tender analysis to Supabase
-        await insert_tender_analysis(tender_id, result.model_dump())
+        # Persist tender analysis snapshot & structured requirements to Supabase
+        await insert_tender_analysis(effective_tender_id, result.model_dump())
+        await save_tender_requirements(
+            effective_tender_id,
+            [r.model_dump() for r in result.requirements],
+        )
 
-        logger.info("Tender analysis completed successfully for %s (ID: %s)", file.filename, tender_id)
+        logger.info(
+            "Tender analysis completed successfully for %s (ID: %s, %d requirements)",
+            file.filename,
+            effective_tender_id,
+            len(result.requirements),
+        )
         return result
     except Exception as err:
         logger.error("Tender analysis failed for %s: %s", file.filename, err)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Tender analysis failed: {str(err)}",
+        )
+
+
+@app.get("/api/tenders/{tender_id}/requirements", response_model=List[TenderRequirement])
+async def get_tender_requirements_endpoint(tender_id: str):
+    """Retrieves structured compliance requirements, conditions, and provenance for a canonical tender."""
+    try:
+        requirements = await get_requirements_for_tender(tender_id)
+        if not requirements:
+            raw_reqs = await get_tender_requirements(tender_id)
+            if raw_reqs:
+                requirements = [TenderRequirement.model_validate(r) for r in raw_reqs]
+        return requirements
+    except Exception as err:
+        logger.error("Failed to fetch requirements for tender %s: %s", tender_id, err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch tender requirements: {str(err)}",
+        )
+
+
+@app.post("/api/tenders/{tender_id}/requirements", response_model=List[TenderRequirement])
+async def save_tender_requirements_endpoint(
+    tender_id: str,
+    requirements: List[TenderRequirement],
+):
+    """Persists or updates structured requirements for a canonical tender."""
+    try:
+        req_dicts = [r.model_dump() for r in requirements]
+        saved = await save_tender_requirements(tender_id, req_dicts)
+        return [TenderRequirement.model_validate(r) for r in saved]
+    except Exception as err:
+        logger.error("Failed to save requirements for tender %s: %s", tender_id, err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save tender requirements: {str(err)}",
         )
 
 
