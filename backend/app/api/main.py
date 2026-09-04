@@ -282,10 +282,11 @@ async def analyze_tender_endpoint(
     """Extracts text from an uploaded PDF tender, performs strict AI analysis,
     and idempotently persists structured requirements linked to the canonical tender.
     """
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
+    allowed_exts = (".pdf", ".docx", ".doc", ".txt")
+    if not file.filename or not any(file.filename.lower().endswith(ext) for ext in allowed_exts):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid file format. Only PDF files are supported.",
+            detail="Invalid file format. Supported formats: PDF, DOCX, TXT.",
         )
 
     try:
@@ -303,7 +304,7 @@ async def analyze_tender_endpoint(
         )
 
     try:
-        result = await analyze_tender(file_bytes, tender_id=tender_id)
+        result = await analyze_tender(file_bytes, tender_id=tender_id, filename=file.filename)
         effective_tender_id = tender_id or result.tender_id or str(uuid.uuid4())
         result.tender_id = effective_tender_id
 
@@ -991,42 +992,83 @@ async def explain_audit_endpoint(evaluation_result: dict):
 @app.post("/api/verify/bid")
 async def verify_bid_endpoint(
     tender_file: UploadFile = File(...),
-    bidder_file: UploadFile = File(...),
+    bidder_file: Optional[UploadFile] = File(None),
+    bidder_files: Optional[List[UploadFile]] = File(None),
     requirement_id: str = Form(...),
 ):
-    """Executes the master verification pipeline against a tender requirement and bidder proof document."""
-    # Validate PDF formats
-    for f, name in [(tender_file, "Tender document"), (bidder_file, "Bidder document")]:
-        if not f.filename or not f.filename.lower().endswith(".pdf"):
+    """Executes the master verification pipeline against a tender requirement and one or more bidder proof documents
+    across diverse formats (PDF, CSV, DOCX, XLSX, TXT)."""
+    # Collect all submitted bidder files
+    submitted_bidder_files: List[UploadFile] = []
+    if bidder_files:
+        submitted_bidder_files.extend(f for f in bidder_files if f and f.filename)
+    if bidder_file and bidder_file.filename:
+        if not any(f.filename == bidder_file.filename for f in submitted_bidder_files):
+            submitted_bidder_files.append(bidder_file)
+
+    if not submitted_bidder_files:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one bidder document file is required.",
+        )
+
+    allowed_exts = (".pdf", ".csv", ".tsv", ".docx", ".doc", ".xlsx", ".xls", ".txt")
+
+    # Validate tender file format
+    if not tender_file.filename or not any(tender_file.filename.lower().endswith(ext) for ext in allowed_exts):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid format for Tender document. Supported formats: PDF, DOCX, TXT, CSV.",
+        )
+
+    # Validate bidder files formats
+    for bf in submitted_bidder_files:
+        if not bf.filename or not any(bf.filename.lower().endswith(ext) for ext in allowed_exts):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid format for {name}. Only PDF files are supported.",
+                detail=f"Invalid format for bidder document '{bf.filename}'. Supported formats: PDF, CSV, DOCX, XLSX, TXT.",
             )
 
     try:
         tender_bytes = await tender_file.read()
-        bidder_bytes = await bidder_file.read()
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to read uploaded files: {str(e)}",
+            detail=f"Failed to read uploaded tender file: {str(e)}",
         )
 
-    if not tender_bytes or not bidder_bytes:
+    if not tender_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Uploaded files cannot be empty.",
+            detail="Uploaded tender file cannot be empty.",
+        )
+
+    bidder_docs_data: List[Tuple[str, bytes]] = []
+    for bf in submitted_bidder_files:
+        try:
+            b_bytes = await bf.read()
+            if b_bytes:
+                bidder_docs_data.append((bf.filename or "bidder_doc.pdf", b_bytes))
+        except Exception as e:
+            logger.warning("Failed to read bidder file %s: %s", bf.filename, e)
+
+    if not bidder_docs_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded bidder files cannot be empty.",
         )
 
     try:
         result = await run_master_verification(
             tender_bytes=tender_bytes,
-            bidder_doc_bytes=bidder_bytes,
+            bidder_doc_bytes=bidder_docs_data,
             target_requirement_id=requirement_id,
+            tender_filename=tender_file.filename,
         )
         logger.info(
-            "Bid verification completed successfully for requirement %s (finding: %s)",
+            "Bid verification completed successfully for requirement %s with %d bidder doc(s) (finding: %s)",
             requirement_id,
+            len(bidder_docs_data),
             result.get("compliance_finding", {}).get("state"),
         )
         return result
@@ -1038,6 +1080,46 @@ async def verify_bid_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Master verification pipeline failed: {str(err)}",
         )
+
+
+@app.post("/api/documents/extract")
+async def extract_documents_endpoint(
+    files: List[UploadFile] = File(...),
+):
+    """Extracts raw text, structured tables, and metadata from multiple documents of any format (PDF, CSV, DOCX, XLSX, TXT)."""
+    try:
+        from backend.app.services.multi_format_extractor import extract_data_from_file
+    except ImportError:
+        try:
+            from app.services.multi_format_extractor import extract_data_from_file
+        except ImportError:
+            from services.multi_format_extractor import extract_data_from_file
+
+    results = []
+    for f in files:
+        if not f.filename:
+            continue
+        try:
+            f_bytes = await f.read()
+            extracted = await extract_data_from_file(f_bytes, f.filename)
+            results.append(extracted)
+        except Exception as fe:
+            logger.error("Failed to extract data from %s: %s", f.filename, fe)
+            results.append({
+                "filename": f.filename,
+                "file_format": "error",
+                "raw_text": f"Extraction error: {str(fe)}",
+                "page_count": 0,
+                "pages": [],
+                "tables": [],
+                "file_size": 0,
+                "metadata": {"error": str(fe)},
+            })
+
+    return {
+        "count": len(results),
+        "documents": results,
+    }
 
 
 @app.post("/api/verify/gst")

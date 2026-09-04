@@ -298,15 +298,19 @@ def _extract_entity_id_and_expiry(doc_type: str, text: str) -> Tuple[Optional[st
 
 async def run_master_verification(
     tender_bytes: bytes,
-    bidder_doc_bytes: bytes,
+    bidder_doc_bytes: Union[bytes, List[Tuple[str, bytes]], List[Dict[str, Any]]],
     target_requirement_id: str,
+    tender_filename: Optional[str] = "tender_document.pdf",
 ) -> dict:
     """Executes the complete end-to-end tender and bidder document verification pipeline.
 
+    Supports single or multiple bidder documents across PDF, CSV, DOCX, XLSX, and TXT formats.
+
     Args:
-        tender_bytes (bytes): Raw bytes of the tender PDF document.
-        bidder_doc_bytes (bytes): Raw bytes of the bidder-submitted proof document.
+        tender_bytes (bytes): Raw bytes of the tender document.
+        bidder_doc_bytes (bytes or list): Raw bytes of single bidder document or list of (filename, bytes).
         target_requirement_id (str): Unique requirement identifier to verify (e.g. 'REQ-001' or 'REQ-LC-01').
+        tender_filename (str, optional): Filename of the tender document for format detection.
 
     Returns:
         dict: A unified verification report containing the target requirement,
@@ -319,8 +323,19 @@ async def run_master_verification(
     (evaluate_compliance, extract_evidence_with_llm, analyze_tender_with_llm,
      run_deterministic_checks, extract_text_from_pdf, retrieve_relevant_clauses) = _load_legacy_dependencies()
 
-    # 1. Extract text from tender document
-    tender_text = await extract_text_from_pdf(tender_bytes)
+    try:
+        from backend.app.services.multi_format_extractor import extract_data_from_file
+    except ImportError:
+        try:
+            from app.services.multi_format_extractor import extract_data_from_file
+        except ImportError:
+            from services.multi_format_extractor import extract_data_from_file
+
+    # 1. Extract text from tender document (supports PDF, DOCX, TXT)
+    tender_data = await extract_data_from_file(tender_bytes, tender_filename or "tender_document.pdf")
+    tender_text = tender_data.get("raw_text", "")
+    if not tender_text:
+        tender_text = await extract_text_from_pdf(tender_bytes)
 
     # 2. Extract all tender requirements via LLM
     tender_analysis = await analyze_tender_with_llm(tender_text)
@@ -354,10 +369,45 @@ async def run_master_verification(
             detail=f"Target requirement '{target_requirement_id}' was not found in the analyzed tender.",
         )
 
-    # 4. Extract text from bidder proof document, identify document type, entity ID, and expiry date
-    bidder_text = await extract_text_from_pdf(bidder_doc_bytes)
-    doc_type = _identify_document_type(matched_req, bidder_text)
-    extracted_id, extracted_expiry = _extract_entity_id_and_expiry(doc_type, bidder_text)
+    # 4. Normalize and extract text from bidder proof documents (multi-file & multi-format support)
+    normalized_bidder_docs: List[Tuple[str, bytes]] = []
+    if isinstance(bidder_doc_bytes, (bytes, bytearray)):
+        normalized_bidder_docs.append(("bidder_document.pdf", bytes(bidder_doc_bytes)))
+    elif isinstance(bidder_doc_bytes, list):
+        for item in bidder_doc_bytes:
+            if isinstance(item, tuple) and len(item) == 2:
+                normalized_bidder_docs.append((str(item[0]), bytes(item[1])))
+            elif isinstance(item, dict):
+                fname = item.get("filename", "document.pdf")
+                b_bytes = item.get("bytes") or item.get("file_bytes") or b""
+                normalized_bidder_docs.append((fname, bytes(b_bytes)))
+            elif isinstance(item, (bytes, bytearray)):
+                normalized_bidder_docs.append((f"bidder_doc_{len(normalized_bidder_docs)+1}.pdf", bytes(item)))
+    else:
+        normalized_bidder_docs.append(("bidder_document.pdf", b""))
+
+    combined_bidder_sections = []
+    detected_doc_types = []
+    extracted_id = None
+    extracted_expiry = None
+
+    for fname, b_bytes in normalized_bidder_docs:
+        extracted = await extract_data_from_file(b_bytes, fname)
+        doc_text = extracted.get("raw_text", "")
+        d_type = _identify_document_type(matched_req, doc_text)
+        detected_doc_types.append(d_type)
+
+        e_id, e_expiry = _extract_entity_id_and_expiry(d_type, doc_text)
+        if e_id and not extracted_id:
+            extracted_id = e_id
+        if e_expiry and not extracted_expiry:
+            extracted_expiry = e_expiry
+
+        fmt_tag = extracted.get("file_format", "unknown").upper()
+        combined_bidder_sections.append(f"=== Document: {fname} [Format: {fmt_tag}] ===\n{doc_text}")
+
+    bidder_text = "\n\n".join(combined_bidder_sections)
+    doc_type = next((t for t in detected_doc_types if t in ("GST_CERTIFICATE", "PAN_CARD")), detected_doc_types[0] if detected_doc_types else "OTHER")
 
     # 5. Deterministic Validation (Regex, Debarment & Expiry Kill-Switches)
     if doc_type in ("GST_CERTIFICATE", "PAN_CARD") or extracted_id or extracted_expiry:

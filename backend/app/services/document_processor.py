@@ -8,11 +8,13 @@ try:
     from backend.app.services.pdf_parser import extract_pages_from_pdf
     from backend.app.services.document_classifier import classify_document
     from backend.app.models.procurement import Document, DocumentType
+    from backend.app.services.multi_format_extractor import extract_data_from_file, detect_file_format
 except ImportError:
     from app.db.client import get_supabase_client
     from app.services.pdf_parser import extract_pages_from_pdf
     from app.services.document_classifier import classify_document
     from app.models.procurement import Document, DocumentType
+    from app.services.multi_format_extractor import extract_data_from_file, detect_file_format
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +46,11 @@ async def process_canonical_document(document_id: str, file_bytes: bytes) -> Doc
     )
     
     try:
-        # 3. Extract text using the existing PDF pipeline (with page awareness & OCR fallback)
-        pages = await extract_pages_from_pdf(file_bytes)
-        
-        # We need to flatten the text for the deterministic classifier
-        full_text = "\n\n".join(p["text"] for p in pages if p.get("text"))
+        # 3. Extract text and structured data using the multi-format pipeline (PDF, CSV, DOCX, XLSX, TXT)
+        filename = doc_data.get("filename", "document.pdf")
+        extracted = await extract_data_from_file(file_bytes, filename)
+        pages = extracted.get("pages", [])
+        full_text = extracted.get("raw_text", "")
         
         # 6. Classify the document
         classification = classify_document(full_text)
@@ -113,14 +115,26 @@ async def process_canonical_submission_zip(procurement_id: str, tender_id: str, 
     
     zip_buffer = io.BytesIO(zip_bytes)
     with zipfile.ZipFile(zip_buffer, "r") as archive:
-        pdf_entries = [
+        supported_exts = (".pdf", ".csv", ".docx", ".doc", ".xlsx", ".xls", ".txt")
+        valid_entries = [
             name for name in archive.namelist()
-            if name.lower().endswith(".pdf") and not name.startswith("__MACOSX/") and not Path(name).name.startswith("._")
+            if any(name.lower().endswith(ext) for ext in supported_exts)
+            and not name.startswith("__MACOSX/") and not Path(name).name.startswith("._")
         ]
         
-        for entry in pdf_entries:
+        mime_map = {
+            "pdf": "application/pdf",
+            "csv": "text/csv",
+            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "txt": "text/plain",
+        }
+
+        for entry in valid_entries:
             clean_filename = Path(entry).name
             file_bytes = archive.read(entry)
+            file_fmt = detect_file_format(clean_filename, file_bytes)
+            mime_type = mime_map.get(file_fmt, "application/octet-stream")
             
             # 1. Create a canonical Document record in PENDING state
             doc_data = {
@@ -128,7 +142,7 @@ async def process_canonical_submission_zip(procurement_id: str, tender_id: str, 
                 "tender_id": tender_id,
                 "bid_submission_id": submission_id,
                 "filename": clean_filename,
-                "mime_type": "application/pdf",
+                "mime_type": mime_type,
                 "file_size": len(file_bytes),
                 "processing_status": "PENDING"
             }

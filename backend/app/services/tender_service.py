@@ -38,20 +38,33 @@ except ImportError:
 async def analyze_tender(
     file_bytes: bytes,
     tender_id: Optional[str] = None,
+    filename: Optional[str] = "tender.pdf",
 ) -> TenderAnalysisResult:
     """Analyzes tender document bytes and extracts structured compliance requirements
-    using the page-aware PDF extraction and Gemini AI intelligence pipeline.
+    using the multi-format extraction and Gemini AI intelligence pipeline.
 
     Args:
-        file_bytes (bytes): Raw bytes of the uploaded tender PDF document.
+        file_bytes (bytes): Raw bytes of the uploaded tender document.
         tender_id (Optional[str]): Optional explicit canonical tender ID or reference.
+        filename (Optional[str]): Filename for format detection (PDF, DOCX, TXT).
 
     Returns:
         TenderAnalysisResult: Validated Pydantic model with structured conditions,
             applicability, evidence specs, provenance, and ambiguity analysis.
     """
-    # Step 1: Extract page-aware text chunks from PDF bytes
-    pages = await extract_pages_from_pdf(file_bytes)
+    try:
+        from backend.app.services.multi_format_extractor import extract_data_from_file
+    except ImportError:
+        try:
+            from app.services.multi_format_extractor import extract_data_from_file
+        except ImportError:
+            from services.multi_format_extractor import extract_data_from_file
+
+    # Step 1: Extract page-aware text chunks (supports PDF, DOCX, TXT)
+    extracted = await extract_data_from_file(file_bytes, filename or "tender.pdf")
+    pages = extracted.get("pages")
+    if not pages:
+        pages = await extract_pages_from_pdf(file_bytes)
 
     # Step 2: Pass extracted pages through Gemini LLM with Ambiguity Radar & Structured Condition extraction
     result = await analyze_tender_with_llm(pages)

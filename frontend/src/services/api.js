@@ -309,13 +309,25 @@ export async function batchClassifyDocuments(zipFile) {
  */
 export async function verifyBid(tenderFile, bidderFile, requirementId) {
   if (!tenderFile || !bidderFile || !requirementId) {
-    throw new Error('Tender file, bidder file, and requirement ID are all required to verify a bid.');
+    throw new Error('Tender file, bidder file(s), and requirement ID are all required to verify a bid.');
   }
 
   const formData = new FormData();
   formData.append('tender_file', tenderFile);
-  formData.append('bidder_file', bidderFile);
   formData.append('requirement_id', String(requirementId));
+
+  if (Array.isArray(bidderFile) || (typeof FileList !== 'undefined' && bidderFile instanceof FileList)) {
+    const fileList = Array.from(bidderFile);
+    fileList.forEach((file) => {
+      formData.append('bidder_files', file);
+    });
+    if (fileList.length > 0) {
+      formData.append('bidder_file', fileList[0]);
+    }
+  } else {
+    formData.append('bidder_file', bidderFile);
+    formData.append('bidder_files', bidderFile);
+  }
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/verify/bid`, {
@@ -340,6 +352,50 @@ export async function verifyBid(tenderFile, bidderFile, requirementId) {
     return data;
   } catch (error) {
     console.error('Error verifying bid evidence:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
+    }
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Extracts structured data, tables, and raw text from one or more documents (PDF, CSV, DOCX, XLSX, TXT).
+ * 
+ * @param {File[] | FileList} files - List of document files to extract data from.
+ * @returns {Promise<any>} The parsed JSON response containing extraction records.
+ */
+export async function extractDocuments(files) {
+  if (!files || (Array.isArray(files) && files.length === 0)) {
+    throw new Error('At least one document file is required for extraction.');
+  }
+
+  const formData = new FormData();
+  const fileArray = Array.isArray(files) ? files : Array.from(files);
+  fileArray.forEach((f) => formData.append('files', f));
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/documents/extract`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {
+        // Fallback
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error extracting document data:', error);
     if (error instanceof TypeError && error.message.includes('fetch')) {
       throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
     }
