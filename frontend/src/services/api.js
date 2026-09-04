@@ -625,6 +625,107 @@ export async function evaluateComplete(tenderFile, bidderFile) {
   }
 }
 
+/**
+ * Ingests a structured simulated GeM procurement package via the Mock-GeM adapter.
+ * 
+ * @param {Object} payload - The simulated GeM procurement package.
+ * @returns {Promise<Object>} The canonical ProcurementIngestionResult.
+ */
+export async function ingestMockGeMPackage(payload) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/ingest/mock-gem`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error in Mock-GeM package ingestion:', error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Ingests the pre-packaged synthetic CPCL Water Quality Monitoring procurement (DEMO/CPCL/WQM/2026/017).
+ * 
+ * @returns {Promise<Object>} The canonical ProcurementIngestionResult.
+ */
+export async function ingestMockGeMDemo() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/ingest/mock-gem/demo`, {
+      method: 'POST',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error in Mock-GeM demo ingestion:', error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Uploads a simulated GeM ZIP package containing metadata.json and procurement documents.
+ * 
+ * @param {File | Blob} zipFile - The ZIP package file.
+ * @returns {Promise<Object>} The canonical ProcurementIngestionResult.
+ */
+export async function ingestMockGeMZip(zipFile) {
+  if (!zipFile) {
+    throw new Error('A valid ZIP package file is required.');
+  }
+
+  const formData = new FormData();
+  formData.append('file', zipFile);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/ingest/mock-gem/zip`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error in Mock-GeM ZIP package ingestion:', error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
 export default {
   verifyGSTDocument,
   fetchVerificationHistory,
@@ -640,4 +741,8 @@ export default {
   generateShortfallNotice,
   generateAwardContract,
   evaluateComplete,
+  ingestMockGeMPackage,
+  ingestMockGeMDemo,
+  ingestMockGeMZip,
 };
+

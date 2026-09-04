@@ -177,6 +177,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Register Mock-GeM Adapter Router
+try:
+    from backend.app.api.mock_gem_router import router as mock_gem_router
+except ImportError:
+    from app.api.mock_gem_router import router as mock_gem_router
+
+app.include_router(mock_gem_router)
+
+
 
 # ---------------------------------------------------------------------------
 # Health check
