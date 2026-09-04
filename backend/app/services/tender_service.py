@@ -17,33 +17,35 @@ for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
 
 try:
     from backend.app.models.tender import TenderAnalysisResult
-    from backend.app.services.pdf_parser import extract_text_from_pdf
+    from backend.app.services.pdf_parser import extract_pages_from_pdf, extract_text_from_pdf
     from backend.app.ai.llm_service import analyze_tender_with_llm
 except ImportError:
     try:
         from app.models.tender import TenderAnalysisResult
-        from app.services.pdf_parser import extract_text_from_pdf
+        from app.services.pdf_parser import extract_pages_from_pdf, extract_text_from_pdf
         from app.ai.llm_service import analyze_tender_with_llm
     except ImportError:
         from models.tender import TenderAnalysisResult
-        from services.pdf_parser import extract_text_from_pdf
+        from services.pdf_parser import extract_pages_from_pdf, extract_text_from_pdf
         from ai.llm_service import analyze_tender_with_llm
 
 
 async def analyze_tender(file_bytes: bytes) -> TenderAnalysisResult:
     """Analyzes tender document bytes and extracts structured compliance requirements
-    using the live PDF extraction and Gemini AI intelligence pipeline.
+    using the page-aware PDF extraction and Gemini AI intelligence pipeline.
 
     Args:
         file_bytes (bytes): Raw bytes of the uploaded tender PDF document.
 
     Returns:
-        TenderAnalysisResult: Validated Pydantic model with extracted requirements and ambiguity analysis.
+        TenderAnalysisResult: Validated Pydantic model with structured conditions,
+            applicability, evidence specs, provenance, and ambiguity analysis.
     """
-    # Step 1: Extract cleaned text from PDF bytes
-    text = await extract_text_from_pdf(file_bytes)
+    # Step 1: Extract page-aware text chunks from PDF bytes
+    pages = await extract_pages_from_pdf(file_bytes)
 
-    # Step 2: Pass extracted text through Gemini LLM with Ambiguity Radar
-    result = await analyze_tender_with_llm(text)
+    # Step 2: Pass extracted pages through Gemini LLM with Ambiguity Radar & Structured Condition extraction
+    result = await analyze_tender_with_llm(pages)
 
     return result
+
