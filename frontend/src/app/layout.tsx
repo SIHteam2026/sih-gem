@@ -13,11 +13,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "IShowSolution | Procurement reviews",
-  description: "Evidence-led procurement review.",
+  title: "OPAL | Procurement Review",
+  description: "Intelligent procurement review layer.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"
