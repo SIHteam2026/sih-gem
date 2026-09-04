@@ -6,12 +6,14 @@ compliance checks, or fraud evaluation workflows.
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from app.db import client as db_client
 from app.models.procurement import (
     BidderSummaryResponse,
     DocumentMetadataResponse,
+    DocumentType,
     ProcurementDetailResponse,
     ProcurementListResponse,
     ProcurementStatus,
@@ -26,37 +28,48 @@ logger = logging.getLogger(__name__)
 
 def _map_document(doc_data: dict) -> DocumentMetadataResponse:
     """Helper to convert raw document dict to DocumentMetadataResponse."""
+    raw_type = doc_data.get("document_type")
+    doc_type = None
+    if raw_type:
+        try:
+            doc_type = DocumentType(raw_type)
+        except (ValueError, KeyError):
+            doc_type = DocumentType.OTHER
+
+    now = datetime.now(timezone.utc)
     return DocumentMetadataResponse(
         id=str(doc_data.get("id", "")),
         procurement_id=str(doc_data.get("procurement_id", "")),
         tender_id=str(doc_data["tender_id"]) if doc_data.get("tender_id") else None,
         bid_submission_id=str(doc_data["bid_submission_id"]) if doc_data.get("bid_submission_id") else None,
         filename=str(doc_data.get("filename", "")),
-        document_type=doc_data.get("document_type"),
+        document_type=doc_type,
         mime_type=str(doc_data.get("mime_type", "application/pdf")),
         file_size=doc_data.get("file_size"),
         storage_path=doc_data.get("storage_path"),
         processing_status=str(doc_data.get("processing_status", "PENDING")),
-        created_at=doc_data.get("created_at"),
-        updated_at=doc_data.get("updated_at"),
+        created_at=doc_data.get("created_at") or now,
+        updated_at=doc_data.get("updated_at") or now,
     )
 
 
 def _map_bidder(bidder_data: dict) -> BidderSummaryResponse:
     """Helper to convert raw bidder dict to BidderSummaryResponse."""
+    now = datetime.now(timezone.utc)
     return BidderSummaryResponse(
         id=str(bidder_data.get("id", "")),
         legal_name=str(bidder_data.get("legal_name", "")),
         gstin=bidder_data.get("gstin"),
         pan=bidder_data.get("pan"),
         email=bidder_data.get("email"),
-        created_at=bidder_data.get("created_at"),
-        updated_at=bidder_data.get("updated_at"),
+        created_at=bidder_data.get("created_at") or now,
+        updated_at=bidder_data.get("updated_at") or now,
     )
 
 
 def _map_submission(sub_data: dict) -> SubmissionSummaryResponse:
     """Helper to convert raw submission dict to SubmissionSummaryResponse."""
+    now = datetime.now(timezone.utc)
     bidder_obj = None
     if sub_data.get("bidder") and isinstance(sub_data["bidder"], dict):
         bidder_obj = _map_bidder(sub_data["bidder"])
@@ -74,13 +87,14 @@ def _map_submission(sub_data: dict) -> SubmissionSummaryResponse:
         bidder=bidder_obj,
         documents=mapped_docs,
         document_count=sub_data.get("document_count", len(mapped_docs)),
-        created_at=sub_data.get("created_at"),
-        updated_at=sub_data.get("updated_at"),
+        created_at=sub_data.get("created_at") or now,
+        updated_at=sub_data.get("updated_at") or now,
     )
 
 
 def _map_tender(tender_data: dict) -> TenderSummaryResponse:
     """Helper to convert raw tender dict to TenderSummaryResponse."""
+    now = datetime.now(timezone.utc)
     raw_docs = tender_data.get("documents", []) or []
     mapped_docs = [_map_document(d) for d in raw_docs]
 
@@ -97,12 +111,12 @@ def _map_tender(tender_data: dict) -> TenderSummaryResponse:
         category=tender_data.get("category"),
         status=str(tender_data.get("status", "READY")),
         requirement_count=tender_data.get("requirement_count", 0),
-        document_count=tender_data.get("document_count", len(mapped_docs)),
-        bidder_count=tender_data.get("bidder_count", len(mapped_subs)),
+        document_count=len(mapped_docs) if mapped_docs else tender_data.get("document_count", 0),
+        bidder_count=len(mapped_subs) if mapped_subs else tender_data.get("bidder_count", 0),
         documents=mapped_docs,
         submissions=mapped_subs,
-        created_at=tender_data.get("created_at"),
-        updated_at=tender_data.get("updated_at"),
+        created_at=tender_data.get("created_at") or now,
+        updated_at=tender_data.get("updated_at") or now,
     )
 
 
@@ -167,6 +181,7 @@ async def get_procurement_detail_service(procurement_id: str) -> Optional[Procur
     top_docs = [_map_document(d) for d in raw.get("documents", []) or []]
     tenders = [_map_tender(t) for t in raw.get("tenders", []) or []]
 
+    now = datetime.now(timezone.utc)
     return ProcurementDetailResponse(
         id=str(raw.get("id", "")),
         external_reference=str(raw.get("external_reference", "")),
@@ -176,8 +191,8 @@ async def get_procurement_detail_service(procurement_id: str) -> Optional[Procur
         status=status_enum,
         tenders=tenders,
         documents=top_docs,
-        created_at=raw.get("created_at"),
-        updated_at=raw.get("updated_at"),
+        created_at=raw.get("created_at") or now,
+        updated_at=raw.get("updated_at") or now,
     )
 
 
@@ -189,6 +204,7 @@ async def get_tender_detail_service(tender_id: str) -> Optional[TenderWorkspaceD
 
     mapped_docs = [_map_document(d) for d in raw.get("documents", []) or []]
     mapped_subs = [_map_submission(s) for s in raw.get("submissions", []) or []]
+    now = datetime.now(timezone.utc)
 
     return TenderWorkspaceDetailResponse(
         id=str(raw.get("id", "")),
@@ -203,12 +219,12 @@ async def get_tender_detail_service(tender_id: str) -> Optional[TenderWorkspaceD
         category=raw.get("category"),
         status=str(raw.get("status", "READY")),
         requirement_count=raw.get("requirement_count", 0),
-        document_count=raw.get("document_count", len(mapped_docs)),
-        bidder_count=raw.get("bidder_count", len(mapped_subs)),
+        document_count=len(mapped_docs) if mapped_docs else raw.get("document_count", 0),
+        bidder_count=len(mapped_subs) if mapped_subs else raw.get("bidder_count", 0),
         documents=mapped_docs,
         submissions=mapped_subs,
-        created_at=raw.get("created_at"),
-        updated_at=raw.get("updated_at"),
+        created_at=raw.get("created_at") or now,
+        updated_at=raw.get("updated_at") or now,
     )
 
 

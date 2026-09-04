@@ -68,7 +68,7 @@ try:
     from backend.app.models.document import DocumentClassificationResult
     from backend.app.services.entity_resolution import compare_entities
     from backend.app.models.entity import EntityMatchResult
-    from backend.app.services.master_pipeline import run_master_verification, evaluate_canonical_submission
+    from backend.app.services.master_pipeline import run_master_verification, evaluate_canonical_submission, evaluate_canonical_submission_by_id
     from backend.app.services.zip_processor import process_bidder_zip
     from backend.app.ai.chat_service import answer_procurement_question
     from backend.app.services.boq_parser import extract_financial_tables
@@ -134,7 +134,7 @@ except ImportError:
     from app.models.document import DocumentClassificationResult
     from app.services.entity_resolution import compare_entities
     from app.models.entity import EntityMatchResult
-    from app.services.master_pipeline import run_master_verification, evaluate_canonical_submission
+    from app.services.master_pipeline import run_master_verification, evaluate_canonical_submission, evaluate_canonical_submission_by_id
     from app.services.zip_processor import process_bidder_zip
     from app.ai.chat_service import answer_procurement_question
     from app.services.boq_parser import extract_financial_tables
@@ -757,6 +757,32 @@ async def evaluate_complete_endpoint(payload: MasterEvaluationRequest):
                 unresolved_contradiction_count=canonical["unresolved_contradiction_count"],
                 unverified_count=canonical["unverified_count"],
             )
+
+        # Canonical path 2: submission_id provided -> resolve canonical submission data
+        if payload.submission_id:
+            try:
+                canonical = await evaluate_canonical_submission_by_id(
+                    submission_id=payload.submission_id,
+                    tender_id_or_ref=payload.tender_id,
+                    external_verifications=payload.external_verifications,
+                    context=payload.evaluation_context,
+                )
+                requirement_results = canonical["requirement_results"]
+                return MasterEvaluationResponse(
+                    tender_id=canonical.get("tender_id", tender_id),
+                    bidder_name=bidder_name,
+                    evaluation_timestamp=eval_timestamp,
+                    deterministic_checks=DeterministicCheckSummary(),
+                    compliance_findings=[result.to_compliance_finding() for result in requirement_results],
+                    requirement_results=requirement_results,
+                    machine_review_summary=canonical["machine_review_summary"],
+                    review_required=canonical["review_required"],
+                    review_required_count=canonical["review_required_count"],
+                    unresolved_contradiction_count=canonical["unresolved_contradiction_count"],
+                    unverified_count=canonical["unverified_count"],
+                )
+            except Exception as ce:
+                logger.warning("Canonical evaluation by submission_id failed, falling back to legacy: %s", ce)
 
         # 1. Collect & aggregate document texts
         combined_bidder_text_parts = []
