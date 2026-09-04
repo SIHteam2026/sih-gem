@@ -540,3 +540,230 @@ async def get_tender_requirements(tender_id_or_ref: str) -> List[Dict[str, Any]]
     except Exception as exc:
         logger.warning("Error fetching requirements for tender '%s': %s", tender_id_or_ref, exc)
         return []
+
+
+async def list_procurements(limit: int = 50, offset: int = 0) -> Dict[str, Any]:
+    """Retrieves paginated list of procurement workspaces from database with item counts."""
+    try:
+        db_client = get_supabase_client()
+        # Fetch items
+        res = await asyncio.to_thread(
+            lambda: (
+                db_client.table("procurements")
+                .select("*", count="exact")
+                .order("created_at", desc=True)
+                .range(offset, offset + limit - 1)
+                .execute()
+            )
+        )
+        items = res.data if res and hasattr(res, "data") and res.data else []
+        total = res.count if res and hasattr(res, "count") and res.count is not None else len(items)
+
+        # Populate count summaries for each procurement
+        for proc in items:
+            p_id = proc["id"]
+            try:
+                t_count_res = await asyncio.to_thread(
+                    lambda: db_client.table("tenders").select("id", count="exact").eq("procurement_id", p_id).execute()
+                )
+                proc["tender_count"] = t_count_res.count if t_count_res and t_count_res.count is not None else len(t_count_res.data or [])
+            except Exception:
+                proc["tender_count"] = 0
+
+            try:
+                d_count_res = await asyncio.to_thread(
+                    lambda: db_client.table("documents").select("id", count="exact").eq("procurement_id", p_id).execute()
+                )
+                proc["document_count"] = d_count_res.count if d_count_res and d_count_res.count is not None else len(d_count_res.data or [])
+            except Exception:
+                proc["document_count"] = 0
+
+            try:
+                b_count_res = await asyncio.to_thread(
+                    lambda: db_client.table("bid_submissions").select("bidder_id").eq("procurement_id", p_id).execute()
+                )
+                b_data = b_count_res.data if b_count_res and b_count_res.data else []
+                unique_bidders = {row["bidder_id"] for row in b_data if row.get("bidder_id")}
+                proc["bidder_count"] = len(unique_bidders)
+            except Exception:
+                proc["bidder_count"] = 0
+
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
+    except Exception as exc:
+        logger.warning("Error listing procurements: %s", exc)
+        return {"items": [], "total": 0, "limit": limit, "offset": offset}
+
+
+async def get_procurement_detail_db(procurement_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves single procurement workspace with full nested tender & document hierarchy."""
+    try:
+        db_client = get_supabase_client()
+        proc_res = await asyncio.to_thread(
+            lambda: db_client.table("procurements").select("*").eq("id", procurement_id).execute()
+        )
+        if not proc_res or not proc_res.data:
+            return None
+
+        procurement = proc_res.data[0]
+
+        # Top-level documents (procurement-level docs)
+        try:
+            top_docs_res = await asyncio.to_thread(
+                lambda: db_client.table("documents")
+                .select("*")
+                .eq("procurement_id", procurement_id)
+                .is_("tender_id", "null")
+                .is_("bid_submission_id", "null")
+                .execute()
+            )
+            procurement["documents"] = top_docs_res.data if top_docs_res and top_docs_res.data else []
+        except Exception:
+            # Fallback query without null filter if syntax differs
+            top_docs_res = await asyncio.to_thread(
+                lambda: db_client.table("documents").select("*").eq("procurement_id", procurement_id).execute()
+            )
+            all_docs = top_docs_res.data if top_docs_res and top_docs_res.data else []
+            procurement["documents"] = [d for d in all_docs if not d.get("tender_id") and not d.get("bid_submission_id")]
+
+        # Tenders
+        tenders_res = await asyncio.to_thread(
+            lambda: db_client.table("tenders").select("*").eq("procurement_id", procurement_id).execute()
+        )
+        tenders = tenders_res.data if tenders_res and tenders_res.data else []
+
+        for tender in tenders:
+            t_id = tender["id"]
+            # Tender docs
+            t_doc_res = await asyncio.to_thread(
+                lambda: db_client.table("documents").select("*").eq("tender_id", t_id).execute()
+            )
+            tender["documents"] = t_doc_res.data if t_doc_res and t_doc_res.data else []
+            tender["document_count"] = len(tender["documents"])
+
+            # Requirements count
+            reqs = await get_tender_requirements(t_id)
+            tender["requirement_count"] = len(reqs)
+
+            # Submissions
+            sub_res = await asyncio.to_thread(
+                lambda: db_client.table("bid_submissions").select("*, bidders(*)").eq("tender_id", t_id).execute()
+            )
+            submissions = sub_res.data if sub_res and sub_res.data else []
+            for sub in submissions:
+                sub_id = sub["id"]
+                sub_doc_res = await asyncio.to_thread(
+                    lambda: db_client.table("documents").select("*").eq("bid_submission_id", sub_id).execute()
+                )
+                sub["documents"] = sub_doc_res.data if sub_doc_res and sub_doc_res.data else []
+                sub["document_count"] = len(sub["documents"])
+                if "bidders" in sub and sub["bidders"]:
+                    sub["bidder"] = sub["bidders"]
+
+            tender["submissions"] = submissions
+            tender["bidder_count"] = len(submissions)
+
+        procurement["tenders"] = tenders
+        return procurement
+    except Exception as exc:
+        logger.warning("Error fetching procurement detail for '%s': %s", procurement_id, exc)
+        return None
+
+
+async def get_tender_detail_db(tender_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves single tender workspace detail by tender UUID."""
+    try:
+        db_client = get_supabase_client()
+        tender_res = await asyncio.to_thread(
+            lambda: db_client.table("tenders").select("*").eq("id", tender_id).execute()
+        )
+        if not tender_res or not tender_res.data:
+            return None
+
+        tender = tender_res.data[0]
+        procurement_id = tender.get("procurement_id")
+
+        # Parent procurement details
+        if procurement_id:
+            proc_res = await asyncio.to_thread(
+                lambda: db_client.table("procurements").select("title, external_reference, source_system").eq("id", procurement_id).execute()
+            )
+            if proc_res and proc_res.data:
+                proc_info = proc_res.data[0]
+                tender["procurement_title"] = proc_info.get("title")
+                tender["procurement_external_reference"] = proc_info.get("external_reference")
+                tender["source_system"] = proc_info.get("source_system")
+
+        # Tender docs
+        t_doc_res = await asyncio.to_thread(
+            lambda: db_client.table("documents").select("*").eq("tender_id", tender_id).execute()
+        )
+        tender["documents"] = t_doc_res.data if t_doc_res and t_doc_res.data else []
+        tender["document_count"] = len(tender["documents"])
+
+        # Requirements count
+        reqs = await get_tender_requirements(tender_id)
+        tender["requirement_count"] = len(reqs)
+
+        # Submissions
+        sub_res = await asyncio.to_thread(
+            lambda: db_client.table("bid_submissions").select("*, bidders(*)").eq("tender_id", tender_id).execute()
+        )
+        submissions = sub_res.data if sub_res and sub_res.data else []
+        for sub in submissions:
+            sub_id = sub["id"]
+            sub_doc_res = await asyncio.to_thread(
+                lambda: db_client.table("documents").select("*").eq("bid_submission_id", sub_id).execute()
+            )
+            sub["documents"] = sub_doc_res.data if sub_doc_res and sub_doc_res.data else []
+            sub["document_count"] = len(sub["documents"])
+            if "bidders" in sub and sub["bidders"]:
+                sub["bidder"] = sub["bidders"]
+
+        tender["submissions"] = submissions
+        tender["bidder_count"] = len(submissions)
+        return tender
+    except Exception as exc:
+        logger.warning("Error fetching tender detail for '%s': %s", tender_id, exc)
+        return None
+
+
+async def get_submission_detail_db(submission_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves single bid submission workspace detail by submission UUID."""
+    try:
+        db_client = get_supabase_client()
+        sub_res = await asyncio.to_thread(
+            lambda: db_client.table("bid_submissions").select("*, bidders(*)").eq("id", submission_id).execute()
+        )
+        if not sub_res or not sub_res.data:
+            return None
+
+        sub = sub_res.data[0]
+        if "bidders" in sub and sub["bidders"]:
+            sub["bidder"] = sub["bidders"]
+
+        sub_doc_res = await asyncio.to_thread(
+            lambda: db_client.table("documents").select("*").eq("bid_submission_id", submission_id).execute()
+        )
+        sub["documents"] = sub_doc_res.data if sub_doc_res and sub_doc_res.data else []
+        sub["document_count"] = len(sub["documents"])
+        return sub
+    except Exception as exc:
+        logger.warning("Error fetching submission detail for '%s': %s", submission_id, exc)
+        return None
+
+
+async def get_bidder_detail_db(bidder_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves bidder profile details by bidder UUID."""
+    try:
+        db_client = get_supabase_client()
+        bidder_res = await asyncio.to_thread(
+            lambda: db_client.table("bidders").select("*").eq("id", bidder_id).execute()
+        )
+        if not bidder_res or not bidder_res.data:
+            return None
+
+        bidder = bidder_res.data[0]
+        return bidder
+    except Exception as exc:
+        logger.warning("Error fetching bidder detail for '%s': %s", bidder_id, exc)
+        return None

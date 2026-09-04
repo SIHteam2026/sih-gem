@@ -726,6 +726,157 @@ export async function ingestMockGeMZip(zipFile) {
   }
 }
 
+/**
+ * Fetches paginated procurement workspace summaries.
+ * 
+ * @param {number} limit - Max records to return.
+ * @param {number} offset - Offset index.
+ * @returns {Promise<Object>} Object containing procurements array, total, limit, and offset.
+ */
+export async function fetchProcurements(limit = 50, offset = 0) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/procurements?limit=${limit}&offset=${offset}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching procurement list:', error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Fetches single procurement workspace detail.
+ * 
+ * @param {string} procurementId - Procurement UUID.
+ * @returns {Promise<Object>} Procurement detail object.
+ */
+export async function fetchProcurementDetail(procurementId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/procurements/${encodeURIComponent(procurementId)}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching procurement detail for ${procurementId}:`, error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Fetches tender workspace detail by tender ID.
+ * 
+ * @param {string} tenderId - Tender UUID.
+ * @returns {Promise<Object>} Tender workspace detail object.
+ */
+export async function fetchTenderDetail(tenderId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/tenders/${encodeURIComponent(tenderId)}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching tender detail for ${tenderId}:`, error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Fetches submission detail by submission ID.
+ * 
+ * @param {string} submissionId - Bid submission UUID.
+ * @returns {Promise<Object>} Submission detail object.
+ */
+export async function fetchSubmissionDetail(submissionId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/submissions/${encodeURIComponent(submissionId)}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching submission detail for ${submissionId}:`, error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Fetches bidder profile detail by bidder ID.
+ * 
+ * @param {string} bidderId - Bidder UUID.
+ * @returns {Promise<Object>} Bidder detail object.
+ */
+export async function fetchBidderDetail(bidderId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/bidders/${encodeURIComponent(bidderId)}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching bidder detail for ${bidderId}:`, error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
 export default {
   verifyGSTDocument,
   fetchVerificationHistory,
@@ -744,5 +895,10 @@ export default {
   ingestMockGeMPackage,
   ingestMockGeMDemo,
   ingestMockGeMZip,
+  fetchProcurements,
+  fetchProcurementDetail,
+  fetchTenderDetail,
+  fetchSubmissionDetail,
+  fetchBidderDetail,
 };
 

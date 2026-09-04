@@ -201,6 +201,14 @@ except ImportError:
 
 app.include_router(mock_gem_router)
 
+# Register Procurement Workspace Router
+try:
+    from backend.app.api.procurement_router import router as procurement_router
+except ImportError:
+    from app.api.procurement_router import router as procurement_router
+
+app.include_router(procurement_router)
+
 
 
 # ---------------------------------------------------------------------------

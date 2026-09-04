@@ -273,3 +273,149 @@ class ProcurementIngestionResult(BaseModel):
     message: str = Field(..., description="Human-readable execution outcome summary.")
     hierarchy: Optional[ProcurementHierarchy] = Field(None, description="Full canonical procurement hierarchy.")
 
+
+# ---------------------------------------------------------------------------
+# Procurement Read API DTO Models
+# ---------------------------------------------------------------------------
+class DocumentMetadataResponse(BaseModel):
+    """Clean document metadata response DTO without heavy extracted text payloads."""
+    id: str = Field(..., description="Document UUID.")
+    procurement_id: str = Field(..., description="Associated procurement ID.")
+    tender_id: Optional[str] = Field(None, description="Associated tender ID.")
+    bid_submission_id: Optional[str] = Field(None, description="Associated bid submission ID.")
+    filename: str = Field(..., description="Original filename.")
+    document_type: Optional[DocumentType] = Field(None, description="Category of the document.")
+    mime_type: str = Field(default="application/pdf", description="MIME content type.")
+    file_size: Optional[int] = Field(None, description="File size in bytes.")
+    storage_path: Optional[str] = Field(None, description="Storage location reference or key.")
+    processing_status: str = Field(default="PENDING", description="Document intelligence processing status.")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        from_attributes = True
+
+
+class BidderSummaryResponse(BaseModel):
+    """Bidder identity summary DTO."""
+    id: str = Field(..., description="Bidder UUID.")
+    legal_name: str = Field(..., description="Registered corporate legal name.")
+    gstin: Optional[str] = Field(None, description="15-character GSTIN identifier.")
+    pan: Optional[str] = Field(None, description="10-character PAN identifier.")
+    email: Optional[str] = Field(None, description="Primary contact email address.")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        from_attributes = True
+
+
+class SubmissionSummaryResponse(BaseModel):
+    """Bid submission workspace summary DTO."""
+    id: str = Field(..., description="Bid submission UUID.")
+    tender_id: str = Field(..., description="Associated tender ID.")
+    bidder_id: str = Field(..., description="Associated bidder ID.")
+    external_submission_reference: Optional[str] = Field(None, description="External submission reference.")
+    submitted_at: Optional[datetime] = Field(None, description="Submission timestamp.")
+    status: str = Field(default="SUBMITTED", description="Submission status.")
+    bidder: Optional[BidderSummaryResponse] = Field(None, description="Associated bidder profile.")
+    documents: List[DocumentMetadataResponse] = Field(default_factory=list, description="Attached evidence document metadata.")
+    document_count: int = Field(default=0, description="Total documents attached.")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        from_attributes = True
+
+
+class TenderSummaryResponse(BaseModel):
+    """Tender workspace summary DTO."""
+    id: str = Field(..., description="Tender UUID.")
+    procurement_id: str = Field(..., description="Associated procurement ID.")
+    tender_reference: str = Field(..., description="Tender reference number.")
+    title: str = Field(..., description="Tender title.")
+    description: Optional[str] = Field(None, description="Scope of work or summary.")
+    estimated_value: Optional[float] = Field(None, description="Estimated budget in INR.")
+    category: Optional[str] = Field(None, description="Procurement category.")
+    status: str = Field(default="READY", description="Tender status.")
+    requirement_count: int = Field(default=0, description="Extracted requirement criteria count.")
+    document_count: int = Field(default=0, description="Tender specification document count.")
+    bidder_count: int = Field(default=0, description="Participating bidder count.")
+    documents: List[DocumentMetadataResponse] = Field(default_factory=list, description="Tender specification documents.")
+    submissions: List[SubmissionSummaryResponse] = Field(default_factory=list, description="Bidder submissions for this tender.")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        from_attributes = True
+
+
+class ProcurementSummaryItem(BaseModel):
+    """Summary item for procurement list queries."""
+    procurement_id: str = Field(..., description="Procurement UUID.")
+    id: str = Field(..., description="Procurement UUID (alias for compatibility).")
+    external_reference: str = Field(..., description="External procurement reference ID.")
+    title: str = Field(..., description="Procurement workspace title.")
+    organization: str = Field(..., description="Issuing government organization.")
+    source_system: str = Field(..., description="Source system identifier (e.g., MOCK_GEM, REAL_GEM).")
+    status: ProcurementStatus = Field(..., description="Procurement lifecycle status.")
+    tender_count: int = Field(default=0, description="Total tenders in this procurement.")
+    bidder_count: int = Field(default=0, description="Total unique participating bidders.")
+    document_count: int = Field(default=0, description="Total documents registered.")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        from_attributes = True
+
+
+class ProcurementListResponse(BaseModel):
+    """Paginated list response for procurement list query."""
+    total: int = Field(..., description="Total matching procurements.")
+    limit: int = Field(..., description="Query limit.")
+    offset: int = Field(..., description="Query offset.")
+    procurements: List[ProcurementSummaryItem] = Field(default_factory=list, description="Procurement summaries.")
+
+
+class ProcurementDetailResponse(BaseModel):
+    """Full detail summary for procurement workspace."""
+    id: str = Field(..., description="Procurement UUID.")
+    external_reference: str = Field(..., description="External reference ID.")
+    title: str = Field(..., description="Procurement workspace title.")
+    organization: str = Field(..., description="Issuing government department.")
+    source_system: str = Field(..., description="Source system identifier.")
+    status: ProcurementStatus = Field(..., description="Procurement status.")
+    tenders: List[TenderSummaryResponse] = Field(default_factory=list, description="Associated tenders.")
+    documents: List[DocumentMetadataResponse] = Field(default_factory=list, description="Top-level procurement documents.")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        from_attributes = True
+
+
+class TenderWorkspaceDetailResponse(BaseModel):
+    """Detailed workspace response for opening a specific tender."""
+    id: str = Field(..., description="Tender UUID.")
+    procurement_id: str = Field(..., description="Parent procurement UUID.")
+    procurement_title: Optional[str] = Field(None, description="Parent procurement title.")
+    procurement_external_reference: Optional[str] = Field(None, description="Parent procurement external reference.")
+    source_system: Optional[str] = Field(None, description="Source system identifier.")
+    tender_reference: str = Field(..., description="Tender reference number.")
+    title: str = Field(..., description="Tender title.")
+    description: Optional[str] = Field(None, description="Tender description.")
+    estimated_value: Optional[float] = Field(None, description="Estimated budget in INR.")
+    category: Optional[str] = Field(None, description="Procurement category.")
+    status: str = Field(default="READY", description="Processing status.")
+    requirement_count: int = Field(default=0, description="Total requirement criteria.")
+    document_count: int = Field(default=0, description="Tender specification documents.")
+    bidder_count: int = Field(default=0, description="Participating bidders.")
+    documents: List[DocumentMetadataResponse] = Field(default_factory=list, description="Tender specification documents.")
+    submissions: List[SubmissionSummaryResponse] = Field(default_factory=list, description="Bidder submissions.")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        from_attributes = True
+
+
