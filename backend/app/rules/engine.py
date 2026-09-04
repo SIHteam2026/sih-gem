@@ -55,6 +55,7 @@ GENERIC_CURRENCY_REGEX = re.compile(
     re.IGNORECASE,
 )
 GENERIC_NUMBER_REGEX = re.compile(r"^[+-]?([0-9]+(?:\.[0-9]+)?)$")
+DURATION_MONTHS_REGEX = re.compile(r"([0-9]+(?:\.[0-9]+)?)\s*(?:MONTH|MONTHS|MO|MOS)\b", re.IGNORECASE)
 
 
 def parse_numeric_value(val: Any) -> Tuple[Optional[float], Optional[str]]:
@@ -87,6 +88,13 @@ def parse_numeric_value(val: Any) -> Tuple[Optional[float], Optional[str]]:
     if pct_match:
         try:
             return float(pct_match.group(1)), "PERCENT"
+        except ValueError:
+            return None, None
+
+    duration_match = DURATION_MONTHS_REGEX.search(s)
+    if duration_match:
+        try:
+            return float(duration_match.group(1)), "MONTHS"
         except ValueError:
             return None, None
 
@@ -155,7 +163,7 @@ def is_unit_compatible(unit1: Optional[str], unit2: Optional[str]) -> bool:
         return True
 
     # Duration aliases
-    duration_units = {"YEAR", "YEARS", "YR", "YRS"}
+    duration_units = {"YEAR", "YEARS", "YR", "YRS", "MONTH", "MONTHS", "MO", "MOS"}
     if u1 in duration_units and u2 in duration_units:
         return True
 
