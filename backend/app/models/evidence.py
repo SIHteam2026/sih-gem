@@ -78,6 +78,8 @@ class ExtractedEvidence(BaseModel):
 class BidderClaim(BaseModel):
     """Model representing an explicit assertion or self-declaration made by a bidder."""
     claim_id: str = Field(..., description="Unique claim identifier.")
+    bidder_id: Optional[str] = Field(default=None, description="Bidder canonical UUID.")
+    bid_submission_id: Optional[str] = Field(default=None, description="Bid Submission canonical UUID.")
     requirement_id: str = Field(..., description="Target requirement identifier.")
     claimed_value: Any = Field(..., description="Value claimed by the bidder (e.g., 27.0 or 'Active').")
     unit: Optional[str] = Field(default=None, description="Unit of measurement (e.g., 'PERCENT', 'INR').")
@@ -85,11 +87,14 @@ class BidderClaim(BaseModel):
     page_number: Optional[int] = Field(default=None, description="Page number where the claim appears.")
     raw_statement: Optional[str] = Field(default=None, description="Verbatim statement of the claim.")
     source_type: Optional[str] = Field(default="BIDDER_DECLARATION", description="Source classification.")
+    document_id: Optional[str] = Field(default=None, description="Document canonical UUID.")
 
 
 class EvidenceObservation(BaseModel):
     """Model representing an observed metric or fact extracted from supporting proof documents."""
     evidence_id: str = Field(..., description="Unique evidence observation identifier.")
+    bidder_id: Optional[str] = Field(default=None, description="Bidder canonical UUID.")
+    bid_submission_id: Optional[str] = Field(default=None, description="Bid Submission canonical UUID.")
     requirement_id: str = Field(..., description="Target requirement identifier.")
     observed_value: Any = Field(..., description="Value verified from supporting evidence (e.g., 14.0 or '2027-03-31').")
     unit: Optional[str] = Field(default=None, description="Unit of measurement (e.g., 'PERCENT', 'INR').")
@@ -99,6 +104,7 @@ class EvidenceObservation(BaseModel):
     source_quote: Optional[str] = Field(default="", description="Verbatim proof excerpt from the document.")
     confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Extraction confidence score.")
     source_type: Optional[str] = Field(default="SUPPORTING_DOCUMENT", description="Source classification (e.g. 'CA_CERTIFICATE', 'OEM_MAF').")
+    document_id: Optional[str] = Field(default=None, description="Document canonical UUID.")
 
 
 class ProvenanceRecord(BaseModel):
