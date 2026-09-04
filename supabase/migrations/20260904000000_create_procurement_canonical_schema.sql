@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS public.documents (
     file_size BIGINT,
     storage_path TEXT,
     content_text TEXT,
+    processing_status TEXT NOT NULL DEFAULT 'PENDING',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

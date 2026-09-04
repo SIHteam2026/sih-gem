@@ -14,6 +14,22 @@ class ExtractedEvidence(BaseModel):
         ...,
         description="The unique identifier of the requirement this evidence applies to.",
     )
+    document_id: Optional[str] = Field(
+        None,
+        description="The canonical UUID of the source document.",
+    )
+    bid_submission_id: Optional[str] = Field(
+        None,
+        description="The canonical UUID of the bid submission.",
+    )
+    bidder_id: Optional[str] = Field(
+        None,
+        description="The canonical UUID of the bidder.",
+    )
+    page_number: Optional[int] = Field(
+        None,
+        description="The 1-indexed page number where the claim was found.",
+    )
     is_present: bool = Field(
         ...,
         description="Indicates whether the document contains evidence for this requirement.",

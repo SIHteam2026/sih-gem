@@ -40,6 +40,7 @@ class DocumentBase(BaseModel):
     file_size: Optional[int] = Field(None, description="File size in bytes.")
     storage_path: Optional[str] = Field(None, description="Path or object key in cloud/local storage.")
     content_text: Optional[str] = Field(None, description="Extracted raw text content of the document.")
+    processing_status: str = Field(default="PENDING", description="Document intelligence processing status.")
 
 
 class DocumentCreate(DocumentBase):
