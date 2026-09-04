@@ -207,9 +207,22 @@ def process_document_evidence(doc: Document, tender_context: Optional[Dict[str, 
     """
     bidder_id = None
     submission_id = None
+    requirements = []
     
     if tender_context:
         bidder_id = tender_context.get("bidder_id")
         submission_id = tender_context.get("bid_submission_id")
+        requirements = tender_context.get("requirements", [])
         
-    return extract_document_facts(doc, bidder_id, submission_id)
+    facts = extract_document_facts(doc, bidder_id, submission_id)
+    
+    if requirements:
+        try:
+            from backend.app.services.requirement_mapping_service import map_evidence_to_requirements
+        except ImportError:
+            from app.services.requirement_mapping_service import map_evidence_to_requirements
+            
+        facts["claims"] = map_evidence_to_requirements(facts["claims"], requirements)
+        facts["observations"] = map_evidence_to_requirements(facts["observations"], requirements)
+        
+    return facts
