@@ -12,7 +12,9 @@ from pydantic import BaseModel, Field
 from .contract import LetterOfAward
 from .document import DocumentClassificationResult
 from .entity import EntityMatchResult
-from .evaluation import ComplianceFinding
+from .evaluation import ComplianceFinding, RequirementEvaluationResult
+from .evidence import BidderClaim, EvidenceObservation
+from .tender_contract import RequirementEvaluationContract
 from .financial import FinancialEvaluationResult
 from .fraud import FraudAnalysisResult
 from .report import FinalAuditReport
@@ -61,6 +63,15 @@ class MasterEvaluationRequest(BaseModel):
         default=True,
         description="Whether to automatically draft a formal 48-hour shortfall notice if requirements need clarification.",
     )
+    # Canonical requirement-level inputs.  These are additive so legacy callers
+    # remain valid while canonical procurement flows avoid raw-text aggregation.
+    bidder_id: Optional[str] = None
+    submission_id: Optional[str] = None
+    requirement_contracts: List[RequirementEvaluationContract] = Field(default_factory=list)
+    bidder_claims: List[BidderClaim] = Field(default_factory=list)
+    evidence_observations: List[EvidenceObservation] = Field(default_factory=list)
+    external_verifications: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    evaluation_context: Dict[str, Any] = Field(default_factory=dict)
 
 
 class DeterministicCheckSummary(BaseModel):
@@ -128,6 +139,18 @@ class MasterEvaluationResponse(BaseModel):
         default_factory=list,
         description="Requirement-by-requirement contradiction and compliance analysis findings.",
     )
+    requirement_results: List[RequirementEvaluationResult] = Field(
+        default_factory=list,
+        description="Canonical requirement-level machine evaluation results; never a procurement decision.",
+    )
+    machine_review_summary: Dict[str, int] = Field(
+        default_factory=dict,
+        description="Non-authoritative counts by requirement state for officer review.",
+    )
+    review_required: bool = Field(default=False)
+    review_required_count: int = Field(default=0)
+    unresolved_contradiction_count: int = Field(default=0)
+    unverified_count: int = Field(default=0)
     
     # 8. Executive Decision & Final Report
     final_report: Optional[FinalAuditReport] = Field(

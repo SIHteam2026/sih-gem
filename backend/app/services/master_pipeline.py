@@ -14,7 +14,8 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
 # Ensure project root and backend paths are available for imports
 _current_file = Path(__file__).resolve()
@@ -27,29 +28,95 @@ for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
 from fastapi import HTTPException, status
 
 try:
-    from backend.app.ai.llm_evaluator_service import evaluate_compliance
-    from backend.app.ai.llm_evidence_service import extract_evidence_with_llm
-    from backend.app.ai.llm_service import analyze_tender_with_llm
-    from backend.app.rules.validators import run_deterministic_checks
-    from backend.app.services.pdf_parser import extract_text_from_pdf
-    from backend.app.services.rag_service import retrieve_relevant_clauses
+    from backend.app.services.evaluation_service import evaluate_requirements
+    from backend.app.models.evaluation import ComplianceState, RequirementEvaluationResult
+    from backend.app.models.evidence import BidderClaim, EvidenceObservation
+    from backend.app.models.tender_contract import RequirementEvaluationContract
 except ImportError:
     try:
+        from app.services.evaluation_service import evaluate_requirements
+        from app.models.evaluation import ComplianceState, RequirementEvaluationResult
+        from app.models.evidence import BidderClaim, EvidenceObservation
+        from app.models.tender_contract import RequirementEvaluationContract
+    except ImportError:
+        from services.evaluation_service import evaluate_requirements
+        from models.evaluation import ComplianceState, RequirementEvaluationResult
+        from models.evidence import BidderClaim, EvidenceObservation
+        from models.tender_contract import RequirementEvaluationContract
+
+logger = logging.getLogger(__name__)
+
+
+def _load_legacy_dependencies():
+    """Import raw-PDF/LLM compatibility dependencies only for the legacy path."""
+    try:
+        from backend.app.ai.llm_evaluator_service import evaluate_compliance
+        from backend.app.ai.llm_evidence_service import extract_evidence_with_llm
+        from backend.app.ai.llm_service import analyze_tender_with_llm
+        from backend.app.rules.validators import run_deterministic_checks
+        from backend.app.services.pdf_parser import extract_text_from_pdf
+        from backend.app.services.rag_service import retrieve_relevant_clauses
+    except ImportError:
         from app.ai.llm_evaluator_service import evaluate_compliance
         from app.ai.llm_evidence_service import extract_evidence_with_llm
         from app.ai.llm_service import analyze_tender_with_llm
         from app.rules.validators import run_deterministic_checks
         from app.services.pdf_parser import extract_text_from_pdf
         from app.services.rag_service import retrieve_relevant_clauses
-    except ImportError:
-        from ai.llm_evaluator_service import evaluate_compliance
-        from ai.llm_evidence_service import extract_evidence_with_llm
-        from ai.llm_service import analyze_tender_with_llm
-        from rules.validators import run_deterministic_checks
-        from services.pdf_parser import extract_text_from_pdf
-        from services.rag_service import retrieve_relevant_clauses
+    return (evaluate_compliance, extract_evidence_with_llm, analyze_tender_with_llm,
+            run_deterministic_checks, extract_text_from_pdf, retrieve_relevant_clauses)
 
-logger = logging.getLogger(__name__)
+
+def evaluate_canonical_submission(
+    tender_id: str,
+    bidder_id: Optional[str],
+    submission_id: Optional[str],
+    requirement_contracts: List[RequirementEvaluationContract],
+    claims: List[BidderClaim],
+    observations: List[EvidenceObservation],
+    external_verifications: Optional[Dict[str, Dict[str, Any]]] = None,
+    context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Evaluate one canonical submission without making a procurement decision.
+
+    Inputs are already requirement-linked by the ingestion/document layer; this
+    function deliberately neither reparses tender PDFs nor concatenates bidder
+    documents.  It only groups canonical facts and delegates every requirement
+    to the tiered evaluator.
+    """
+    claim_map: Dict[str, List[BidderClaim]] = {}
+    evidence_map: Dict[str, List[EvidenceObservation]] = {}
+    for claim in claims:
+        claim_map.setdefault(claim.requirement_id, []).append(claim)
+    for observation in observations:
+        evidence_map.setdefault(observation.requirement_id, []).append(observation)
+
+    req_context = dict(context or {})
+    req_context.update({"bidder_id": bidder_id, "submission_id": submission_id})
+    results = evaluate_requirements(
+        requirements=requirement_contracts,
+        claims_by_req=claim_map,
+        evidence_by_req=evidence_map,
+        verifications_by_req=external_verifications or {},
+        context=req_context,
+    )
+    state_counts = {state.value: 0 for state in (ComplianceState.PASS, ComplianceState.FAIL, ComplianceState.REVIEW, ComplianceState.UNVERIFIED, ComplianceState.NOT_APPLICABLE)}
+    for result in results:
+        state_counts[result.state.value] = state_counts.get(result.state.value, 0) + 1
+    contradictions = sum(len(result.contradiction_findings) for result in results)
+    review_count = sum(1 for result in results if result.review_required)
+    return {
+        "tender_id": tender_id,
+        "bidder_id": bidder_id,
+        "submission_id": submission_id,
+        "requirement_results": results,
+        "machine_review_summary": state_counts,
+        "review_required": bool(review_count),
+        "review_required_count": review_count,
+        "unresolved_contradiction_count": contradictions,
+        "unverified_count": state_counts.get(ComplianceState.UNVERIFIED.value, 0),
+        "evaluation_metadata": {"executed_at": datetime.now(timezone.utc).isoformat(), "decision_authority": "HUMAN_PROCUREMENT_OFFICER"},
+    }
 
 # Regex patterns for detecting entity_id and expiry dates
 _GSTIN_EXTRACT_REGEX = re.compile(r"\b[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b", re.IGNORECASE)
@@ -128,6 +195,8 @@ async def run_master_verification(
         HTTPException: If document parsing fails, target requirement is not found, or AI pipeline errors.
     """
     logger.info("Starting Master Verification Pipeline for requirement: %s", target_requirement_id)
+    (evaluate_compliance, extract_evidence_with_llm, analyze_tender_with_llm,
+     run_deterministic_checks, extract_text_from_pdf, retrieve_relevant_clauses) = _load_legacy_dependencies()
 
     # 1. Extract text from tender document
     tender_text = await extract_text_from_pdf(tender_bytes)

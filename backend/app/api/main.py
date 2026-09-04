@@ -68,7 +68,7 @@ try:
     from backend.app.models.document import DocumentClassificationResult
     from backend.app.services.entity_resolution import compare_entities
     from backend.app.models.entity import EntityMatchResult
-    from backend.app.services.master_pipeline import run_master_verification
+    from backend.app.services.master_pipeline import run_master_verification, evaluate_canonical_submission
     from backend.app.services.zip_processor import process_bidder_zip
     from backend.app.ai.chat_service import answer_procurement_question
     from backend.app.services.boq_parser import extract_financial_tables
@@ -134,7 +134,7 @@ except ImportError:
     from app.models.document import DocumentClassificationResult
     from app.services.entity_resolution import compare_entities
     from app.models.entity import EntityMatchResult
-    from app.services.master_pipeline import run_master_verification
+    from app.services.master_pipeline import run_master_verification, evaluate_canonical_submission
     from app.services.zip_processor import process_bidder_zip
     from app.ai.chat_service import answer_procurement_question
     from app.services.boq_parser import extract_financial_tables
@@ -721,6 +721,35 @@ async def evaluate_complete_endpoint(payload: MasterEvaluationRequest):
         bidder_name = payload.bidder_name or "Unknown Bidder"
         tender_id = payload.tender_id or "TENDER-001"
 
+        # Canonical path: requirements and requirement-linked facts are supplied
+        # by Tender Intelligence and Document Intelligence.  Do not aggregate
+        # raw bidder text or invoke decision/award workflows on this path.
+        if payload.requirement_contracts:
+            canonical = evaluate_canonical_submission(
+                tender_id=tender_id,
+                bidder_id=payload.bidder_id,
+                submission_id=payload.submission_id,
+                requirement_contracts=payload.requirement_contracts,
+                claims=payload.bidder_claims,
+                observations=payload.evidence_observations,
+                external_verifications=payload.external_verifications,
+                context=payload.evaluation_context,
+            )
+            requirement_results = canonical["requirement_results"]
+            return MasterEvaluationResponse(
+                tender_id=tender_id,
+                bidder_name=bidder_name,
+                evaluation_timestamp=eval_timestamp,
+                deterministic_checks=DeterministicCheckSummary(),
+                compliance_findings=[result.to_compliance_finding() for result in requirement_results],
+                requirement_results=requirement_results,
+                machine_review_summary=canonical["machine_review_summary"],
+                review_required=canonical["review_required"],
+                review_required_count=canonical["review_required_count"],
+                unresolved_contradiction_count=canonical["unresolved_contradiction_count"],
+                unverified_count=canonical["unverified_count"],
+            )
+
         # 1. Collect & aggregate document texts
         combined_bidder_text_parts = []
         classified_docs: list[DocumentClassificationResult] = []
@@ -856,35 +885,11 @@ async def evaluate_complete_endpoint(payload: MasterEvaluationRequest):
                 final_recommendation=rec,
             )
 
-        # 8. Conditional Letter of Award or Shortfall Notice Drafting
+        # 8. Decision artifacts are intentionally not auto-generated.  A
+        # requirement-level machine result is not authority to award, reject,
+        # or contact a bidder; those are officer-controlled workflows.
         letter_of_award: Optional[LetterOfAward] = None
         shortfall_notice: Optional[ShortfallRequest] = None
-
-        if final_report.final_recommendation == "ACCEPT" and payload.generate_contract_if_accepted:
-            try:
-                loa_tender = {
-                    "tender_id": tender_id,
-                    "description": payload.tender_text or f"Procurement tender {tender_id}",
-                }
-                loa_winner = {
-                    "company_name": bidder_name,
-                    "gstin": detected_gstin or "N/A",
-                    "total_award_value": financial_eval.total_bid_value if financial_eval else (payload.estimated_tender_value or 0.0),
-                }
-                letter_of_award = await generate_award_contract(loa_tender, loa_winner)
-            except Exception as loe:
-                logger.warning("Letter of Award generation failed: %s", loe)
-
-        elif final_report.final_recommendation in ("REJECT", "MANUAL_REVIEW") and payload.generate_shortfall_if_review:
-            try:
-                shortfall_data = {
-                    "tender_id": tender_id,
-                    "bidder_name": bidder_name,
-                    "compliance_findings": [f.model_dump() for f in compliance_findings],
-                }
-                shortfall_notice = await generate_shortfall_notice(shortfall_data)
-            except Exception as sne:
-                logger.warning("Shortfall notice generation failed: %s", sne)
 
         # 9. Master Response Assembly
         response = MasterEvaluationResponse(
