@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 from datetime import datetime, timezone
 import logging
 import os
@@ -63,3 +63,49 @@ async def insert_tender_analysis(tender_id: str, analysis_data: Dict[str, Any]) 
         logger.info("Successfully persisted tender analysis for %s to Supabase.", tender_id)
     except Exception as db_err:
         logger.warning("Failed to persist tender analysis to Supabase (non-blocking): %s", db_err)
+
+
+async def insert_bid_evaluation(evaluation_data: Dict[str, Any]) -> None:
+    """Inserts a bid evaluation record into the Supabase bid_evaluations table.
+
+    Args:
+        evaluation_data (dict): The bid evaluation dictionary.
+    """
+    try:
+        db_client = get_supabase_client()
+        record = {
+            "evaluation_data": evaluation_data,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await asyncio.to_thread(
+            lambda: db_client.table("bid_evaluations").insert(record).execute()
+        )
+        logger.info("Successfully persisted bid evaluation to Supabase.")
+    except Exception as db_err:
+        logger.warning("Failed to persist bid evaluation to Supabase (non-blocking): %s", db_err)
+
+
+async def get_bid_evaluations(limit: int = 20) -> list:
+    """Fetches recent bid evaluations from the Supabase bid_evaluations table.
+
+    Args:
+        limit (int): Maximum number of evaluations to fetch.
+
+    Returns:
+        list: List of historical evaluation records.
+    """
+    try:
+        db_client = get_supabase_client()
+        response = await asyncio.to_thread(
+            lambda: (
+                db_client.table("bid_evaluations")
+                .select("*")
+                .order("created_at", desc=True)
+                .limit(limit)
+                .execute()
+            )
+        )
+        return response.data if response and hasattr(response, "data") else []
+    except Exception as db_err:
+        logger.warning("Failed to fetch bid evaluations from Supabase: %s", db_err)
+        return []
