@@ -9,18 +9,33 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.models.procurement import (
-    BidderSummaryResponse,
-    ProcurementDetailResponse,
-    ProcurementListResponse,
-    SubmissionSummaryResponse,
-    TenderWorkspaceDetailResponse,
-)
-from app.services import procurement_read_service
+try:
+    from backend.app.models.procurement import (
+        BidderSummaryResponse,
+        ProcurementDetailResponse,
+        ProcurementListResponse,
+        ProcurementProcessingStatusResponse,
+        StartProcessingResponse,
+        SubmissionSummaryResponse,
+        TenderWorkspaceDetailResponse,
+    )
+    from backend.app.services import procurement_processing_service, procurement_read_service
+except ImportError:
+    from app.models.procurement import (
+        BidderSummaryResponse,
+        ProcurementDetailResponse,
+        ProcurementListResponse,
+        ProcurementProcessingStatusResponse,
+        StartProcessingResponse,
+        SubmissionSummaryResponse,
+        TenderWorkspaceDetailResponse,
+    )
+    from app.services import procurement_processing_service, procurement_read_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["Procurement Workspace"])
+
 
 
 @router.get(
@@ -154,3 +169,47 @@ async def get_bidder_detail(bidder_id: str) -> BidderSummaryResponse:
     except Exception as exc:
         logger.error("Failed to get bidder detail for '%s': %s", bidder_id, exc)
         raise HTTPException(status_code=500, detail="Internal error retrieving bidder profile.")
+
+
+@router.post(
+    "/procurements/{procurement_id}/process",
+    response_model=StartProcessingResponse,
+    summary="Start Procurement Processing Lifecycle",
+    description="Triggers the automated processing pipeline for an ingested procurement workspace (IMPORTED -> PROCESSING -> READY/FAILED).",
+)
+async def start_procurement_processing_endpoint(
+    procurement_id: str,
+    force: bool = Query(False, description="Force re-processing even if status is READY."),
+) -> StartProcessingResponse:
+    """Triggers processing lifecycle orchestration for a procurement."""
+    try:
+        return await procurement_processing_service.start_procurement_processing(
+            procurement_id=procurement_id, force=force
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to start processing for procurement '%s': %s", procurement_id, exc)
+        raise HTTPException(status_code=500, detail="Internal error initiating procurement processing.")
+
+
+@router.get(
+    "/procurements/{procurement_id}/processing-status",
+    response_model=ProcurementProcessingStatusResponse,
+    summary="Get Procurement Processing Status",
+    description="Retrieves active pipeline stage and completed stage results for a procurement workspace.",
+)
+async def get_procurement_processing_status_endpoint(
+    procurement_id: str,
+) -> ProcurementProcessingStatusResponse:
+    """Retrieves processing lifecycle status for a procurement workspace."""
+    try:
+        return await procurement_processing_service.get_procurement_processing_status(
+            procurement_id=procurement_id
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to get processing status for procurement '%s': %s", procurement_id, exc)
+        raise HTTPException(status_code=500, detail="Internal error retrieving procurement processing status.")
+

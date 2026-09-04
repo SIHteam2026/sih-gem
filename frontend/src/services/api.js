@@ -967,6 +967,71 @@ export async function fetchTenderEvaluationContract(tenderId) {
   }
 }
 
+/**
+ * Starts the processing lifecycle pipeline for a procurement workspace.
+ * 
+ * @param {string} procurementId - Procurement workspace UUID.
+ * @param {boolean} [force=false] - Force re-processing flag.
+ * @returns {Promise<Object>} Start processing response object.
+ */
+export async function startProcurementProcessing(procurementId, force = false) {
+  try {
+    const url = `${API_BASE_URL}/api/procurements/${encodeURIComponent(procurementId)}/process?force=${Boolean(force)}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error starting processing for procurement ${procurementId}:`, error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Fetches the processing lifecycle status of a procurement workspace.
+ * 
+ * @param {string} procurementId - Procurement workspace UUID.
+ * @returns {Promise<Object>} Processing status object.
+ */
+export async function getProcurementProcessingStatus(procurementId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/procurements/${encodeURIComponent(procurementId)}/processing-status`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching processing status for procurement ${procurementId}:`, error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
 // Canonical alias exports for convenience
 export const getProcurements = fetchProcurements;
 export const getProcurement = fetchProcurementDetail;
@@ -1011,6 +1076,8 @@ const api = {
   getSubmission,
   getBidder,
   getTenderEvaluationContract,
+  startProcurementProcessing,
+  getProcurementProcessingStatus,
 };
 
 export default api;

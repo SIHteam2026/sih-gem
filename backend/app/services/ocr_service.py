@@ -1,4 +1,4 @@
-﻿"""OCR Text Extraction Service for Scanned Bidder Documents.
+"""OCR Text Extraction Service for Scanned Bidder Documents.
 
 Provides optical character recognition (OCR) capabilities using pdf2image and pytesseract
 to extract text from scanned, image-only, or legacy physical PDF submissions.
@@ -9,10 +9,28 @@ import io
 import logging
 import os
 import re
-from pdf2image import convert_from_bytes
-from PIL import Image
-import fitz  # PyMuPDF
-import pytesseract
+try:
+    from pdf2image import convert_from_bytes
+except Exception:
+    convert_from_bytes = None
+
+try:
+    from PIL import Image
+except Exception:
+    Image = None
+
+try:
+    import fitz
+except Exception:
+    try:
+        import pymupdf as fitz
+    except Exception:
+        fitz = None
+
+try:
+    import pytesseract
+except Exception:
+    pytesseract = None
 
 logger = logging.getLogger(__name__)
 
