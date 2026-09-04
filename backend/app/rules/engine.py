@@ -55,6 +55,7 @@ GENERIC_CURRENCY_REGEX = re.compile(
     re.IGNORECASE,
 )
 GENERIC_NUMBER_REGEX = re.compile(r"^[+-]?([0-9]+(?:\.[0-9]+)?)$")
+DURATION_MONTHS_REGEX = re.compile(r"([0-9]+(?:\.[0-9]+)?)\s*(?:MONTH|MONTHS|MO|MOS)\b", re.IGNORECASE)
 
 
 def parse_numeric_value(val: Any) -> Tuple[Optional[float], Optional[str]]:
@@ -87,6 +88,13 @@ def parse_numeric_value(val: Any) -> Tuple[Optional[float], Optional[str]]:
     if pct_match:
         try:
             return float(pct_match.group(1)), "PERCENT"
+        except ValueError:
+            return None, None
+
+    duration_match = DURATION_MONTHS_REGEX.search(s)
+    if duration_match:
+        try:
+            return float(duration_match.group(1)), "MONTHS"
         except ValueError:
             return None, None
 
@@ -155,7 +163,7 @@ def is_unit_compatible(unit1: Optional[str], unit2: Optional[str]) -> bool:
         return True
 
     # Duration aliases
-    duration_units = {"YEAR", "YEARS", "YR", "YRS"}
+    duration_units = {"YEAR", "YEARS", "YR", "YRS", "MONTH", "MONTHS", "MO", "MOS"}
     if u1 in duration_units and u2 in duration_units:
         return True
 
@@ -798,7 +806,40 @@ def evaluate_requirement(
             confidence=1.0,
         )
 
-    # 5. Local Content Percentage Rule Check
+    # 5. Structured Condition / Evaluation Contract Check
+    struct_cond = req_dict.get("structured_condition")
+    if hasattr(struct_cond, "model_dump"):
+        struct_cond = struct_cond.model_dump()
+
+    thresh_raw = None
+    op = None
+    unit = None
+    if req_dict.get("threshold_value") is not None:
+        thresh_raw = req_dict.get("threshold_value")
+        op = req_dict.get("operator") or ">="
+        unit = req_dict.get("threshold_unit")
+    elif struct_cond and struct_cond.get("threshold_value") is not None:
+        thresh_raw = struct_cond.get("threshold_value")
+        op = struct_cond.get("operator") or ">="
+        unit = struct_cond.get("unit")
+
+    if thresh_raw is not None:
+        thresh_val, thresh_unit = parse_numeric_value(thresh_raw)
+        if thresh_val is None and isinstance(thresh_raw, (int, float)):
+            thresh_val = float(thresh_raw)
+        final_unit = unit or thresh_unit
+        if thresh_val is not None:
+            return evaluate_numeric_threshold(
+                requirement_id=req_id,
+                operator=op or ">=",
+                expected_val=thresh_val,
+                expected_unit=final_unit,
+                observed_values=observed_values,
+                evidence_ids=evidence_ids,
+                requirement_description=description,
+            )
+
+    # 6. Local Content Percentage Rule Check
     if category == "LOCAL_CONTENT" or "LOCAL CONTENT" in description.upper() or "%" in description:
         # Search for threshold in requirement description (e.g. >=50%, 50%, >= 20%)
         pct_match = PERCENT_REGEX.search(description)
