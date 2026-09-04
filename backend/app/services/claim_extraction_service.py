@@ -33,8 +33,12 @@ def _build_claim(
     raw_value: str,
     unit: Optional[str],
     doc: Document,
-    page: int,
-    quote: str,
+    page: Optional[int] = None,
+    sheet_name: Optional[str] = None,
+    row_number: Optional[int] = None,
+    location_context: Optional[str] = None,
+    source_format: Optional[str] = None,
+    quote: str = "",
     confidence: float = 1.0,
     claim_type: str = "BIDDER_DECLARATION"
 ) -> BidderClaim:
@@ -51,6 +55,10 @@ def _build_claim(
         unit=unit or detected_unit,
         source_document=doc.filename,
         page_number=page,
+        sheet_name=sheet_name,
+        row_number=row_number,
+        location_context=location_context,
+        source_format=source_format,
         raw_statement=quote,
         source_type=claim_type,
         confidence=confidence,
@@ -64,8 +72,12 @@ def _build_observation(
     raw_value: str,
     unit: Optional[str],
     doc: Document,
-    page: int,
-    quote: str,
+    page: Optional[int] = None,
+    sheet_name: Optional[str] = None,
+    row_number: Optional[int] = None,
+    location_context: Optional[str] = None,
+    source_format: Optional[str] = None,
+    quote: str = "",
     is_authoritative: bool = False,
     source_type: str = "SUPPORTING_DOCUMENT",
     confidence: float = 1.0
@@ -84,6 +96,10 @@ def _build_observation(
         is_authoritative=is_authoritative,
         source_document=doc.filename,
         page_number=page,
+        sheet_name=sheet_name,
+        row_number=row_number,
+        location_context=location_context,
+        source_format=source_format,
         source_quote=quote,
         confidence=confidence,
         source_type=source_type,
@@ -121,28 +137,249 @@ def extract_document_facts(
     b_id = bidder_id or (doc.bid_submission_id if hasattr(doc, 'bid_submission_id') else "BID-UNKNOWN")
     s_id = submission_id or (doc.bid_submission_id if hasattr(doc, 'bid_submission_id') else "SUB-UNKNOWN")
 
-    # Extract page_aware_text
+    file_format = "pdf"
     pages = []
+    tables = []
+    sections = []
+    raw_text = ""
+
     if doc.content_text:
         try:
-            pages = json.loads(doc.content_text)
-            if not isinstance(pages, list):
-                pages = [{"page": 1, "text": doc.content_text}]
+            parsed = json.loads(doc.content_text)
+            if isinstance(parsed, dict):
+                file_format = parsed.get("file_format", "pdf")
+                pages = parsed.get("pages", [])
+                tables = parsed.get("tables", [])
+                sections = parsed.get("sections", [])
+                raw_text = parsed.get("raw_text", "")
+            elif isinstance(parsed, list):
+                pages = parsed
+                file_format = "pdf"
+                raw_text = "\n\n".join(p.get("text", "") for p in pages if isinstance(p, dict))
+            else:
+                raw_text = str(doc.content_text)
+                pages = [{"page": 1, "text": raw_text}]
+                file_format = "txt"
         except Exception:
-            pages = [{"page": 1, "text": doc.content_text}]
+            raw_text = str(doc.content_text)
+            pages = [{"page": 1, "text": raw_text}]
+            file_format = "txt"
     else:
         pages = [{"page": 1, "text": ""}]
 
     doc_type_val = (doc.document_type.value if hasattr(doc.document_type, "value") else str(doc.document_type or "")).upper()
     filename_upper = (doc.filename or "").upper()
 
+    extracted_domains_from_tables = set()
+
+    # --- A. Structured Table Extraction (CSV, XLSX, DOCX Tables) ---
+    for tbl in tables:
+        tbl_headers = [str(h).strip().lower() for h in tbl.get("headers", [])]
+        tbl_rows = tbl.get("rows", [])
+        sheet = tbl.get("sheet")
+
+        # 1. Turnover Extraction from Table
+        turnover_col_idx = None
+        for c_idx, h in enumerate(tbl_headers):
+            if any(k in h for k in ("turnover", "annual_turnover", "revenue", "financial_turnover")):
+                turnover_col_idx = c_idx
+                break
+
+        if turnover_col_idx is not None:
+            extracted_domains_from_tables.add("TURNOVER")
+            has_udin_or_audit = any("udin" in h or "audit" in h or "remarks" in h for h in tbl_headers) or \
+                                any(w in filename_upper for w in ("CA", "AUDIT", "CERT", "UDIN")) or \
+                                "CA_" in doc_type_val or doc_type_val == "TURNOVER_CERTIFICATE"
+            year_col_idx = next((c_idx for c_idx, h in enumerate(tbl_headers) if "year" in h or "fy" in h), None)
+
+            for r_idx, row in enumerate(tbl_rows, start=1):
+                if turnover_col_idx < len(row):
+                    val_str = str(row[turnover_col_idx]).strip()
+                    if val_str and any(c.isdigit() for c in val_str):
+                        year_str = f" FY {row[year_col_idx]}" if year_col_idx is not None and year_col_idx < len(row) else ""
+                        loc_ctx = f"Sheet: {sheet}, Row: {r_idx}" if sheet else f"Row: {r_idx}"
+                        quote_str = f"Turnover{year_str}: {val_str} ({loc_ctx})"
+                        
+                        if has_udin_or_audit:
+                            obs = _build_observation(
+                                bidder_id=b_id,
+                                submission_id=s_id,
+                                req_id="REQ-TURNOVER-UNKNOWN",
+                                raw_value=val_str,
+                                unit="INR",
+                                doc=doc,
+                                page=None,
+                                sheet_name=sheet,
+                                row_number=r_idx,
+                                location_context=loc_ctx,
+                                source_format=file_format,
+                                quote=quote_str,
+                                is_authoritative=True,
+                                source_type="AUTHORITATIVE_CERTIFICATE",
+                            )
+                            observations.append(obs)
+                        else:
+                            clm = _build_claim(
+                                bidder_id=b_id,
+                                submission_id=s_id,
+                                req_id="REQ-TURNOVER-UNKNOWN",
+                                raw_value=val_str,
+                                unit="INR",
+                                doc=doc,
+                                page=None,
+                                sheet_name=sheet,
+                                row_number=r_idx,
+                                location_context=loc_ctx,
+                                source_format=file_format,
+                                quote=quote_str,
+                                claim_type="BIDDER_DECLARATION",
+                            )
+                            claims.append(clm)
+
+        # 2. Local Content Extraction from Table
+        lc_col_idx = None
+        for c_idx, h in enumerate(tbl_headers):
+            if any(k in h for k in ("local_content", "local content", "mii", "make in india")):
+                lc_col_idx = c_idx
+                break
+
+        if lc_col_idx is not None:
+            extracted_domains_from_tables.add("LC")
+            is_cert = any(w in filename_upper for w in ("CERT", "AUDIT", "CA_")) or any(w in doc_type_val for w in ("CERTIFICATE", "AUDITOR"))
+            for r_idx, row in enumerate(tbl_rows, start=1):
+                if lc_col_idx < len(row):
+                    val_str = str(row[lc_col_idx]).strip()
+                    if val_str:
+                        loc_ctx = f"Sheet: {sheet}, Row: {r_idx}" if sheet else f"Row: {r_idx}"
+                        quote_str = f"Local Content: {val_str} ({loc_ctx})"
+                        if is_cert:
+                            obs = _build_observation(
+                                bidder_id=b_id,
+                                submission_id=s_id,
+                                req_id="REQ-LC-UNKNOWN",
+                                raw_value=val_str if "%" in val_str else f"{val_str}%",
+                                unit="PERCENT",
+                                doc=doc,
+                                page=None,
+                                sheet_name=sheet,
+                                row_number=r_idx,
+                                location_context=loc_ctx,
+                                source_format=file_format,
+                                quote=quote_str,
+                                is_authoritative=True,
+                                source_type="AUTHORITATIVE_CERTIFICATE",
+                            )
+                            observations.append(obs)
+                        else:
+                            clm = _build_claim(
+                                bidder_id=b_id,
+                                submission_id=s_id,
+                                req_id="REQ-LC-UNKNOWN",
+                                raw_value=val_str if "%" in val_str else f"{val_str}%",
+                                unit="PERCENT",
+                                doc=doc,
+                                page=None,
+                                sheet_name=sheet,
+                                row_number=r_idx,
+                                location_context=loc_ctx,
+                                source_format=file_format,
+                                quote=quote_str,
+                                claim_type="BIDDER_DECLARATION",
+                            )
+                            claims.append(clm)
+
+        # 3. Past Experience / Executed Contracts Count from Table
+        exp_col_idx = None
+        for c_idx, h in enumerate(tbl_headers):
+            if any(k in h for k in ("contract", "work_order", "po_number", "po_ref", "client_name", "project_name", "order_no")):
+                exp_col_idx = c_idx
+                break
+
+        if exp_col_idx is not None and ("EXPERIENCE" in filename_upper or "CONTRACT" in filename_upper or "WORK" in filename_upper or "PAST" in filename_upper):
+            extracted_domains_from_tables.add("EXPERIENCE")
+            valid_rows = [r for r in tbl_rows if len(r) > exp_col_idx and str(r[exp_col_idx]).strip()]
+            if valid_rows:
+                loc_ctx = f"Sheet: {sheet}, Rows 1-{len(valid_rows)}" if sheet else f"Rows 1-{len(valid_rows)}"
+                obs = _build_observation(
+                    bidder_id=b_id,
+                    submission_id=s_id,
+                    req_id="REQ-EXP-UNKNOWN",
+                    raw_value=f"{len(valid_rows)} COUNT",
+                    unit="COUNT",
+                    doc=doc,
+                    page=None,
+                    sheet_name=sheet,
+                    row_number=len(valid_rows),
+                    location_context=loc_ctx,
+                    source_format=file_format,
+                    quote=f"Executed contracts schedule containing {len(valid_rows)} contract record(s).",
+                    is_authoritative=True,
+                    source_type="SUPPORTING_DOCUMENT",
+                )
+                observations.append(obs)
+
+        # 4. GST / PAN from Table Cells
+        for r_idx, row in enumerate(tbl_rows, start=1):
+            for val in row:
+                v_str = str(val).strip()
+                if GSTIN_PATTERN.search(v_str):
+                    extracted_domains_from_tables.add("GST")
+                    m = GSTIN_PATTERN.search(v_str).group(0)
+                    loc_ctx = f"Sheet: {sheet}, Row: {r_idx}" if sheet else f"Row: {r_idx}"
+                    obs = _build_observation(
+                        bidder_id=b_id,
+                        submission_id=s_id,
+                        req_id="REQ-GST-UNKNOWN",
+                        raw_value=m,
+                        unit="STATUS",
+                        doc=doc,
+                        page=None,
+                        sheet_name=sheet,
+                        row_number=r_idx,
+                        location_context=loc_ctx,
+                        source_format=file_format,
+                        quote=f"GSTIN: {m} in tabular record",
+                        is_authoritative=True,
+                        source_type="AUTHORITATIVE_REGISTRY",
+                    )
+                    observations.append(obs)
+
+                if PAN_PATTERN.search(v_str) and not GSTIN_PATTERN.search(v_str):
+                    extracted_domains_from_tables.add("PAN")
+                    m = PAN_PATTERN.search(v_str).group(0)
+                    loc_ctx = f"Sheet: {sheet}, Row: {r_idx}" if sheet else f"Row: {r_idx}"
+                    obs = _build_observation(
+                        bidder_id=b_id,
+                        submission_id=s_id,
+                        req_id="REQ-PAN-UNKNOWN",
+                        raw_value=m,
+                        unit="STATUS",
+                        doc=doc,
+                        page=None,
+                        sheet_name=sheet,
+                        row_number=r_idx,
+                        location_context=loc_ctx,
+                        source_format=file_format,
+                        quote=f"PAN: {m} in tabular record",
+                        is_authoritative=True,
+                        source_type="AUTHORITATIVE_REGISTRY",
+                    )
+                    observations.append(obs)
+
+    # --- B. Text-Based Extraction (Pages / Paragraphs) ---
     for p in pages:
-        page_num = p.get("page", 1)
+        # For PDF, keep genuine 1-indexed page_number. For other formats, page_number is None
+        page_num = p.get("page", 1) if file_format == "pdf" else None
+        loc_ctx = f"Page {p.get('page', 1)}" if file_format == "pdf" else (
+            f"Paragraph context" if file_format == "docx" else (
+                f"Plain text" if file_format == "txt" else f"Spreadsheet text"
+            )
+        )
         text = p.get("text", "")
         text_upper = text.upper()
 
         # 1. GST Extraction
-        if doc_type_val == "GST_CERTIFICATE" or "GST" in filename_upper or "GSTIN" in text_upper:
+        if "GST" not in extracted_domains_from_tables and (doc_type_val == "GST_CERTIFICATE" or "GST" in filename_upper or "GSTIN" in text_upper):
             gst_matches = GSTIN_PATTERN.findall(text)
             for m in gst_matches:
                 obs = _build_observation(
@@ -153,6 +390,8 @@ def extract_document_facts(
                     unit="STATUS",
                     doc=doc,
                     page=page_num,
+                    location_context=loc_ctx,
+                    source_format=file_format,
                     quote=m,
                     is_authoritative=True,
                     source_type="AUTHORITATIVE_REGISTRY"
@@ -160,7 +399,7 @@ def extract_document_facts(
                 observations.append(obs)
 
         # 2. PAN Extraction
-        if "PAN" in doc_type_val or "PAN" in filename_upper or "PERMANENT ACCOUNT" in text_upper:
+        if "PAN" not in extracted_domains_from_tables and ("PAN" in doc_type_val or "PAN" in filename_upper or "PERMANENT ACCOUNT" in text_upper):
             pan_matches = PAN_PATTERN.findall(text)
             for m in pan_matches:
                 obs = _build_observation(
@@ -171,6 +410,8 @@ def extract_document_facts(
                     unit="STATUS",
                     doc=doc,
                     page=page_num,
+                    location_context=loc_ctx,
+                    source_format=file_format,
                     quote=m,
                     is_authoritative=True,
                     source_type="AUTHORITATIVE_REGISTRY"
@@ -178,7 +419,7 @@ def extract_document_facts(
                 observations.append(obs)
 
         # 3. Local Content (Make in India) Extraction
-        if "LOCAL" in filename_upper or "MAKE IN INDIA" in text_upper or "MII" in filename_upper or "LOCAL CONTENT" in text_upper:
+        if "LC" not in extracted_domains_from_tables and ("LOCAL" in filename_upper or "MAKE IN INDIA" in text_upper or "MII" in filename_upper or "LOCAL CONTENT" in text_upper):
             perc_matches = PERCENTAGE_PATTERN.findall(text)
             is_cert = any(w in filename_upper for w in ("CERT", "AUDIT", "CA_")) or any(w in doc_type_val for w in ("CERTIFICATE", "AUDITOR"))
             for m in perc_matches:
@@ -192,6 +433,8 @@ def extract_document_facts(
                         unit="PERCENT",
                         doc=doc,
                         page=page_num,
+                        location_context=loc_ctx,
+                        source_format=file_format,
                         quote=quote_str,
                         is_authoritative=True,
                         source_type="AUTHORITATIVE_CERTIFICATE",
@@ -206,13 +449,15 @@ def extract_document_facts(
                         unit="PERCENT",
                         doc=doc,
                         page=page_num,
+                        location_context=loc_ctx,
+                        source_format=file_format,
                         quote=quote_str,
                         claim_type="BIDDER_DECLARATION",
                     )
                     claims.append(clm)
 
         # 4. Financial Turnover Extraction
-        if "TURNOVER" in filename_upper or "BALANCE" in filename_upper or "CA_" in filename_upper or "TURNOVER" in text_upper:
+        if "TURNOVER" not in extracted_domains_from_tables and ("TURNOVER" in filename_upper or "BALANCE" in filename_upper or "CA_" in filename_upper or "TURNOVER" in text_upper):
             to_match = TURNOVER_ALT_PATTERN.search(text) or TURNOVER_PATTERN.search(text)
             if to_match:
                 raw_to = to_match.group(0).strip()
@@ -226,6 +471,8 @@ def extract_document_facts(
                         unit="INR",
                         doc=doc,
                         page=page_num,
+                        location_context=loc_ctx,
+                        source_format=file_format,
                         quote=raw_to,
                         is_authoritative=True,
                         source_type="AUTHORITATIVE_CERTIFICATE",
@@ -240,6 +487,8 @@ def extract_document_facts(
                         unit="INR",
                         doc=doc,
                         page=page_num,
+                        location_context=loc_ctx,
+                        source_format=file_format,
                         quote=raw_to,
                         claim_type="BIDDER_DECLARATION",
                     )
@@ -259,6 +508,8 @@ def extract_document_facts(
                     unit="MONTHS",
                     doc=doc,
                     page=page_num,
+                    location_context=loc_ctx,
+                    source_format=file_format,
                     quote=w_quote,
                     is_authoritative=False,
                     source_type="SUPPORTING_DOCUMENT",
@@ -266,7 +517,7 @@ def extract_document_facts(
                 observations.append(obs)
 
         # 6. Past Experience / Executed Contracts Count Extraction
-        if "EXPERIENCE" in filename_upper or "COMPLETION" in filename_upper or "WORK_ORDER" in filename_upper or "CONTRACT" in text_upper:
+        if "EXPERIENCE" not in extracted_domains_from_tables and ("EXPERIENCE" in filename_upper or "COMPLETION" in filename_upper or "WORK_ORDER" in filename_upper or "CONTRACT" in text_upper):
             exp_match = EXPERIENCE_COUNT_PATTERN.search(text)
             if exp_match:
                 cnt_quote = exp_match.group(0).strip()
@@ -279,6 +530,8 @@ def extract_document_facts(
                     unit="COUNT",
                     doc=doc,
                     page=page_num,
+                    location_context=loc_ctx,
+                    source_format=file_format,
                     quote=cnt_quote,
                     is_authoritative=True,
                     source_type="SUPPORTING_DOCUMENT",
@@ -296,6 +549,8 @@ def extract_document_facts(
                     unit="STATUS",
                     doc=doc,
                     page=page_num,
+                    location_context=loc_ctx,
+                    source_format=file_format,
                     quote="Bidder is not debarred, blacklisted, or on holiday listing.",
                     is_authoritative=False,
                     source_type="SUPPORTING_DOCUMENT",
@@ -312,6 +567,8 @@ def extract_document_facts(
                 unit="STATUS",
                 doc=doc,
                 page=page_num,
+                location_context=loc_ctx,
+                source_format=file_format,
                 quote="Valid Manufacturer Authorization Form (MAF) provided.",
                 is_authoritative=True,
                 source_type="AUTHORITATIVE_CERTIFICATE",

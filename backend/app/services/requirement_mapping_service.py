@@ -32,10 +32,12 @@ def _score_requirement_candidates(
     item_type = item.source_type or ""
     
     item_value = getattr(item, 'observed_value', getattr(item, 'claimed_value', None))
-    is_gst = "GST" in item_type or ("29" in str(item_value) and len(str(item_value)) == 15)
-    is_pan = "PAN" in item_type or (len(str(item_value)) == 10 and str(item_value)[:5].isalpha())
-    is_percent = item.unit == "PERCENT"
-    is_turnover = "CA_TURNOVER" in item_type or ("crore" in str(item_value).lower() or "lakh" in str(item_value).lower())
+    req_id_tag = str(getattr(item, 'requirement_id', '') or '').upper()
+    is_gst = "GST" in item_type or "GST" in req_id_tag or ("29" in str(item_value) and len(str(item_value)) == 15)
+    is_pan = "PAN" in item_type or "PAN" in req_id_tag or (len(str(item_value)) == 10 and str(item_value)[:5].isalpha())
+    is_percent = item.unit == "PERCENT" or "%" in str(item_value)
+    is_turnover = "CA_TURNOVER" in item_type or "TURNOVER" in item_type or "TURNOVER" in req_id_tag or item.unit in ("INR", "CURRENCY") or ("crore" in str(item_value).lower() or "lakh" in str(item_value).lower())
+    is_exp = "EXPERIENCE" in item_type or "EXP" in req_id_tag or item.unit == "COUNT"
     
     for req in requirements:
         score = 0
@@ -61,19 +63,19 @@ def _score_requirement_candidates(
                 score += 5
                 reasons.append("Canonical field `average_annual_turnover` matches turnover evidence.")
                 field_match = True
-            elif req_field == CanonicalEvaluationField.WARRANTY_MONTHS and item.unit == "MONTHS":
+            elif req_field == CanonicalEvaluationField.WARRANTY_MONTHS and item.unit in ("MONTHS", "YEARS"):
                 score += 5
                 reasons.append("Canonical field `warranty_months` matches warranty duration.")
                 field_match = True
-            elif req_field == CanonicalEvaluationField.OEM_AUTHORIZATION and "OEM" in item_type:
+            elif req_field == CanonicalEvaluationField.OEM_AUTHORIZATION and ("OEM" in item_type or "OEM" in req_id_tag):
                 score += 5
                 reasons.append("Canonical field `oem_authorization` matches OEM evidence.")
                 field_match = True
-            elif req_field == CanonicalEvaluationField.GENERAL_EXPERIENCE and "EXPERIENCE" in item_type:
+            elif req_field == CanonicalEvaluationField.GENERAL_EXPERIENCE and is_exp:
                 score += 5
                 reasons.append("Canonical field `general_experience` matches experience evidence.")
                 field_match = True
-            elif req_field == CanonicalEvaluationField.DEBARMENT_STATUS and "DEBARMENT" in item_type:
+            elif req_field == CanonicalEvaluationField.DEBARMENT_STATUS and ("DEBARMENT" in item_type or "DEBAR" in req_id_tag):
                 score += 5
                 reasons.append("Canonical field `debarment_status` matches debarment evidence.")
                 field_match = True

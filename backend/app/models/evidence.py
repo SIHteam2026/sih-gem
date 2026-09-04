@@ -55,6 +55,22 @@ class ExtractedEvidence(BaseModel):
         None,
         description="The 1-indexed page number where the claim was found.",
     )
+    sheet_name: Optional[str] = Field(
+        None,
+        description="The sheet name where the evidence was found for spreadsheet formats.",
+    )
+    row_number: Optional[int] = Field(
+        None,
+        description="The 1-indexed row number where the evidence was found for tabular formats.",
+    )
+    location_context: Optional[str] = Field(
+        None,
+        description="Human-readable provenance location context (e.g. Sheet: Data, Row: 5).",
+    )
+    source_format: Optional[str] = Field(
+        None,
+        description="Original source file format (PDF, CSV, DOCX, XLSX, TXT).",
+    )
     is_present: bool = Field(
         ...,
         description="Indicates whether the document contains evidence for this requirement.",
@@ -85,8 +101,13 @@ class BidderClaim(BaseModel):
     unit: Optional[str] = Field(default=None, description="Unit of measurement (e.g., 'PERCENT', 'INR').")
     source_document: Optional[str] = Field(default=None, description="Document filename containing the declaration.")
     page_number: Optional[int] = Field(default=None, description="Page number where the claim appears.")
+    sheet_name: Optional[str] = Field(default=None, description="Sheet name if source is spreadsheet.")
+    row_number: Optional[int] = Field(default=None, description="Row number if source is structured table/spreadsheet/CSV.")
+    location_context: Optional[str] = Field(default=None, description="Detailed location context.")
+    source_format: Optional[str] = Field(default=None, description="Source format (PDF, XLSX, CSV, DOCX, TXT).")
     raw_statement: Optional[str] = Field(default=None, description="Verbatim statement of the claim.")
     source_type: Optional[str] = Field(default="BIDDER_DECLARATION", description="Source classification.")
+    confidence: Optional[float] = Field(default=1.0, ge=0.0, le=1.0, description="Extraction confidence score.")
     document_id: Optional[str] = Field(default=None, description="Document canonical UUID.")
 
 
@@ -101,6 +122,10 @@ class EvidenceObservation(BaseModel):
     is_authoritative: bool = Field(default=False, description="Whether from an authoritative 3rd party (e.g. CA / GSTN).")
     source_document: Optional[str] = Field(default=None, description="Document filename containing the evidence.")
     page_number: Optional[int] = Field(default=None, description="Page number where the evidence appears.")
+    sheet_name: Optional[str] = Field(default=None, description="Sheet name if source is spreadsheet.")
+    row_number: Optional[int] = Field(default=None, description="Row number if source is structured table/spreadsheet/CSV.")
+    location_context: Optional[str] = Field(default=None, description="Detailed location context.")
+    source_format: Optional[str] = Field(default=None, description="Source format (PDF, XLSX, CSV, DOCX, TXT).")
     source_quote: Optional[str] = Field(default="", description="Verbatim proof excerpt from the document.")
     confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Extraction confidence score.")
     source_type: Optional[str] = Field(default="SUPPORTING_DOCUMENT", description="Source classification (e.g. 'CA_CERTIFICATE', 'OEM_MAF').")
@@ -112,6 +137,10 @@ class ProvenanceRecord(BaseModel):
     document_id: Optional[str] = Field(default=None, description="Document UUID or database identifier.")
     document_name: Optional[str] = Field(default=None, description="Filename or title of source document.")
     page_number: Optional[int] = Field(default=None, description="Page number in source document.")
+    sheet_name: Optional[str] = Field(default=None, description="Sheet name if source is spreadsheet.")
+    row_number: Optional[int] = Field(default=None, description="Row number if source is structured table/spreadsheet/CSV.")
+    location_context: Optional[str] = Field(default=None, description="Detailed location context.")
+    source_format: Optional[str] = Field(default=None, description="Source format (PDF, XLSX, CSV, DOCX, TXT).")
     source_type: Optional[str] = Field(default=None, description="Source classification (e.g. 'Bidder Self-Declaration', 'CA Certificate').")
     quote: Optional[str] = Field(default=None, description="Verbatim excerpt or citation quote.")
     extraction_confidence: Optional[float] = Field(default=1.0, description="Extraction confidence score (0.0 to 1.0).")

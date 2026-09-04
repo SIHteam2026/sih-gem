@@ -46,10 +46,15 @@ async def process_canonical_document(document_id: str, file_bytes: bytes) -> Doc
     )
     
     try:
+        from backend.app.services.multi_format_extractor import extract_data_from_file, detect_file_format, _safe_check_zip
+    except ImportError:
+        from app.services.multi_format_extractor import extract_data_from_file, detect_file_format, _safe_check_zip
+
+    try:
         # 3. Extract text and structured data using the multi-format pipeline (PDF, CSV, DOCX, XLSX, TXT)
         filename = doc_data.get("filename", "document.pdf")
-        extracted = await extract_data_from_file(file_bytes, filename)
-        pages = extracted.get("pages", [])
+        mime_type = doc_data.get("mime_type")
+        extracted = await extract_data_from_file(file_bytes, filename, mime_type=mime_type)
         full_text = extracted.get("raw_text", "")
         
         # 6. Classify the document
@@ -63,9 +68,24 @@ async def process_canonical_document(document_id: str, file_bytes: bytes) -> Doc
                 mapped_type = DocumentType(classification.category.value)
         except Exception:
             pass
+
+        # Heuristic fallback for document classification by filename
+        if mapped_type == DocumentType.OTHER:
+            fname_upper = (filename or "").upper()
+            if "GST" in fname_upper:
+                mapped_type = DocumentType.GST_CERTIFICATE
+            elif "OEM" in fname_upper or "MAF" in fname_upper:
+                mapped_type = DocumentType.OEM_AUTHORIZATION
+            elif "TURNOVER" in fname_upper or "FINANCIAL" in fname_upper or "BALANCE" in fname_upper or "AUDIT" in fname_upper:
+                mapped_type = DocumentType.TURNOVER_CERTIFICATE
+            elif "BOQ" in fname_upper or "COMMERCIAL" in fname_upper or "PRICE" in fname_upper:
+                mapped_type = DocumentType.FINANCIAL_BOQ
+            elif "TECH" in fname_upper:
+                mapped_type = DocumentType.TECHNICAL_BID
         
-        # Serialize page-aware extraction to content_text
-        page_aware_json = json.dumps(pages)
+        # Serialize normalized extraction payload to content_text
+        content_payload = extracted.model_dump() if hasattr(extracted, "model_dump") else (extracted if isinstance(extracted, dict) else extracted.__dict__)
+        page_aware_json = json.dumps(content_payload)
         
         update_data = {
             "document_type": mapped_type.value,
@@ -115,6 +135,15 @@ async def process_canonical_submission_zip(procurement_id: str, tender_id: str, 
     
     zip_buffer = io.BytesIO(zip_bytes)
     with zipfile.ZipFile(zip_buffer, "r") as archive:
+        try:
+            from backend.app.services.multi_format_extractor import _safe_check_zip
+        except ImportError:
+            try:
+                from app.services.multi_format_extractor import _safe_check_zip
+            except ImportError:
+                _safe_check_zip = lambda z: None
+        _safe_check_zip(archive)
+
         supported_exts = (".pdf", ".csv", ".docx", ".doc", ".xlsx", ".xls", ".txt")
         valid_entries = [
             name for name in archive.namelist()
