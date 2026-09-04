@@ -8,7 +8,7 @@ source provenance, and ambiguity radar.
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class RequirementCategory(str, Enum):
@@ -237,6 +237,25 @@ class TenderRequirement(BaseModel):
     )
     created_at: Optional[datetime] = Field(default=None, description="Creation timestamp.")
     updated_at: Optional[datetime] = Field(default=None, description="Last update timestamp.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_compatibility_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # 1. Map singular evidence_spec to evidence_specs list if missing
+            if not data.get("evidence_specs"):
+                ev_spec = data.get("evidence_spec") or data.get("evidence")
+                if isinstance(ev_spec, dict) and ev_spec:
+                    data["evidence_specs"] = [ev_spec]
+                elif isinstance(ev_spec, list) and ev_spec:
+                    data["evidence_specs"] = ev_spec
+            # 2. Map condition to structured_condition if missing
+            if not data.get("structured_condition") and data.get("condition"):
+                data["structured_condition"] = data.get("condition")
+            # 3. Map provenance to source_provenance if missing
+            if not data.get("source_provenance") and data.get("provenance"):
+                data["source_provenance"] = data.get("provenance")
+        return data
 
 
 class TenderAnalysisResult(BaseModel):
