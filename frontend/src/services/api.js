@@ -5,6 +5,85 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
 
 /**
+ * Centralized API response handler and error normalizer.
+ * Safely extracts user-friendly error messages from 400, 404, 409, 422, 500, and network errors.
+ * 
+ * @param {Response} response - Fetch Response object.
+ * @param {string} [defaultErrorMsg='Request failed'] - Default fallback error message.
+ * @returns {Promise<any>} Parsed JSON response.
+ * @throws {Error} Normalized Error with status and safe message.
+ */
+export async function handleApiResponse(response, defaultErrorMsg = 'Request failed') {
+  if (response.ok) {
+    return await response.json();
+  }
+
+  let serverDetail = null;
+  try {
+    const errorBody = await response.json();
+    if (errorBody) {
+      if (typeof errorBody.detail === 'string') {
+        serverDetail = errorBody.detail;
+      } else if (typeof errorBody.message === 'string') {
+        serverDetail = errorBody.message;
+      } else if (typeof errorBody.error === 'string') {
+        serverDetail = errorBody.error;
+      } else if (Array.isArray(errorBody.detail) && errorBody.detail.length > 0) {
+        serverDetail = errorBody.detail.map((d) => d.msg || d.message || JSON.stringify(d)).join('; ');
+      }
+    }
+  } catch {
+    // Response body not JSON
+  }
+
+  let safeMessage = serverDetail;
+  if (!safeMessage) {
+    switch (response.status) {
+      case 400:
+        safeMessage = 'Invalid request parameters. Please verify input data and retry.';
+        break;
+      case 404:
+        safeMessage = 'The requested procurement record or resource was not found.';
+        break;
+      case 409:
+        safeMessage = 'Conflict occurred while processing the procurement workspace.';
+        break;
+      case 422:
+        safeMessage = 'Validation error: One or more required fields are invalid or missing.';
+        break;
+      case 500:
+      case 502:
+      case 503:
+      case 504:
+        safeMessage = 'Internal service error. Please retry or contact the system administrator.';
+        break;
+      default:
+        safeMessage = `${defaultErrorMsg} (${response.status}: ${response.statusText || 'Error'})`;
+        break;
+    }
+  }
+
+  const err = new Error(safeMessage);
+  err.status = response.status;
+  err.statusText = response.statusText;
+  throw err;
+}
+
+/**
+ * Normalizes caught JavaScript and Network errors.
+ * 
+ * @param {unknown} error - Caught error object.
+ * @param {string} [defaultMsg='Operation failed'] - Default error message.
+ * @returns {Error} Normalized Error instance.
+ */
+export function normalizeNetworkError(error, defaultMsg = 'Operation failed') {
+  if (error instanceof TypeError && error.message.includes('fetch')) {
+    return new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
+  }
+  return error instanceof Error ? error : new Error(String(error || defaultMsg));
+}
+
+/**
  * Verifies an uploaded GST PDF document.
  * 
  * @param {File | Blob} file - The GST PDF file to verify.
@@ -25,26 +104,9 @@ export async function verifyGSTDocument(file) {
       body: formData,
     });
 
-    if (!response.ok) {
-      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
-          errorMessage = errorBody.detail || errorBody.message || errorBody.error;
-        }
-      } catch {
-        // Fallback to response status text if response is not JSON
-      }
-      throw new Error(errorMessage);
-    }
-
-    const data = await response.json();
-    return data;
+    return await handleApiResponse(response, 'Failed to verify GST document');
   } catch (error) {
-    if (error instanceof TypeError && error.message.includes('fetch')) {
-      throw new Error(`Network error: Unable to connect to the backend server at ${API_BASE_URL}. Please ensure the server is running.`);
-    }
-    throw error instanceof Error ? error : new Error(String(error));
+    throw normalizeNetworkError(error, 'GST verification failed');
   }
 }
 
@@ -785,8 +847,8 @@ export async function ingestMockGeMZip(zipFile) {
 /**
  * Fetches paginated procurement workspace summaries.
  * 
- * @param {number} limit - Max records to return.
- * @param {number} offset - Offset index.
+ * @param {number} [limit=50] - Max records to return.
+ * @param {number} [offset=0] - Offset index.
  * @returns {Promise<any>} Object containing procurements array, total, limit, and offset.
  */
 export async function fetchProcurements(limit = 50, offset = 0) {
@@ -795,23 +857,13 @@ export async function fetchProcurements(limit = 50, offset = 0) {
       method: 'GET',
     });
 
-    if (!response.ok) {
-      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        if (errorBody && (errorBody.detail || errorBody.message)) {
-          errorMessage = errorBody.detail || errorBody.message;
-        }
-      } catch {}
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
+    return await handleApiResponse(response, 'Failed to fetch procurement workspaces list');
   } catch (error) {
-    console.error('Error fetching procurement list:', error);
-    throw error instanceof Error ? error : new Error(String(error));
+    throw normalizeNetworkError(error, 'Failed to load procurements');
   }
 }
+
+export const fetchProcurementList = fetchProcurements;
 
 /**
  * Fetches single procurement workspace detail.
@@ -825,21 +877,9 @@ export async function fetchProcurementDetail(procurementId) {
       method: 'GET',
     });
 
-    if (!response.ok) {
-      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        if (errorBody && (errorBody.detail || errorBody.message)) {
-          errorMessage = errorBody.detail || errorBody.message;
-        }
-      } catch {}
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
+    return await handleApiResponse(response, `Failed to fetch procurement detail for ${procurementId}`);
   } catch (error) {
-    console.error(`Error fetching procurement detail for ${procurementId}:`, error);
-    throw error instanceof Error ? error : new Error(String(error));
+    throw normalizeNetworkError(error, `Failed to load procurement workspace ${procurementId}`);
   }
 }
 
@@ -855,21 +895,9 @@ export async function fetchTenderDetail(tenderId) {
       method: 'GET',
     });
 
-    if (!response.ok) {
-      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        if (errorBody && (errorBody.detail || errorBody.message)) {
-          errorMessage = errorBody.detail || errorBody.message;
-        }
-      } catch {}
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
+    return await handleApiResponse(response, `Failed to fetch tender detail for ${tenderId}`);
   } catch (error) {
-    console.error(`Error fetching tender detail for ${tenderId}:`, error);
-    throw error instanceof Error ? error : new Error(String(error));
+    throw normalizeNetworkError(error, `Failed to load tender workspace ${tenderId}`);
   }
 }
 
@@ -885,21 +913,9 @@ export async function fetchSubmissionDetail(submissionId) {
       method: 'GET',
     });
 
-    if (!response.ok) {
-      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        if (errorBody && (errorBody.detail || errorBody.message)) {
-          errorMessage = errorBody.detail || errorBody.message;
-        }
-      } catch {}
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
+    return await handleApiResponse(response, `Failed to fetch submission detail for ${submissionId}`);
   } catch (error) {
-    console.error(`Error fetching submission detail for ${submissionId}:`, error);
-    throw error instanceof Error ? error : new Error(String(error));
+    throw normalizeNetworkError(error, `Failed to load bidder submission ${submissionId}`);
   }
 }
 
@@ -915,21 +931,9 @@ export async function fetchBidderDetail(bidderId) {
       method: 'GET',
     });
 
-    if (!response.ok) {
-      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        if (errorBody && (errorBody.detail || errorBody.message)) {
-          errorMessage = errorBody.detail || errorBody.message;
-        }
-      } catch {}
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
+    return await handleApiResponse(response, `Failed to fetch bidder detail for ${bidderId}`);
   } catch (error) {
-    console.error(`Error fetching bidder detail for ${bidderId}:`, error);
-    throw error instanceof Error ? error : new Error(String(error));
+    throw normalizeNetworkError(error, `Failed to load bidder profile ${bidderId}`);
   }
 }
 
@@ -945,21 +949,9 @@ export async function fetchTenderRequirements(tenderId) {
       method: 'GET',
     });
 
-    if (!response.ok) {
-      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        if (errorBody && (errorBody.detail || errorBody.message)) {
-          errorMessage = errorBody.detail || errorBody.message;
-        }
-      } catch {}
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
+    return await handleApiResponse(response, `Failed to fetch requirements for tender ${tenderId}`);
   } catch (error) {
-    console.error(`Error fetching requirements for tender ${tenderId}:`, error);
-    throw error instanceof Error ? error : new Error(String(error));
+    throw normalizeNetworkError(error, `Failed to load requirements for tender ${tenderId}`);
   }
 }
 
@@ -975,21 +967,9 @@ export async function fetchTenderSubmissions(tenderId) {
       method: 'GET',
     });
 
-    if (!response.ok) {
-      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        if (errorBody && (errorBody.detail || errorBody.message)) {
-          errorMessage = errorBody.detail || errorBody.message;
-        }
-      } catch {}
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
+    return await handleApiResponse(response, `Failed to fetch submissions for tender ${tenderId}`);
   } catch (error) {
-    console.error(`Error fetching submissions for tender ${tenderId}:`, error);
-    throw error instanceof Error ? error : new Error(String(error));
+    throw normalizeNetworkError(error, `Failed to load submissions for tender ${tenderId}`);
   }
 }
 
@@ -1005,21 +985,9 @@ export async function fetchTenderEvaluationContract(tenderId) {
       method: 'GET',
     });
 
-    if (!response.ok) {
-      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        if (errorBody && (errorBody.detail || errorBody.message)) {
-          errorMessage = errorBody.detail || errorBody.message;
-        }
-      } catch {}
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
+    return await handleApiResponse(response, `Failed to fetch evaluation contract for tender ${tenderId}`);
   } catch (error) {
-    console.error(`Error fetching evaluation contract for tender ${tenderId}:`, error);
-    throw error instanceof Error ? error : new Error(String(error));
+    throw normalizeNetworkError(error, `Failed to load evaluation contract for tender ${tenderId}`);
   }
 }
 
@@ -1040,21 +1008,9 @@ export async function startProcurementProcessing(procurementId, force = false) {
       },
     });
 
-    if (!response.ok) {
-      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        if (errorBody && (errorBody.detail || errorBody.message)) {
-          errorMessage = errorBody.detail || errorBody.message;
-        }
-      } catch {}
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
+    return await handleApiResponse(response, `Failed to start processing for procurement ${procurementId}`);
   } catch (error) {
-    console.error(`Error starting processing for procurement ${procurementId}:`, error);
-    throw error instanceof Error ? error : new Error(String(error));
+    throw normalizeNetworkError(error, `Failed to initiate processing for procurement ${procurementId}`);
   }
 }
 
@@ -1070,21 +1026,9 @@ export async function getProcurementProcessingStatus(procurementId) {
       method: 'GET',
     });
 
-    if (!response.ok) {
-      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        if (errorBody && (errorBody.detail || errorBody.message)) {
-          errorMessage = errorBody.detail || errorBody.message;
-        }
-      } catch {}
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
+    return await handleApiResponse(response, `Failed to fetch processing status for procurement ${procurementId}`);
   } catch (error) {
-    console.error(`Error fetching processing status for procurement ${procurementId}:`, error);
-    throw error instanceof Error ? error : new Error(String(error));
+    throw normalizeNetworkError(error, `Failed to retrieve processing status for procurement ${procurementId}`);
   }
 }
 
@@ -1117,22 +1061,9 @@ export async function evaluateSubmission(submissionId, tenderId = '', bidderName
       body: JSON.stringify(payload),
     });
 
-    if (!response.ok) {
-      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        if (errorBody && (errorBody.detail || errorBody.message)) {
-          errorMessage = errorBody.detail || errorBody.message;
-        }
-      } catch {}
-      throw new Error(errorMessage);
-    }
-
-    const data = await response.json();
-    return data;
+    return await handleApiResponse(response, `Failed to evaluate submission ${submissionId}`);
   } catch (error) {
-    console.error(`Error evaluating submission ${submissionId}:`, error);
-    throw error instanceof Error ? error : new Error(String(error));
+    throw normalizeNetworkError(error, `Compliance evaluation failed for submission ${submissionId}`);
   }
 }
 
@@ -1167,6 +1098,7 @@ const api = {
   ingestMockGeMDemo,
   ingestMockGeMZip,
   fetchProcurements,
+  fetchProcurementList: fetchProcurements,
   fetchProcurementDetail,
   fetchTenderDetail,
   fetchSubmissionDetail,

@@ -13,14 +13,53 @@ import {
   Calendar,
   Layers,
   ArrowLeft,
+  Play,
+  RefreshCw,
+  Clock,
+  AlertTriangle,
+  Cpu,
+  CheckCircle,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import { fetchProcurementDetail } from "@/services/api";
-import { ProcurementDetail, TenderSummary, SubmissionSummary } from "@/types/procurement";
+import {
+  fetchProcurementDetail,
+  startProcurementProcessing,
+  getProcurementProcessingStatus,
+} from "@/services/api";
+import {
+  ProcurementDetail,
+  TenderSummary,
+  SubmissionSummary,
+  ProcurementProcessingStatusResponse,
+  ProcessingStage,
+} from "@/types/procurement";
 import WorkspaceHeader from "@/components/procurement/WorkspaceHeader";
 import StatusBadge from "@/components/procurement/StatusBadge";
 import DocumentTable from "@/components/procurement/DocumentTable";
 import { LoadingState, ErrorState, EmptyState } from "@/components/procurement/States";
+
+const PIPELINE_STAGES: Array<{ id: ProcessingStage; label: string; description: string }> = [
+  {
+    id: "TENDER_INTELLIGENCE",
+    label: "Tender Intelligence",
+    description: "Tender clause decomposition, category extraction & canonical requirement mapping",
+  },
+  {
+    id: "DOCUMENT_INTELLIGENCE",
+    label: "Document Intelligence",
+    description: "Multi-modal OCR, layout parsing, classification & entity resolution",
+  },
+  {
+    id: "EVIDENCE_EXTRACTION",
+    label: "Evidence Extraction",
+    description: "Claim extraction, verbatim provenance grounding & observation reconciliation",
+  },
+  {
+    id: "COMPLIANCE_EVALUATION",
+    label: "Compliance Evaluation",
+    description: "Deterministic criteria verification, contradiction detection & ambiguity scoring",
+  },
+];
 
 export default function ProcurementWorkspacePage() {
   const params = useParams();
@@ -31,9 +70,15 @@ export default function ProcurementWorkspacePage() {
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState<boolean>(false);
 
-  const loadProcurement = useCallback(async () => {
+  // Processing Lifecycle State
+  const [processingStatus, setProcessingStatus] = useState<ProcurementProcessingStatusResponse | null>(null);
+  const [isProcessingAction, setIsProcessingAction] = useState<boolean>(false);
+  const [processingError, setProcessingError] = useState<string | null>(null);
+  const [pollCount, setPollCount] = useState<number>(0);
+
+  const loadProcurement = useCallback(async (silent = false) => {
     if (!procurementId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
     setNotFound(false);
 
@@ -52,13 +97,72 @@ export default function ProcurementWorkspacePage() {
         setError(msg);
       }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
+  }, [procurementId]);
+
+  const loadProcessingStatus = useCallback(async () => {
+    if (!procurementId) return;
+    try {
+      const status = (await getProcurementProcessingStatus(procurementId)) as ProcurementProcessingStatusResponse;
+      if (status) {
+        setProcessingStatus(status);
+        return status;
+      }
+    } catch {
+      // Non-blocking if status endpoint is not yet populated
+    }
+    return null;
   }, [procurementId]);
 
   useEffect(() => {
     loadProcurement();
-  }, [loadProcurement]);
+    loadProcessingStatus();
+  }, [loadProcurement, loadProcessingStatus]);
+
+  // Bounded Polling while PROCESSING
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    const isCurrentlyProcessing =
+      procurement?.status === "PROCESSING" ||
+      processingStatus?.status === "PROCESSING" ||
+      isProcessingAction;
+
+    if (isCurrentlyProcessing && pollCount < 20) {
+      timer = setTimeout(async () => {
+        const latestStatus = await loadProcessingStatus();
+        if (latestStatus?.status === "READY" || latestStatus?.status === "FAILED") {
+          setIsProcessingAction(false);
+          await loadProcurement(true);
+        }
+        setPollCount((prev) => prev + 1);
+      }, 2500);
+    } else if (pollCount >= 20) {
+      setIsProcessingAction(false);
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [procurement?.status, processingStatus?.status, isProcessingAction, pollCount, loadProcessingStatus, loadProcurement]);
+
+  const handleStartProcessing = async (force = false) => {
+    if (!procurementId) return;
+    setIsProcessingAction(true);
+    setProcessingError(null);
+    setPollCount(0);
+
+    try {
+      await startProcurementProcessing(procurementId, force);
+      // Immediately refresh status
+      await loadProcessingStatus();
+      await loadProcurement(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to start processing pipeline.";
+      setProcessingError(msg);
+      setIsProcessingAction(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#f7f6f2] text-[#162333] flex flex-col font-sans">
@@ -104,6 +208,125 @@ export default function ProcurementWorkspacePage() {
               status={procurement.status}
               updatedAt={procurement.updated_at || procurement.created_at}
             />
+
+            {/* Processing Lifecycle Pipeline Card */}
+            <section aria-labelledby="processing-pipeline-heading" className="p-6 rounded-lg border border-[#cbd9e2] bg-[#fbfdfd] space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#e1ebf0] pb-4">
+                <div className="flex items-center gap-2.5">
+                  <Cpu className="w-5 h-5 text-[#163a5f]" aria-hidden="true" />
+                  <div>
+                    <h2 id="processing-pipeline-heading" className="text-sm font-semibold text-[#162333]">
+                      Evidence Ingestion & Compliance Processing Lifecycle
+                    </h2>
+                    <p className="text-[11px] text-[#5a6e80]">
+                      Automated multi-stage evidence extraction, deterministic verification, and contradiction detection.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <StatusBadge status={procurement.status} size="md" />
+
+                  {procurement.status !== "PROCESSING" && !isProcessingAction && (
+                    <button
+                      type="button"
+                      onClick={() => handleStartProcessing(procurement.status === "READY" || procurement.status === "FAILED")}
+                      className="focus-ring inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#163a5f] hover:bg-[#204c78] rounded transition-colors"
+                    >
+                      {procurement.status === "READY" ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" /> Re-run Processing
+                        </>
+                      ) : procurement.status === "FAILED" ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" /> Retry Processing
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5" aria-hidden="true" /> Process Procurement
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {(procurement.status === "PROCESSING" || isProcessingAction) && (
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-[#163a5f] bg-[#e6eff5] border border-[#cbdce7] rounded">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#163a5f]" aria-hidden="true" />
+                      <span>Pipeline Running…</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Processing Error Banner */}
+              {(processingError || (procurement.status === "FAILED" && (processingStatus?.last_error_message || processingStatus?.last_error_code))) && (
+                <div className="p-3.5 rounded border border-rose-200 bg-rose-50 text-rose-800 text-xs flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" aria-hidden="true" />
+                  <div>
+                    <span className="font-semibold block">Processing Error</span>
+                    <span>{processingError || processingStatus?.last_error_message || `Pipeline failed at stage: ${processingStatus?.failed_stage || "Unknown"}`}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Pipeline Stages Progression */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-1">
+                {PIPELINE_STAGES.map((stage, idx) => {
+                  const isCompleted =
+                    processingStatus?.completed_stages?.includes(stage.id) ||
+                    procurement.status === "READY";
+                  const isCurrent =
+                    (procurement.status === "PROCESSING" || isProcessingAction) &&
+                    (processingStatus?.current_stage === stage.id || (!processingStatus?.current_stage && idx === 0));
+                  const stageResult = processingStatus?.stage_results?.find((r) => r.stage === stage.id);
+
+                  return (
+                    <div
+                      key={stage.id}
+                      className={`p-3.5 rounded border transition-colors ${
+                        isCompleted
+                          ? "border-[#c4dccb] bg-[#f5fbf7]"
+                          : isCurrent
+                          ? "border-[#b8d4e8] bg-[#f0f7fc] ring-1 ring-[#163a5f]/20"
+                          : "border-[#dce2e6] bg-[#fafbfc] opacity-75"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                        <span className="text-[10px] font-mono uppercase font-bold text-[#637584]">
+                          Stage 0{idx + 1}
+                        </span>
+                        {isCompleted ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                            <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" /> Done
+                          </span>
+                        ) : isCurrent ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#163a5f]">
+                            <RefreshCw className="w-3 h-3 animate-spin" aria-hidden="true" /> Active
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-medium text-[#8898a6]">Pending</span>
+                        )}
+                      </div>
+
+                      <div className="text-xs font-semibold text-[#162333]">{stage.label}</div>
+                      <div className="text-[11px] text-[#556777] mt-1 leading-snug">
+                        {stage.description}
+                      </div>
+
+                      {(stageResult?.execution_time_ms !== undefined || stageResult?.metadata?.summary) && (
+                        <div className="mt-2 pt-2 border-t border-[#d8e3dc] text-[10px] text-[#2c6341] font-mono">
+                          {stageResult.metadata?.summary || `Executed in ${stageResult.execution_time_ms}ms`}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="text-[11px] text-[#6b7d8c] bg-[#edf3f7] p-2.5 rounded border border-[#d6e3ec] leading-relaxed">
+                <strong>Decision Support Architecture:</strong> Pipeline execution extracts requirements and evidence to power deterministic compliance verification. The system never autonomously awards or disqualifies bidders; all conclusions remain recommendations for human officer review.
+              </div>
+            </section>
 
             {/* Visual Hierarchy: Procurement -> Tenders */}
             <section aria-labelledby="tenders-heading" className="space-y-4">

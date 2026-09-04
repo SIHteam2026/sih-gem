@@ -22,10 +22,18 @@ export default function EvidenceReference({
   isConflicting = false,
 }: EvidenceReferenceProps) {
   const docName = provenance.document_name || "Document";
-  const pageLabel =
-    provenance.page_number !== undefined && provenance.page_number !== null
-      ? `Page ${provenance.page_number}`
-      : null;
+  let locationLabel: string | null = null;
+  if (provenance.page_number !== undefined && provenance.page_number !== null) {
+    locationLabel = `Page ${provenance.page_number}`;
+  } else if (provenance.sheet_name || provenance.cell_reference || provenance.row_number) {
+    const parts: string[] = [];
+    if (provenance.sheet_name) parts.push(`Sheet: ${provenance.sheet_name}`);
+    if (provenance.cell_reference) parts.push(`Cell: ${provenance.cell_reference}`);
+    else if (provenance.row_number) parts.push(`Row: ${provenance.row_number}`);
+    locationLabel = parts.join(", ");
+  } else if (provenance.section_context) {
+    locationLabel = `Sec: ${provenance.section_context}`;
+  }
   const sourceType = provenance.source_type || "Evidence Proof";
 
   return (
@@ -43,9 +51,9 @@ export default function EvidenceReference({
               <FileText className="w-3.5 h-3.5 text-[#163a5f]" aria-hidden="true" />
               {docName}
             </span>
-            {pageLabel && (
+            {locationLabel && (
               <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-[#e9edf0] text-[#334b5c]">
-                {pageLabel}
+                {locationLabel}
               </span>
             )}
             <span className="text-[10px] text-[#718290] font-normal">

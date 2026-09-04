@@ -65,12 +65,19 @@ export default function DocumentDrawer({ isOpen, onClose, record }: DocumentDraw
             <div className="grid grid-cols-2 gap-3 pt-2 border-t border-[#edf0ee]">
               <div>
                 <span className="text-[10px] uppercase font-semibold text-[#7f8e9a] block">
-                  Page Reference
+                  Location Reference
                 </span>
                 <span className="font-mono font-medium text-[#162333]">
                   {record.page_number !== undefined && record.page_number !== null
                     ? `Page ${record.page_number}`
-                    : "Not specified"}
+                    : record.sheet_name || record.cell_reference || record.row_number
+                    ? [
+                        record.sheet_name ? `Sheet: ${record.sheet_name}` : null,
+                        record.cell_reference ? `Cell: ${record.cell_reference}` : record.row_number ? `Row: ${record.row_number}` : null,
+                      ].filter(Boolean).join(", ")
+                    : record.section_context
+                    ? `Section: ${record.section_context}`
+                    : "Full Document"}
                 </span>
               </div>
 

@@ -229,10 +229,52 @@ export type RelationshipClassification =
   | 'REVIEW_REQUIRED'
   | string;
 
+export type ProcessingStage =
+  | 'TENDER_INTELLIGENCE'
+  | 'DOCUMENT_INTELLIGENCE'
+  | 'EVIDENCE_EXTRACTION'
+  | 'COMPLIANCE_EVALUATION'
+  | string;
+
+export interface ProcessingStageResult {
+  stage: ProcessingStage;
+  success: boolean;
+  error_code?: string | null;
+  error_message?: string | null;
+  execution_time_ms?: number;
+  metadata?: Record<string, any>;
+}
+
+export interface ProcurementProcessingStatusResponse {
+  procurement_id: string;
+  status: ProcurementStatus;
+  current_stage?: ProcessingStage | null;
+  completed_stages: ProcessingStage[];
+  failed_stage?: ProcessingStage | null;
+  stage_results: ProcessingStageResult[];
+  retry_count: number;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface StartProcessingResponse {
+  procurement_id: string;
+  status: ProcurementStatus;
+  message: string;
+  already_completed?: boolean;
+  already_in_progress?: boolean;
+}
+
 export interface ProvenanceRecord {
   document_id?: string | null;
   document_name?: string | null;
   page_number?: number | null;
+  sheet_name?: string | null;
+  row_number?: number | null;
+  cell_reference?: string | null;
+  section_context?: string | null;
   source_type?: string | null;
   quote?: string | null;
   extraction_confidence?: number | null;
