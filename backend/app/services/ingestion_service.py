@@ -62,8 +62,11 @@ async def ingest_procurement(
             validated_payload = ProcurementIngestionPayload.model_validate(payload)
         except Exception as ve:
             raise ProcurementIngestionError(f"Invalid procurement ingestion payload: {str(ve)}")
-    elif isinstance(payload, ProcurementIngestionPayload):
-        validated_payload = payload
+    elif isinstance(payload, ProcurementIngestionPayload) or type(payload).__name__ == "ProcurementIngestionPayload" or hasattr(payload, "model_dump"):
+        if not isinstance(payload, ProcurementIngestionPayload):
+            validated_payload = ProcurementIngestionPayload.model_validate(payload.model_dump())
+        else:
+            validated_payload = payload
     else:
         raise ProcurementIngestionError("Payload must be a dict or ProcurementIngestionPayload instance.")
 

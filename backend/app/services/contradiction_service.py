@@ -124,7 +124,7 @@ def build_provenance_from_evidence(
     """Builds typed ProvenanceRecord(s) from an EvidenceObservation, ExtractedEvidence, or dictionary."""
     records: List[ProvenanceRecord] = []
 
-    if isinstance(evidence, EvidenceObservation):
+    if isinstance(evidence, EvidenceObservation) or (hasattr(evidence, "observed_value") and hasattr(evidence, "evidence_id")):
         raw_val = evidence.observed_value
         norm_val, detected_unit = parse_numeric_value(raw_val)
         if norm_val is None:
@@ -132,16 +132,16 @@ def build_provenance_from_evidence(
 
         records.append(
             ProvenanceRecord(
-                document_id=None,
-                document_name=evidence.source_document or "Supporting Evidence Document",
-                page_number=evidence.page_number,
-                source_type=evidence.source_type or ("AUTHORITATIVE_CERTIFICATE" if evidence.is_authoritative else "SUPPORTING_DOCUMENT"),
-                quote=evidence.source_quote,
-                extraction_confidence=evidence.confidence,
+                document_id=getattr(evidence, "document_id", None),
+                document_name=getattr(evidence, "source_document", None) or "Supporting Evidence Document",
+                page_number=getattr(evidence, "page_number", None),
+                source_type=getattr(evidence, "source_type", None) or ("AUTHORITATIVE_CERTIFICATE" if getattr(evidence, "is_authoritative", False) else "SUPPORTING_DOCUMENT"),
+                quote=getattr(evidence, "source_quote", None),
+                extraction_confidence=getattr(evidence, "confidence", 1.0),
                 raw_value=raw_val,
                 normalized_value=norm_val,
-                unit=evidence.unit or detected_unit,
-                evidence_id=evidence.evidence_id,
+                unit=getattr(evidence, "unit", None) or detected_unit,
+                evidence_id=getattr(evidence, "evidence_id", None),
             )
         )
         return records

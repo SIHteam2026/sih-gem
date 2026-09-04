@@ -1,6 +1,7 @@
-"""Unit tests for OPAL Canonical Procurement Workspace Read APIs."""
-
-import pytest
+try:
+    import pytest
+except ImportError:
+    pytest = None
 from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 

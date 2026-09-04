@@ -10,9 +10,11 @@ Executes the unified multi-stage intelligence pipeline:
 7. AI Contradiction and compliance state evaluation.
 """
 
+import json
 import logging
 import re
 import sys
+import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -124,6 +126,118 @@ def evaluate_canonical_submission(
         "unmapped_facts": mapped["unmapped"],
         "evaluation_metadata": {"executed_at": datetime.now(timezone.utc).isoformat(), "decision_authority": "HUMAN_PROCUREMENT_OFFICER"},
     }
+
+
+async def evaluate_canonical_submission_by_id(
+    submission_id: str,
+    tender_id_or_ref: Optional[str] = None,
+    external_verifications: Optional[Dict[str, Dict[str, Any]]] = None,
+    context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Resolves canonical submission, tender, documents, and evidence from persistent boundaries,
+    maps facts to requirement contracts, and executes requirement-level tiered evaluation.
+
+    Safety:
+    - Never issues an autonomous bidder qualification decision.
+    - Preserves strict multi-bidder and multi-document isolation.
+    - Preserves full provenance replay.
+    """
+    try:
+        from backend.app.db.client import get_submission_detail_db
+        from backend.app.services.tender_contract_service import get_tender_evaluation_contract
+        from backend.app.services.claim_extraction_service import process_document_evidence
+        from backend.app.models.procurement import Document
+    except ImportError:
+        try:
+            from app.db.client import get_submission_detail_db
+            from app.services.tender_contract_service import get_tender_evaluation_contract
+            from app.services.claim_extraction_service import process_document_evidence
+            from app.models.procurement import Document
+        except ImportError:
+            from db.client import get_submission_detail_db
+            from services.tender_contract_service import get_tender_evaluation_contract
+            from services.claim_extraction_service import process_document_evidence
+            from models.procurement import Document
+
+    sub_data = await get_submission_detail_db(submission_id)
+    if not sub_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Canonical submission '{submission_id}' not found.",
+        )
+
+    resolved_tender_id = tender_id_or_ref or (sub_data.get("tender_id") if isinstance(sub_data, dict) else getattr(sub_data, "tender_id", None))
+    if not resolved_tender_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Tender identifier could not be resolved for submission '{submission_id}'.",
+        )
+
+    bidder_id = sub_data.get("bidder_id") if isinstance(sub_data, dict) else getattr(sub_data, "bidder_id", None)
+
+    tender_contract_pkg = await get_tender_evaluation_contract(str(resolved_tender_id))
+    requirement_contracts = tender_contract_pkg.requirements
+
+    all_claims: List[BidderClaim] = []
+    all_observations: List[EvidenceObservation] = []
+
+    raw_docs = (sub_data.get("documents", []) if isinstance(sub_data, dict) else getattr(sub_data, "documents", [])) or []
+    for raw_doc in raw_docs:
+        if isinstance(raw_doc, Document):
+            doc_model = raw_doc
+        elif hasattr(raw_doc, "model_dump"):
+            d_dict = raw_doc.model_dump()
+            doc_model = Document(
+                id=str(d_dict.get("id") or uuid.uuid4()),
+                procurement_id=str(d_dict.get("procurement_id") or sub_data.get("procurement_id", "")),
+                tender_id=str(d_dict.get("tender_id") or resolved_tender_id),
+                bid_submission_id=submission_id,
+                filename=d_dict.get("filename", "unnamed_doc.pdf"),
+                document_type=d_dict.get("document_type") or "OTHER",
+                mime_type=d_dict.get("mime_type", "application/pdf"),
+                file_size=d_dict.get("file_size"),
+                storage_path=d_dict.get("storage_path"),
+                content_text=d_dict.get("content_text") or (json.dumps([{"page": 1, "text": d_dict["text"]}]) if "text" in d_dict else None),
+                processing_status=d_dict.get("processing_status", "COMPLETED"),
+            )
+        elif isinstance(raw_doc, dict):
+            doc_model = Document(
+                id=str(raw_doc.get("id") or uuid.uuid4()),
+                procurement_id=str(raw_doc.get("procurement_id") or sub_data.get("procurement_id", "")),
+                tender_id=str(raw_doc.get("tender_id") or resolved_tender_id),
+                bid_submission_id=submission_id,
+                filename=raw_doc.get("filename", "unnamed_doc.pdf"),
+                document_type=raw_doc.get("document_type") or "OTHER",
+                mime_type=raw_doc.get("mime_type", "application/pdf"),
+                file_size=raw_doc.get("file_size"),
+                storage_path=raw_doc.get("storage_path"),
+                content_text=raw_doc.get("content_text") or (json.dumps([{"page": 1, "text": raw_doc["text"]}]) if "text" in raw_doc else None),
+                processing_status=raw_doc.get("processing_status", "COMPLETED"),
+            )
+        else:
+            continue
+
+        extracted = process_document_evidence(
+            doc=doc_model,
+            tender_context={"bidder_id": bidder_id, "bid_submission_id": submission_id},
+        )
+        all_claims.extend(extracted.get("claims", []))
+        all_observations.extend(extracted.get("observations", []))
+
+    eval_context = dict(context or {})
+    if isinstance(sub_data, dict) and "bidder" in sub_data and isinstance(sub_data["bidder"], dict):
+        eval_context.setdefault("bidder_profile", sub_data["bidder"])
+
+    return evaluate_canonical_submission(
+        tender_id=str(resolved_tender_id),
+        bidder_id=bidder_id,
+        submission_id=submission_id,
+        requirement_contracts=requirement_contracts,
+        claims=all_claims,
+        observations=all_observations,
+        external_verifications=external_verifications,
+        context=eval_context,
+    )
 
 # Regex patterns for detecting entity_id and expiry dates
 _GSTIN_EXTRACT_REGEX = re.compile(r"\b[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b", re.IGNORECASE)
