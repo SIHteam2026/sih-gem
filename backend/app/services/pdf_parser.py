@@ -8,7 +8,13 @@ import logging
 import re
 from typing import Any, Dict, List
 from fastapi import HTTPException
-import fitz  # PyMuPDF
+try:
+    import fitz
+except Exception:
+    try:
+        import pymupdf as fitz
+    except Exception:
+        fitz = None
 
 try:
     from backend.app.services.ocr_service import extract_text_with_ocr

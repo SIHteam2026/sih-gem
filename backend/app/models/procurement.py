@@ -6,7 +6,7 @@ Procurement -> Tender -> Bidder -> BidSubmission -> Documents.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 try:
@@ -24,6 +24,14 @@ class ProcurementStatus(str, Enum):
     PROCESSING = "PROCESSING"
     READY = "READY"
     FAILED = "FAILED"
+
+
+class ProcessingStage(str, Enum):
+    """Enumeration of processing pipeline stages."""
+    TENDER_INTELLIGENCE = "TENDER_INTELLIGENCE"
+    DOCUMENT_INTELLIGENCE = "DOCUMENT_INTELLIGENCE"
+    EVIDENCE_EXTRACTION = "EVIDENCE_EXTRACTION"
+    COMPLIANCE_EVALUATION = "COMPLIANCE_EVALUATION"
 
 
 class DocumentType(str, Enum):
@@ -163,7 +171,8 @@ class TenderWithDetails(Tender):
     """Tender with associated tender specification documents, bidder submissions, and requirements."""
     documents: List[Document] = Field(default_factory=list, description="Tender RFP/NIT specification documents.")
     submissions: List[BidSubmissionWithDetails] = Field(default_factory=list, description="Bidder submissions for this tender.")
-    requirements: List[TenderRequirement] = Field(default_factory=list, description="Structured tender requirements extracted from intelligence analysis.")
+    requirements: List[Any] = Field(default_factory=list, description="Structured tender requirements extracted from intelligence analysis.")
+
 
 
 # ---------------------------------------------------------------------------
@@ -284,13 +293,13 @@ class DocumentMetadataResponse(BaseModel):
     tender_id: Optional[str] = Field(None, description="Associated tender ID.")
     bid_submission_id: Optional[str] = Field(None, description="Associated bid submission ID.")
     filename: str = Field(..., description="Original filename.")
-    document_type: Optional[DocumentType] = Field(None, description="Category of the document.")
+    document_type: Optional[str] = Field(None, description="Category of the document.")
     mime_type: str = Field(default="application/pdf", description="MIME content type.")
     file_size: Optional[int] = Field(None, description="File size in bytes.")
     storage_path: Optional[str] = Field(None, description="Storage location reference or key.")
     processing_status: str = Field(default="PENDING", description="Document intelligence processing status.")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
     class Config:
         from_attributes = True
@@ -303,8 +312,8 @@ class BidderSummaryResponse(BaseModel):
     gstin: Optional[str] = Field(None, description="15-character GSTIN identifier.")
     pan: Optional[str] = Field(None, description="10-character PAN identifier.")
     email: Optional[str] = Field(None, description="Primary contact email address.")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
     class Config:
         from_attributes = True
@@ -321,8 +330,8 @@ class SubmissionSummaryResponse(BaseModel):
     bidder: Optional[BidderSummaryResponse] = Field(None, description="Associated bidder profile.")
     documents: List[DocumentMetadataResponse] = Field(default_factory=list, description="Attached evidence document metadata.")
     document_count: int = Field(default=0, description="Total documents attached.")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
     class Config:
         from_attributes = True
@@ -343,8 +352,8 @@ class TenderSummaryResponse(BaseModel):
     bidder_count: int = Field(default=0, description="Participating bidder count.")
     documents: List[DocumentMetadataResponse] = Field(default_factory=list, description="Tender specification documents.")
     submissions: List[SubmissionSummaryResponse] = Field(default_factory=list, description="Bidder submissions for this tender.")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
     class Config:
         from_attributes = True
@@ -362,8 +371,8 @@ class ProcurementSummaryItem(BaseModel):
     tender_count: int = Field(default=0, description="Total tenders in this procurement.")
     bidder_count: int = Field(default=0, description="Total unique participating bidders.")
     document_count: int = Field(default=0, description="Total documents registered.")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
     class Config:
         from_attributes = True
@@ -387,8 +396,8 @@ class ProcurementDetailResponse(BaseModel):
     status: ProcurementStatus = Field(..., description="Procurement status.")
     tenders: List[TenderSummaryResponse] = Field(default_factory=list, description="Associated tenders.")
     documents: List[DocumentMetadataResponse] = Field(default_factory=list, description="Top-level procurement documents.")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
     class Config:
         from_attributes = True
@@ -412,10 +421,60 @@ class TenderWorkspaceDetailResponse(BaseModel):
     bidder_count: int = Field(default=0, description="Participating bidders.")
     documents: List[DocumentMetadataResponse] = Field(default_factory=list, description="Tender specification documents.")
     submissions: List[SubmissionSummaryResponse] = Field(default_factory=list, description="Bidder submissions.")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
     class Config:
         from_attributes = True
+
+
+# ---------------------------------------------------------------------------
+# Procurement Processing Lifecycle Models
+# ---------------------------------------------------------------------------
+class ProcessingStageResult(BaseModel):
+    """Result status from executing a single processing pipeline stage."""
+    stage: ProcessingStage = Field(..., description="Stage enum identifier.")
+    success: bool = Field(..., description="Whether the stage completed successfully.")
+    error_code: Optional[str] = Field(None, description="Structured error code if stage failed.")
+    error_message: Optional[str] = Field(None, description="Human-readable safe error message.")
+    execution_time_ms: float = Field(default=0.0, description="Stage execution time in milliseconds.")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Stage-specific execution metadata.")
+
+
+class ProcurementProcessingStatusResponse(BaseModel):
+    """Detailed response for checking procurement processing status."""
+    procurement_id: str = Field(..., description="Target procurement UUID.")
+    status: ProcurementStatus = Field(..., description="Current procurement processing status.")
+    current_stage: Optional[ProcessingStage] = Field(None, description="Active stage being executed.")
+    completed_stages: List[ProcessingStage] = Field(default_factory=list, description="Stages successfully executed.")
+    failed_stage: Optional[ProcessingStage] = Field(None, description="Stage that failed execution.")
+    stage_results: List[ProcessingStageResult] = Field(default_factory=list, description="Detailed stage results.")
+    retry_count: int = Field(default=0, description="Total processing retry count.")
+    last_error_code: Optional[str] = Field(None, description="Error code of last failure.")
+    last_error_message: Optional[str] = Field(None, description="Safe error message of last failure.")
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        from_attributes = True
+
+
+class StartProcessingResponse(BaseModel):
+    """Response returned when triggering procurement processing."""
+    procurement_id: str = Field(..., description="Target procurement UUID.")
+    status: ProcurementStatus = Field(..., description="Updated procurement status.")
+    message: str = Field(..., description="Status summary message.")
+    already_completed: bool = Field(default=False, description="True if processing was already READY and skipped without force.")
+    already_in_progress: bool = Field(default=False, description="True if processing is currently ongoing.")
+
+
+class ProcessingContext(BaseModel):
+    """Context object passed to processing stages during execution."""
+    procurement_id: str = Field(..., description="Procurement UUID being processed.")
+    procurement: Any = Field(..., description="Procurement domain entity.")
+    force: bool = Field(default=False, description="Force re-processing flag.")
+    retry_count: int = Field(default=0, description="Current retry attempt number.")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Shared contextual metadata.")
+
 
 

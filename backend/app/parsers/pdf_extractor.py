@@ -1,4 +1,4 @@
-﻿"""PDF Text Extractor Module.
+"""PDF Text Extractor Module.
 
 This module provides functionality to extract text, compute cryptographic hashes,
 detect scanned documents, and locate text coordinates from PDF documents using PyMuPDF.
@@ -9,7 +9,13 @@ import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Union
-import pymupdf
+try:
+    import pymupdf
+except ImportError:
+    try:
+        import fitz as pymupdf
+    except ImportError:
+        pymupdf = None
 
 
 def compute_file_hash(file_bytes: bytes) -> str:
