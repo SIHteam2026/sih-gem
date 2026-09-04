@@ -13,17 +13,42 @@ from .orchestrator import (
     MasterEvaluationResponse,
     RawDocumentItem,
 )
+from .procurement import (
+    Bidder,
+    BidderCreate,
+    BidSubmission,
+    BidSubmissionCreate,
+    BidSubmissionWithDetails,
+    Document,
+    DocumentCreate,
+    DocumentType,
+    Procurement,
+    ProcurementCreate,
+    ProcurementHierarchy,
+    ProcurementStatus,
+    Tender,
+    TenderCreate,
+    TenderWithDetails,
+)
 from .report import FinalAuditReport
 from .shortfall import ShortfallRequest
 from .tender import RequirementCategory, TenderAnalysisResult, TenderRequirement
 from .translation import TranslationResult
 
 __all__ = [
+    "Bidder",
+    "BidderCreate",
+    "BidSubmission",
+    "BidSubmissionCreate",
+    "BidSubmissionWithDetails",
     "ComplianceFinding",
     "ComplianceState",
     "DeterministicCheckSummary",
+    "Document",
     "DocumentCategory",
     "DocumentClassificationResult",
+    "DocumentCreate",
+    "DocumentType",
     "ExtractedEvidence",
     "FinancialEvaluationResult",
     "FinalAuditReport",
@@ -32,10 +57,18 @@ __all__ = [
     "LetterOfAward",
     "MasterEvaluationRequest",
     "MasterEvaluationResponse",
+    "Procurement",
+    "ProcurementCreate",
+    "ProcurementHierarchy",
+    "ProcurementStatus",
     "RawDocumentItem",
     "RequirementCategory",
     "ShortfallRequest",
+    "Tender",
+    "TenderCreate",
+    "TenderWithDetails",
     "TenderRequirement",
     "TenderAnalysisResult",
     "TranslationResult",
 ]
+

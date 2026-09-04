@@ -232,3 +232,127 @@ async def get_analytics_summary() -> Dict[str, Any]:
             "manual_review_count": 0,
             "recent_evaluations": [],
         }
+
+
+# ---------------------------------------------------------------------------
+# Canonical Procurement Foundation Database Helpers
+# ---------------------------------------------------------------------------
+async def insert_procurement(procurement_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Inserts a new procurement record into public.procurements."""
+    db_client = get_supabase_client()
+    response = await asyncio.to_thread(
+        lambda: db_client.table("procurements").insert(procurement_data).execute()
+    )
+    if response and hasattr(response, "data") and response.data:
+        return response.data[0]
+    raise RuntimeError("Failed to insert procurement record.")
+
+
+async def get_procurement_by_source_and_ref(
+    source_system: str, external_reference: str
+) -> Any:
+    """Queries public.procurements by source_system and external_reference."""
+    try:
+        db_client = get_supabase_client()
+        response = await asyncio.to_thread(
+            lambda: (
+                db_client.table("procurements")
+                .select("*")
+                .eq("source_system", source_system)
+                .eq("external_reference", external_reference)
+                .execute()
+            )
+        )
+        if response and hasattr(response, "data") and response.data:
+            return response.data[0]
+        return None
+    except Exception as err:
+        logger.warning("Error looking up procurement: %s", err)
+        return None
+
+
+async def insert_tender(tender_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Inserts a new tender record into public.tenders."""
+    db_client = get_supabase_client()
+    response = await asyncio.to_thread(
+        lambda: db_client.table("tenders").insert(tender_data).execute()
+    )
+    if response and hasattr(response, "data") and response.data:
+        return response.data[0]
+    raise RuntimeError("Failed to insert tender record.")
+
+
+async def insert_bidder(bidder_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Inserts a new bidder record into public.bidders."""
+    db_client = get_supabase_client()
+    response = await asyncio.to_thread(
+        lambda: db_client.table("bidders").insert(bidder_data).execute()
+    )
+    if response and hasattr(response, "data") and response.data:
+        return response.data[0]
+    raise RuntimeError("Failed to insert bidder record.")
+
+
+async def insert_bid_submission(submission_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Inserts a new bid submission record into public.bid_submissions."""
+    db_client = get_supabase_client()
+    response = await asyncio.to_thread(
+        lambda: db_client.table("bid_submissions").insert(submission_data).execute()
+    )
+    if response and hasattr(response, "data") and response.data:
+        return response.data[0]
+    raise RuntimeError("Failed to insert bid submission record.")
+
+
+async def insert_document(document_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Inserts a document record into public.documents."""
+    db_client = get_supabase_client()
+    response = await asyncio.to_thread(
+        lambda: db_client.table("documents").insert(document_data).execute()
+    )
+    if response and hasattr(response, "data") and response.data:
+        return response.data[0]
+    raise RuntimeError("Failed to insert document record.")
+
+
+async def get_procurement_hierarchy(procurement_id: str) -> Dict[str, Any]:
+    """Retrieves full canonical procurement hierarchy from database."""
+    db_client = get_supabase_client()
+    proc_res = await asyncio.to_thread(
+        lambda: db_client.table("procurements").select("*").eq("id", procurement_id).execute()
+    )
+    if not proc_res or not proc_res.data:
+        raise ValueError(f"Procurement with ID '{procurement_id}' not found.")
+
+    procurement = proc_res.data[0]
+
+    tenders_res = await asyncio.to_thread(
+        lambda: db_client.table("tenders").select("*").eq("procurement_id", procurement_id).execute()
+    )
+    tenders = tenders_res.data if tenders_res and tenders_res.data else []
+
+    for tender in tenders:
+        tender_id = tender["id"]
+        # Fetch submissions
+        sub_res = await asyncio.to_thread(
+            lambda: db_client.table("bid_submissions").select("*, bidders(*)").eq("tender_id", tender_id).execute()
+        )
+        submissions = sub_res.data if sub_res and sub_res.data else []
+
+        for sub in submissions:
+            sub_id = sub["id"]
+            doc_res = await asyncio.to_thread(
+                lambda: db_client.table("documents").select("*").eq("bid_submission_id", sub_id).execute()
+            )
+            sub["documents"] = doc_res.data if doc_res and doc_res.data else []
+
+        tender["submissions"] = submissions
+
+        # Fetch tender-level docs
+        t_doc_res = await asyncio.to_thread(
+            lambda: db_client.table("documents").select("*").eq("tender_id", tender_id).execute()
+        )
+        tender["documents"] = t_doc_res.data if t_doc_res and t_doc_res.data else []
+
+    procurement["tenders"] = tenders
+    return procurement
