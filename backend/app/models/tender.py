@@ -55,6 +55,10 @@ class AmbiguityType(str, Enum):
 
 class ApplicabilitySpec(BaseModel):
     """Model specifying which entity the requirement applies to and any explicit exemptions."""
+    applies_to_all: bool = Field(
+        default=True,
+        description="True if requirement applies to all bidders universally.",
+    )
     target_entity: str = Field(
         default="ALL_BIDDERS",
         description="Target entity (e.g., 'ALL_BIDDERS', 'OEM', 'AUTHORIZED_REPRESENTATIVE', 'STARTUP_MSME', 'CONSORTIUM_MEMBER').",
@@ -82,6 +86,10 @@ class StructuredCondition(BaseModel):
     metric: Optional[str] = Field(
         default=None,
         description="Standardized metric name (e.g. 'AVERAGE_ANNUAL_TURNOVER', 'SIMILAR_CONTRACT_COUNT', 'LOCAL_CONTENT_PERCENTAGE', 'WARRANTY_MONTHS').",
+    )
+    field_name: Optional[str] = Field(
+        default=None,
+        description="Standardized field identifier alias.",
     )
     operator: Optional[str] = Field(
         default=None,

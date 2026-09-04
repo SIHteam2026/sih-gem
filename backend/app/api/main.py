@@ -52,7 +52,15 @@ try:
         persist_tender_requirements,
         get_requirements_for_tender,
     )
+    from backend.app.services.tender_contract_service import (
+        get_tender_evaluation_contract,
+        get_single_requirement_contract,
+    )
     from backend.app.models.tender import TenderAnalysisResult, TenderRequirement
+    from backend.app.models.tender_contract import (
+        TenderEvaluationContract,
+        RequirementEvaluationContract,
+    )
     from backend.app.services.pdf_parser import (
         extract_text_from_pdf as extract_pdf_text_service,
     )
@@ -110,7 +118,15 @@ except ImportError:
         persist_tender_requirements,
         get_requirements_for_tender,
     )
+    from app.services.tender_contract_service import (
+        get_tender_evaluation_contract,
+        get_single_requirement_contract,
+    )
     from app.models.tender import TenderAnalysisResult, TenderRequirement
+    from app.models.tender_contract import (
+        TenderEvaluationContract,
+        RequirementEvaluationContract,
+    )
     from app.services.pdf_parser import (
         extract_text_from_pdf as extract_pdf_text_service,
     )
@@ -338,6 +354,57 @@ async def save_tender_requirements_endpoint(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to save tender requirements: {str(err)}",
+        )
+
+
+@app.get(
+    "/api/tenders/{tender_id}/evaluation-contract",
+    response_model=TenderEvaluationContract,
+)
+async def get_tender_evaluation_contract_endpoint(tender_id: str):
+    """Retrieves the complete, canonical evaluation contract for a tender,
+
+    translating extracted requirements into downstream-executable rule contracts.
+    """
+    try:
+        contract = await get_tender_evaluation_contract(tender_id)
+        return contract
+    except Exception as err:
+        logger.error("Failed to build evaluation contract for tender %s: %s", tender_id, err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to build tender evaluation contract: {str(err)}",
+        )
+
+
+@app.get(
+    "/api/tenders/{tender_id}/requirements/{requirement_id}/evaluation-contract",
+    response_model=RequirementEvaluationContract,
+)
+async def get_single_requirement_evaluation_contract_endpoint(
+    tender_id: str, requirement_id: str
+):
+    """Retrieves the canonical evaluation contract for a specific tender requirement."""
+    try:
+        contract = await get_single_requirement_contract(tender_id, requirement_id)
+        if not contract:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Requirement contract '{requirement_id}' not found for tender '{tender_id}'",
+            )
+        return contract
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error(
+            "Failed to build requirement evaluation contract for requirement %s in tender %s: %s",
+            requirement_id,
+            tender_id,
+            err,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to build requirement evaluation contract: {str(err)}",
         )
 
 
