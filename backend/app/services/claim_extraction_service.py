@@ -4,17 +4,20 @@ import uuid
 import re
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
+from copy import deepcopy
 
 try:
     from backend.app.models.procurement import Document, DocumentType
     from backend.app.models.evidence import BidderClaim, EvidenceObservation
     from backend.app.rules.engine import parse_numeric_value, parse_date_value
     from backend.app.ai.llm_evidence_service import extract_evidence_with_llm
+    from backend.app.models.tender_contract import RequirementEvaluationContract
 except ImportError:
     from app.models.procurement import Document, DocumentType
     from app.models.evidence import BidderClaim, EvidenceObservation
     from app.rules.engine import parse_numeric_value, parse_date_value
     from app.ai.llm_evidence_service import extract_evidence_with_llm
+    from app.models.tender_contract import RequirementEvaluationContract
 
 logger = logging.getLogger(__name__)
 
@@ -213,3 +216,37 @@ def process_document_evidence(doc: Document, tender_context: Optional[Dict[str, 
         submission_id = tender_context.get("bid_submission_id")
         
     return extract_document_facts(doc, bidder_id, submission_id)
+
+
+def map_facts_to_requirements(
+    facts: Dict[str, List[Any]], requirements: List[RequirementEvaluationContract]
+) -> Dict[str, List[Any]]:
+    """Map placeholder facts to a canonical requirement without guessing.
+
+    Mapping uses an explicit existing ID first, then the contract's canonical
+    field and requirement language.  A non-unique or unsupported match remains
+    unmapped and is returned separately for officer review.
+    """
+    mapped_claims, mapped_observations, unmapped = [], [], []
+    field_signals = {
+        "LC": ("local_content", "LOCAL CONTENT", "MAKE IN INDIA"),
+        "GST": ("gst_status", "GST"),
+        "PAN": ("pan_validity", "PAN"),
+    }
+    for kind in ("claims", "observations"):
+        for fact in facts.get(kind, []):
+            placeholder = "UNKNOWN" in fact.requirement_id.upper() or "UNMAPPED" in fact.requirement_id.upper()
+            matches = []
+            if not placeholder:
+                matches = [r for r in requirements if r.requirement_id == fact.requirement_id]
+            else:
+                key = next((key for key in field_signals if key in fact.requirement_id.upper()), None)
+                if key:
+                    field, *terms = field_signals[key]
+                    matches = [r for r in requirements if str(r.evaluation_field.value if hasattr(r.evaluation_field, 'value') else r.evaluation_field) == field or any(term in r.description.upper() for term in terms)]
+            if len(matches) == 1:
+                updated = fact.model_copy(update={"requirement_id": matches[0].requirement_id})
+                (mapped_claims if kind == "claims" else mapped_observations).append(updated)
+            else:
+                unmapped.append({"fact_id": getattr(fact, "claim_id", None) or getattr(fact, "evidence_id", None), "reason": "No unique canonical requirement match", "candidate_requirement_ids": [r.requirement_id for r in matches]})
+    return {"claims": mapped_claims, "observations": mapped_observations, "unmapped": unmapped}
