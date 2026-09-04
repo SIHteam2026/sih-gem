@@ -806,7 +806,40 @@ def evaluate_requirement(
             confidence=1.0,
         )
 
-    # 5. Local Content Percentage Rule Check
+    # 5. Structured Condition / Evaluation Contract Check
+    struct_cond = req_dict.get("structured_condition")
+    if hasattr(struct_cond, "model_dump"):
+        struct_cond = struct_cond.model_dump()
+
+    thresh_raw = None
+    op = None
+    unit = None
+    if req_dict.get("threshold_value") is not None:
+        thresh_raw = req_dict.get("threshold_value")
+        op = req_dict.get("operator") or ">="
+        unit = req_dict.get("threshold_unit")
+    elif struct_cond and struct_cond.get("threshold_value") is not None:
+        thresh_raw = struct_cond.get("threshold_value")
+        op = struct_cond.get("operator") or ">="
+        unit = struct_cond.get("unit")
+
+    if thresh_raw is not None:
+        thresh_val, thresh_unit = parse_numeric_value(thresh_raw)
+        if thresh_val is None and isinstance(thresh_raw, (int, float)):
+            thresh_val = float(thresh_raw)
+        final_unit = unit or thresh_unit
+        if thresh_val is not None:
+            return evaluate_numeric_threshold(
+                requirement_id=req_id,
+                operator=op or ">=",
+                expected_val=thresh_val,
+                expected_unit=final_unit,
+                observed_values=observed_values,
+                evidence_ids=evidence_ids,
+                requirement_description=description,
+            )
+
+    # 6. Local Content Percentage Rule Check
     if category == "LOCAL_CONTENT" or "LOCAL CONTENT" in description.upper() or "%" in description:
         # Search for threshold in requirement description (e.g. >=50%, 50%, >= 20%)
         pct_match = PERCENT_REGEX.search(description)

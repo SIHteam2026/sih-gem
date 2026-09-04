@@ -281,8 +281,12 @@ def check_applicability_exemption(
     if hasattr(applicability, "model_dump"):
         applicability = applicability.model_dump()
 
-    msme_exempt_allowed = applicability.get("msme_exemption_applicable", False)
-    startup_exempt_allowed = applicability.get("startup_exemption_applicable", False)
+    msme_exempt_allowed = bool(
+        applicability.get("msme_exemption_applicable") or applicability.get("msme_exemption")
+    )
+    startup_exempt_allowed = bool(
+        applicability.get("startup_exemption_applicable") or applicability.get("startup_exemption")
+    )
 
     # Check context exemptions profile (from bidder profile or evaluation context)
     exemptions = context.get("exemptions") or {}
@@ -685,26 +689,37 @@ def evaluate_deterministically(
     # Collect observed values
     observed_values = [p.raw_value for p in all_provenance if p.raw_value is not None]
 
-    # Structured condition check
+    # Structured condition check (supports both TenderRequirement.structured_condition and RequirementEvaluationContract top-level fields)
     struct_cond = requirement_dict.get("structured_condition")
     if hasattr(struct_cond, "model_dump"):
         struct_cond = struct_cond.model_dump()
 
-    # 1. Structured Condition or Percentage Threshold (e.g. Local Content >= 20%)
-    if struct_cond and struct_cond.get("threshold_value") is not None:
+    thresh_raw = None
+    op = None
+    unit = None
+
+    if requirement_dict.get("threshold_value") is not None:
+        thresh_raw = requirement_dict.get("threshold_value")
+        op = requirement_dict.get("operator") or ">="
+        unit = requirement_dict.get("threshold_unit")
+    elif struct_cond and struct_cond.get("threshold_value") is not None:
         thresh_raw = struct_cond.get("threshold_value")
+        op = struct_cond.get("operator") or ">="
+        unit = struct_cond.get("unit")
+
+    # 1. Structured Condition or Percentage Threshold (e.g. Local Content >= 20%)
+    if thresh_raw is not None:
         thresh_val, thresh_unit = parse_numeric_value(thresh_raw)
         if thresh_val is None and isinstance(thresh_raw, (int, float)):
             thresh_val = float(thresh_raw)
         
-        op = struct_cond.get("operator") or ">="
-        unit = struct_cond.get("unit") or thresh_unit
+        final_unit = unit or thresh_unit
 
         finding = evaluate_numeric_threshold(
             requirement_id=req_id,
-            operator=op,
+            operator=op or ">=",
             expected_val=thresh_val,
-            expected_unit=unit,
+            expected_unit=final_unit,
             observed_values=observed_values,
         )
         
