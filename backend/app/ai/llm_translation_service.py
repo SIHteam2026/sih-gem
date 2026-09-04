@@ -1,8 +1,7 @@
-"""LLM Service for multilingual document detection and legal English normalization."""
+"""LLM Service for multilingual document detection and legal English normalization using Groq Multi-Key Router."""
 
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -15,31 +14,24 @@ for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from dotenv import find_dotenv, load_dotenv
 from fastapi import HTTPException, status
-import google.generativeai as genai
 from pydantic import ValidationError
 
 try:
     from backend.app.ai.prompts import LEGAL_TRANSLATION_PROMPT
     from backend.app.models.translation import TranslationResult
+    from backend.app.services.ai_router import ai_router
 except ImportError:
     try:
         from app.ai.prompts import LEGAL_TRANSLATION_PROMPT
         from app.models.translation import TranslationResult
+        from app.services.ai_router import ai_router
     except ImportError:
         from prompts import LEGAL_TRANSLATION_PROMPT
         from models.translation import TranslationResult
-
-# Load environment variables
-load_dotenv(find_dotenv(usecwd=True))
+        from services.ai_router import ai_router
 
 logger = logging.getLogger(__name__)
-
-# Configure Gemini API
-api_key = os.getenv("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
 
 
 def _normalize_confidence(conf_str: str) -> str:
@@ -57,7 +49,7 @@ def _normalize_confidence(conf_str: str) -> str:
 
 
 async def normalize_document_language(raw_text: str) -> TranslationResult:
-    """Detects regional Indian languages and normalizes document text to legal-grade English.
+    """Detects regional Indian languages and normalizes document text to legal-grade English using Groq LLM.
 
     Args:
         raw_text (str): Raw extracted document text from bidder submissions or state government certificates.
@@ -76,95 +68,57 @@ async def normalize_document_language(raw_text: str) -> TranslationResult:
             translation_confidence="HIGH",
         )
 
-    # Ensure API key is configured
-    current_key = os.getenv("GEMINI_API_KEY")
-    if current_key:
-        genai.configure(api_key=current_key)
-
     prompt = (
         f"{LEGAL_TRANSLATION_PROMPT}\n\n"
         f"### Raw Bidder Document Text:\n"
         f"{raw_text}"
     )
 
-    generation_config = {
-        "response_mime_type": "application/json",
-        "temperature": 0.1,
-    }
+    try:
+        raw_json = await ai_router.generate_json(
+            prompt=prompt,
+            temperature=0.1,
+        )
 
-    # Candidate models with automatic fallback
-    candidate_models = ["gemini-1.5-flash", "gemini-3.6-flash", "gemini-2.5-flash"]
-    last_error = None
+        if isinstance(raw_json, list) and len(raw_json) > 0:
+            parsed_dict = raw_json[0]
+        elif isinstance(raw_json, dict):
+            parsed_dict = raw_json
+        else:
+            parsed_dict = {}
 
-    for model_name in candidate_models:
+        # Ensure fields are populated
+        if "detected_language" not in parsed_dict or not parsed_dict["detected_language"]:
+            parsed_dict["detected_language"] = "English"
+
+        parsed_dict["is_english"] = bool(parsed_dict.get("is_english", True))
+
+        if "translated_text" not in parsed_dict or not parsed_dict["translated_text"]:
+            parsed_dict["translated_text"] = raw_text
+
+        parsed_dict["translation_confidence"] = _normalize_confidence(
+            str(parsed_dict.get("translation_confidence", "HIGH"))
+        )
+
+        # Validate against TranslationResult Pydantic schema
         try:
-            model = genai.GenerativeModel(
-                model_name=model_name,
-                generation_config=generation_config,
-            )
+            validated_result = TranslationResult(**parsed_dict)
+            return validated_result
+        except ValidationError as val_err:
+            logger.error("Pydantic schema validation error on translation: %s", val_err)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Translation AI output failed schema validation: {str(val_err)}",
+            ) from val_err
 
-            response = await model.generate_content_async(prompt)
-
-            if not response or not response.text:
-                raise ValueError("Received empty response from Gemini API.")
-
-            raw_json = json.loads(response.text.strip())
-
-            if isinstance(raw_json, list) and len(raw_json) > 0:
-                parsed_dict = raw_json[0]
-            elif isinstance(raw_json, dict):
-                parsed_dict = raw_json
-            else:
-                parsed_dict = {}
-
-            # Ensure fields are populated
-            if "detected_language" not in parsed_dict or not parsed_dict["detected_language"]:
-                parsed_dict["detected_language"] = "English"
-
-            parsed_dict["is_english"] = bool(parsed_dict.get("is_english", True))
-
-            if "translated_text" not in parsed_dict or not parsed_dict["translated_text"]:
-                parsed_dict["translated_text"] = raw_text
-
-            parsed_dict["translation_confidence"] = _normalize_confidence(
-                str(parsed_dict.get("translation_confidence", "HIGH"))
-            )
-
-            # Validate against TranslationResult Pydantic schema
-            try:
-                validated_result = TranslationResult(**parsed_dict)
-                return validated_result
-            except ValidationError as val_err:
-                logger.error("Pydantic schema validation error on translation: %s", val_err)
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Translation AI output failed schema validation: {str(val_err)}",
-                ) from val_err
-
-        except HTTPException:
-            raise
-        except Exception as err:
-            last_error = err
-            err_str = str(err)
-            if "not found" in err_str.lower() or "no longer available" in err_str.lower() or "404" in err_str:
-                logger.warning(
-                    "Model %s unavailable (%s). Trying fallback candidate...",
-                    model_name,
-                    err_str,
-                )
-                continue
-            else:
-                logger.error("Gemini API error during document translation: %s", err)
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Gemini API translation error: {str(err)}",
-                ) from err
-
-    logger.error("All Gemini candidate models failed: %s", last_error)
-    raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail=f"Failed to translate document with AI: {str(last_error)}",
-    )
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error("Groq AI router error during document translation: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Groq API translation error: {str(err)}",
+        ) from err
 
 
 if __name__ == "__main__":

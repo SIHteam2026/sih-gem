@@ -4,6 +4,7 @@ from .chat_service import answer_procurement_question
 from .llm_contract_service import generate_award_contract
 from .llm_evaluator_service import evaluate_compliance
 from .llm_evidence_service import extract_evidence_with_llm
+from .llm_explainability_service import generate_audit_explainability
 from .llm_financial_service import analyze_financial_bid
 from .llm_fraud_service import analyze_vendor_risk
 from .llm_report_service import generate_final_report
@@ -11,6 +12,7 @@ from .llm_service import analyze_tender_with_llm
 from .llm_shortfall_service import generate_shortfall_notice
 from .llm_translation_service import normalize_document_language
 from .prompts import (
+    AUDIT_EXPLAINABILITY_PROMPT,
     CONTRACT_GENERATION_PROMPT,
     CONTRADICTION_ANALYSIS_PROMPT,
     EVIDENCE_EXTRACTION_PROMPT,
@@ -34,6 +36,7 @@ __all__ = [
     "LEGAL_TRANSLATION_PROMPT",
     "CONTRACT_GENERATION_PROMPT",
     "SHORTFALL_GENERATION_PROMPT",
+    "AUDIT_EXPLAINABILITY_PROMPT",
     "analyze_tender_with_llm",
     "extract_evidence_with_llm",
     "evaluate_compliance",
@@ -44,4 +47,5 @@ __all__ = [
     "normalize_document_language",
     "generate_award_contract",
     "generate_shortfall_notice",
+    "generate_audit_explainability",
 ]

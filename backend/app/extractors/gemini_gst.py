@@ -1,13 +1,32 @@
-from pathlib import Path
+import json
+import logging
 import os
+import sys
+from pathlib import Path
 from typing import Optional
 from dotenv import find_dotenv, load_dotenv
-from google import genai
-from google.genai import types
 from pydantic import BaseModel, Field
+
+# Ensure project root and backend paths are available for imports
+_current_file = Path(__file__).resolve()
+_backend_dir = _current_file.parent.parent.parent
+_root_dir = _backend_dir.parent
+for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+try:
+    from backend.app.services.ai_router import ai_router
+except ImportError:
+    try:
+        from app.services.ai_router import ai_router
+    except ImportError:
+        from services.ai_router import ai_router
 
 # Load environment variables from nearest .env file
 load_dotenv(find_dotenv(usecwd=True))
+
+logger = logging.getLogger(__name__)
 
 
 class GSTClaim(BaseModel):
@@ -29,60 +48,56 @@ class GSTClaim(BaseModel):
     )
 
 
-def extract_gst_fields(raw_text: str, model: str = "gemini-3.6-flash") -> dict:
-    """
-    Extracts GST fields from raw text using the Gemini model
-    and enforces the GSTClaim response schema.
+async def extract_gst_fields_async(raw_text: str) -> dict:
+    """Extracts GST fields from raw text using Groq AI router and enforces the GSTClaim response schema."""
+    prompt = (
+        "Extract the GST identification number (gstin), legal business name (legal_name), "
+        "status (status), and total invoice/claim amount (total_amount) from the following text in JSON format:\n\n"
+        f"{raw_text}"
+    )
+
+    try:
+        parsed_dict = await ai_router.generate_json(prompt=prompt, temperature=0.1)
+        if isinstance(parsed_dict, list) and len(parsed_dict) > 0:
+            parsed_dict = parsed_dict[0]
+        elif not isinstance(parsed_dict, dict):
+            parsed_dict = {}
+
+        validated = GSTClaim(**parsed_dict)
+        return validated.model_dump()
+    except Exception as e:
+        logger.error("Error in extract_gst_fields_async: %s", e)
+        return GSTClaim().model_dump()
+
+
+def extract_gst_fields(raw_text: str, model: Optional[str] = None) -> dict:
+    """Extracts GST fields from raw text using Groq AI router synchronously and enforces the GSTClaim response schema.
 
     Args:
         raw_text: Unstructured raw text containing GST details.
-        model: Gemini model identifier (defaults to "gemini-3.6-flash").
+        model: Model identifier override (optional).
 
     Returns:
         A dictionary containing the extracted fields: 'gstin', 'legal_name', 'status', and 'total_amount'.
     """
-    api_key = os.getenv("GEMINI_API_KEY")
-    client = genai.Client(api_key=api_key) if api_key else genai.Client()
-
     prompt = (
         "Extract the GST identification number (gstin), legal business name (legal_name), "
-        "status (status), and total invoice/claim amount (total_amount) from the following text:\n\n"
+        "status (status), and total invoice/claim amount (total_amount) from the following text in JSON format:\n\n"
         f"{raw_text}"
     )
 
-    config = types.GenerateContentConfig(
-        response_mime_type="application/json",
-        response_schema=GSTClaim,
-    )
-
     try:
-        response = client.models.generate_content(
-            model=model,
-            contents=prompt,
-            config=config,
-        )
-    except Exception as e:
-        # Fallback to gemini-3.6-flash if deprecated model like gemini-2.5-flash is passed
-        if model != "gemini-3.6-flash" and ("no longer available" in str(e) or "404" in str(e)):
-            response = client.models.generate_content(
-                model="gemini-3.6-flash",
-                contents=prompt,
-                config=config,
-            )
-        else:
-            raise e
+        parsed_dict = ai_router.generate_json_sync(prompt=prompt, temperature=0.1)
+        if isinstance(parsed_dict, list) and len(parsed_dict) > 0:
+            parsed_dict = parsed_dict[0]
+        elif not isinstance(parsed_dict, dict):
+            parsed_dict = {}
 
-    if response.parsed:
-        if isinstance(response.parsed, GSTClaim):
-            return response.parsed.model_dump()
-        if isinstance(response.parsed, dict):
-            return response.parsed
-
-    if response.text:
-        validated = GSTClaim.model_validate_json(response.text)
+        validated = GSTClaim(**parsed_dict)
         return validated.model_dump()
-
-    return GSTClaim().model_dump()
+    except Exception as e:
+        logger.error("Error in extract_gst_fields: %s", e)
+        return GSTClaim().model_dump()
 
 
 if __name__ == "__main__":
@@ -99,4 +114,3 @@ if __name__ == "__main__":
     result = extract_gst_fields(sample_text)
     print("Extracted dictionary:")
     print(result)
-

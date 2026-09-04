@@ -1,10 +1,9 @@
-"""Procurement Q&A Chat Service.
+"""Procurement Q&A Chat Service using Groq Multi-Key Router.
 
 Provides context-grounded Q&A assistance over tender and bidder documentation.
 """
 
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -16,30 +15,22 @@ for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from dotenv import find_dotenv, load_dotenv
-import google.generativeai as genai
-
 try:
     from backend.app.ai.prompts import PROCUREMENT_QA_PROMPT
+    from backend.app.services.ai_router import ai_router
 except ImportError:
     try:
         from app.ai.prompts import PROCUREMENT_QA_PROMPT
+        from app.services.ai_router import ai_router
     except ImportError:
         from prompts import PROCUREMENT_QA_PROMPT
-
-# Load environment variables
-load_dotenv(find_dotenv(usecwd=True))
+        from services.ai_router import ai_router
 
 logger = logging.getLogger(__name__)
 
-# Configure Gemini API
-api_key = os.getenv("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
-
 
 async def answer_procurement_question(question: str, context_text: str) -> str:
-    """Answers a user inquiry strictly using the provided tender or bidder document context.
+    """Answers a user inquiry strictly using the provided tender or bidder document context using Groq LLM.
 
     Args:
         question (str): The user's question regarding the document.
@@ -54,11 +45,6 @@ async def answer_procurement_question(question: str, context_text: str) -> str:
     if not context_text or not context_text.strip():
         return "Information not found in the provided documents"
 
-    # Ensure API key is configured
-    current_key = os.getenv("GEMINI_API_KEY")
-    if current_key:
-        genai.configure(api_key=current_key)
-
     prompt = (
         f"{PROCUREMENT_QA_PROMPT}\n\n"
         f"### Document Context:\n"
@@ -68,32 +54,20 @@ async def answer_procurement_question(question: str, context_text: str) -> str:
         f"### Answer:"
     )
 
-    candidate_models = ["gemini-1.5-flash", "gemini-3.6-flash", "gemini-2.5-flash"]
+    try:
+        response_text = await ai_router.generate_text(
+            prompt=prompt,
+            temperature=0.1,
+        )
 
-    for model_name in candidate_models:
-        try:
-            model = genai.GenerativeModel(model_name=model_name)
-            response = await model.generate_content_async(prompt)
+        if response_text and response_text.strip():
+            return response_text.strip()
+        else:
+            return "Information not found in the provided documents"
 
-            if response and response.text:
-                return response.text.strip()
-            else:
-                return "Information not found in the provided documents"
-
-        except Exception as err:
-            err_str = str(err)
-            if "not found" in err_str.lower() or "no longer available" in err_str.lower() or "404" in err_str:
-                logger.warning(
-                    "Model %s unavailable (%s). Trying fallback candidate...",
-                    model_name,
-                    err_str,
-                )
-                continue
-            else:
-                logger.error("Error during Gemini Q&A execution: %s", err)
-                return "Error processing Q&A request."
-
-    return "Error processing Q&A request."
+    except Exception as err:
+        logger.error("Error during Groq Q&A execution: %s", err)
+        return "Error processing Q&A request."
 
 
 if __name__ == "__main__":

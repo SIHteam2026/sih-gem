@@ -43,6 +43,7 @@ try:
         insert_tender_analysis,
         insert_bid_evaluation,
         get_bid_evaluations,
+        get_analytics_summary,
     )
     from backend.app.services.tender_service import analyze_tender
     from backend.app.models.tender import TenderAnalysisResult
@@ -67,6 +68,7 @@ try:
     from backend.app.models.contract import LetterOfAward
     from backend.app.ai.llm_shortfall_service import generate_shortfall_notice
     from backend.app.models.shortfall import ShortfallRequest
+    from backend.app.ai.llm_explainability_service import generate_audit_explainability
     from backend.app.models.orchestrator import (
         DeterministicCheckSummary,
         LegalCitation,
@@ -118,6 +120,7 @@ except ImportError:
     from app.models.contract import LetterOfAward
     from app.ai.llm_shortfall_service import generate_shortfall_notice
     from app.models.shortfall import ShortfallRequest
+    from app.ai.llm_explainability_service import generate_audit_explainability
     from app.models.orchestrator import (
         DeterministicCheckSummary,
         LegalCitation,
@@ -198,11 +201,37 @@ async def get_gst_history():
 
 
 # ---------------------------------------------------------------------------
+# Analytics Summary for Administrative Reporting
+# ---------------------------------------------------------------------------
+@app.get("/api/analytics/summary")
+async def get_analytics_summary_endpoint():
+    """Queries all historical tender evaluations and returns an aggregated analytics payload
+    containing total bids processed, approval rate percentage, average trust score,
+    and total fraud flags triggered."""
+    try:
+        summary = await get_analytics_summary()
+        logger.info(
+            "Analytics summary fetched: %d bids processed (Approval rate: %.1f%%, Avg trust score: %.1f, Fraud flags: %d)",
+            summary.get("total_bids_processed", 0),
+            summary.get("approval_rate_percentage", 0.0),
+            summary.get("average_trust_score", 0.0),
+            summary.get("total_fraud_flags_triggered", 0),
+        )
+        return summary
+    except Exception as err:
+        logger.error("Failed to generate analytics summary: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate analytics summary: {str(err)}",
+        )
+
+
+# ---------------------------------------------------------------------------
 # Tender analysis endpoint
 # ---------------------------------------------------------------------------
 @app.post("/api/tender/analyze", response_model=TenderAnalysisResult)
 async def analyze_tender_endpoint(file: UploadFile = File(...)):
-    """Analyzes an uploaded tender document and extracts compliance requirements."""
+    """Extracts text from an uploaded PDF tender and performs strict AI analysis."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -211,10 +240,10 @@ async def analyze_tender_endpoint(file: UploadFile = File(...)):
 
     try:
         file_bytes = await file.read()
-    except Exception as e:
+    except Exception as err:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to read uploaded tender document: {str(e)}",
+            detail=f"Failed to read uploaded file: {str(err)}",
         )
 
     if not file_bytes:
@@ -757,6 +786,28 @@ async def evaluate_complete_endpoint(payload: MasterEvaluationRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Master evaluation failed: {str(err)}",
+        )
+
+
+@app.post("/api/audit/explain")
+async def explain_audit_endpoint(evaluation_result: dict):
+    """Generates a plain-English, non-technical justification explaining why a bidder
+    passed, failed, or was flagged for review, specifically citing RAG rulebook clauses and fraud scores."""
+    try:
+        justification = await generate_audit_explainability(evaluation_result)
+        logger.info("Generated audit explainability narrative (%d chars).", len(justification))
+        return {
+            "justification": justification,
+            "tender_id": evaluation_result.get("tender_id"),
+            "bidder_name": evaluation_result.get("bidder_name"),
+        }
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error("Audit explainability generation failed: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Audit explainability generation failed: {str(err)}",
         )
 
 
