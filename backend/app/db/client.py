@@ -64,41 +64,64 @@ async def insert_tender_analysis(tender_id: str, analysis_data: Dict[str, Any]) 
     except Exception as db_err:
         logger.warning("Failed to persist tender analysis to Supabase (non-blocking): %s", db_err)
 
-
-async def insert_bid_evaluation(bid_id: str, evaluation_data: Dict[str, Any]) -> None:
-    """Inserts a bid evaluation record into the Supabase bid_evaluations table."""
+async def insert_bid_evaluation(
+    tender_id: str,
+    bidder_name: str | None = None,
+    evaluation_data: Dict[str, Any] | None = None,
+    bid_id: str | None = None,
+) -> None:
+    """Inserts a bid evaluation record into Supabase (supporting bidder_evaluations and bid_evaluations)."""
     try:
         db_client = get_supabase_client()
+        eval_payload = evaluation_data if evaluation_data is not None else {}
+        if isinstance(bidder_name, dict) and evaluation_data is None:
+            eval_payload = bidder_name
+            bidder_name = "Unknown"
+
         record = {
-            "bid_id": bid_id,
-            "evaluation_data": evaluation_data,
+            "tender_id": tender_id,
+            "bidder_name": bidder_name or "Unknown",
+            "bid_id": bid_id or tender_id,
+            "evaluation_data": eval_payload,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
-        await asyncio.to_thread(
-            lambda: db_client.table("bid_evaluations").insert(record).execute()
-        )
-        logger.info("Successfully persisted bid evaluation for %s to Supabase.", bid_id)
+        try:
+            await asyncio.to_thread(
+                lambda: db_client.table("bidder_evaluations").insert(record).execute()
+            )
+        except Exception:
+            await asyncio.to_thread(
+                lambda: db_client.table("bid_evaluations").insert(record).execute()
+            )
+        logger.info("Successfully persisted bid evaluation for %s (%s).", tender_id, bidder_name)
     except Exception as db_err:
         logger.warning("Failed to persist bid evaluation to Supabase (non-blocking): %s", db_err)
 
 
-async def get_bid_evaluations(limit: int = 20) -> List[Dict[str, Any]]:
-    """Fetches recent bid evaluations from Supabase."""
+async def get_bid_evaluations(tender_id: str | None = None, limit: int = 50) -> List[Dict[str, Any]]:
+    """Fetches evaluation records for a specific tender or recent evaluations."""
     try:
         db_client = get_supabase_client()
-        response = await asyncio.to_thread(
-            lambda: (
-                db_client.table("bid_evaluations")
-                .select("*")
-                .order("created_at", desc=True)
-                .limit(limit)
-                .execute()
-            )
-        )
-        return response.data if response and hasattr(response, "data") else []
+        query = db_client.table("bidder_evaluations").select("*")
+        if tender_id:
+            query = query.eq("tender_id", tender_id)
+        query = query.order("created_at", desc=True).limit(limit)
+
+        response = await asyncio.to_thread(lambda: query.execute())
+        if response and hasattr(response, "data") and response.data:
+            return response.data
+
+        # Fallback to bid_evaluations table
+        query2 = db_client.table("bid_evaluations").select("*")
+        if tender_id:
+            query2 = query2.eq("tender_id", tender_id)
+        query2 = query2.order("created_at", desc=True).limit(limit)
+        response2 = await asyncio.to_thread(lambda: query2.execute())
+        return response2.data if response2 and hasattr(response2, "data") else []
     except Exception as exc:
         logger.warning("Failed to fetch bid evaluations: %s", exc)
         return []
+
 
 
 async def get_analytics_summary() -> Dict[str, Any]:
@@ -356,3 +379,4 @@ async def get_procurement_hierarchy(procurement_id: str) -> Dict[str, Any]:
 
     procurement["tenders"] = tenders
     return procurement
+
