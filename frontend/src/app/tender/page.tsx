@@ -96,7 +96,7 @@ export default function ReviewPage() {
     setCheckingId(id);
     setError(null);
     try {
-      const result = await verifyBid(tender, bidderFiles, id);
+      const result = await verifyBid(tender, bidderFiles as any, id);
       setFindings((current) => ({ ...current, [id]: result }));
     } catch (err: any) {
       setError(err?.message || "The evidence could not be checked for this requirement.");

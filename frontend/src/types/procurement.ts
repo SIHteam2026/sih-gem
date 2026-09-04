@@ -180,3 +180,130 @@ export interface TenderEvaluationContract {
   human_review_count: number;
   ambiguous_count: number;
 }
+
+// ---------------------------------------------------------------------------
+// Canonical Evaluation & Review Data Models
+// ---------------------------------------------------------------------------
+
+export type ComplianceState =
+  | 'PASS'
+  | 'FAIL'
+  | 'REVIEW'
+  | 'UNVERIFIED'
+  | 'NOT_APPLICABLE'
+  // Legacy aliases
+  | 'VERIFIED'
+  | 'NON_COMPLIANT'
+  | 'REVIEW_REQUIRED'
+  | string;
+
+export type EvaluationMethod =
+  | 'DETERMINISTIC'
+  | 'CONTRADICTION_RECONCILIATION'
+  | 'DOCUMENT_PRESENCE'
+  | 'EXTERNAL_VERIFICATION'
+  | 'SEMANTIC_LLM'
+  | 'HUMAN_REVIEW'
+  | 'APPLICABILITY_EXEMPTION'
+  | string;
+
+export type RiskLevel = 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string;
+
+export type ContradictionType =
+  | 'NUMERIC_CONFLICT'
+  | 'DATE_CONFLICT'
+  | 'IDENTITY_CONFLICT'
+  | 'STATUS_CONFLICT'
+  | 'ATTRIBUTE_CONFLICT'
+  | 'CLAIM_UNSUPPORTED'
+  | 'EVIDENCE_DISAGREEMENT'
+  | 'INCOMPATIBLE_UNITS'
+  | string;
+
+export type RelationshipClassification =
+  | 'CONSISTENT'
+  | 'SUPPORTS'
+  | 'CONTRADICTS'
+  | 'UNSUPPORTED'
+  | 'INSUFFICIENT_DATA'
+  | 'REVIEW_REQUIRED'
+  | string;
+
+export interface ProvenanceRecord {
+  document_id?: string | null;
+  document_name?: string | null;
+  page_number?: number | null;
+  source_type?: string | null;
+  quote?: string | null;
+  extraction_confidence?: number | null;
+  raw_value?: any;
+  normalized_value?: any;
+  unit?: string | null;
+  claim_id?: string | null;
+  evidence_id?: string | null;
+}
+
+export interface SideBySideComparison {
+  left: ProvenanceRecord;
+  right: ProvenanceRecord;
+  comparison_type: ContradictionType;
+  relationship: RelationshipClassification;
+  discrepancy_description: string;
+  delta_value?: any;
+}
+
+export interface ContradictionFinding {
+  finding_id: string;
+  bidder_id?: string | null;
+  bidder_name?: string | null;
+  submission_id?: string | null;
+  requirement_id: string;
+  contradiction_type: ContradictionType;
+  severity?: string;
+  relationship_status: RelationshipClassification;
+  explanation: string;
+  side_by_side?: SideBySideComparison | null;
+  claim_references?: string[];
+  evidence_references?: string[];
+  provenance_items?: ProvenanceRecord[];
+  detected_at?: string | null;
+}
+
+export interface RequirementEvaluationResult {
+  requirement_id: string;
+  state: ComplianceState;
+  risk_level: RiskLevel;
+  evaluation_method: EvaluationMethod;
+  reason: string;
+  expected_condition?: Record<string, any> | null;
+  observed_values?: any[];
+  supporting_evidence?: any[];
+  conflicting_evidence?: any[];
+  review_required: boolean;
+  provenance?: ProvenanceRecord[];
+  contradiction_findings?: ContradictionFinding[];
+  evaluator_metadata?: Record<string, any> | null;
+  confidence?: number | null;
+  // Optional requirement metadata if joined
+  title?: string | null;
+  category?: string | null;
+  mandatory?: boolean;
+  description?: string | null;
+  is_ambiguous?: boolean;
+  ambiguity_reason?: string | null;
+}
+
+export interface SubmissionEvaluationResult {
+  tender_id: string;
+  bidder_name?: string | null;
+  evaluation_timestamp?: string | null;
+  requirement_results: RequirementEvaluationResult[];
+  machine_review_summary: Record<string, number>;
+  review_required: boolean;
+  review_required_count: number;
+  unresolved_contradiction_count: number;
+  unverified_count: number;
+  deterministic_checks?: any;
+  compliance_findings?: any[];
+}
+

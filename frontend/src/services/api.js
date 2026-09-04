@@ -1088,6 +1088,56 @@ export async function getProcurementProcessingStatus(procurementId) {
   }
 }
 
+/**
+ * Evaluates a bidder submission against canonical tender requirements.
+ * Calls POST /api/evaluate/complete with canonical submission_id and tender reference.
+ * 
+ * @param {string} submissionId - Bid submission UUID.
+ * @param {string} [tenderId] - Optional tender UUID or reference.
+ * @param {string} [bidderName] - Optional legal bidder name.
+ * @returns {Promise<any>} Submission evaluation result object.
+ */
+export async function evaluateSubmission(submissionId, tenderId = '', bidderName = '') {
+  if (!submissionId) {
+    throw new Error('A valid submission ID is required to evaluate a submission.');
+  }
+
+  const payload = {
+    submission_id: submissionId,
+    tender_id: tenderId || 'TENDER-CANONICAL',
+    bidder_name: bidderName || 'Bidder Entity',
+  };
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/evaluate/complete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error(`Error evaluating submission ${submissionId}:`, error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+export const fetchSubmissionEvaluation = evaluateSubmission;
+
 // Canonical alias exports for convenience
 export const getProcurements = fetchProcurements;
 export const getProcurement = fetchProcurementDetail;
@@ -1124,6 +1174,8 @@ const api = {
   fetchTenderRequirements,
   fetchTenderSubmissions,
   fetchTenderEvaluationContract,
+  evaluateSubmission,
+  fetchSubmissionEvaluation,
   getProcurements,
   getProcurement,
   getTender,
@@ -1137,5 +1189,6 @@ const api = {
 };
 
 export default api;
+
 
 
