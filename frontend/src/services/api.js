@@ -8,7 +8,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:80
  * Verifies an uploaded GST PDF document.
  * 
  * @param {File | Blob} file - The GST PDF file to verify.
- * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @returns {Promise<any>} The parsed JSON response from the server.
  * @throws {Error} Clear error message if validation, network request, or server response fails.
  */
 export async function verifyGSTDocument(file) {
@@ -51,7 +51,7 @@ export async function verifyGSTDocument(file) {
 /**
  * Fetches the verification history of processed GST documents.
  * 
- * @returns {Promise<Array>} The parsed JSON array of historical records.
+ * @returns {Promise<any[]>} The parsed JSON array of historical records.
  * @throws {Error} Clear error message if the network request or server fails.
  */
 export async function fetchVerificationHistory() {
@@ -88,7 +88,7 @@ export async function fetchVerificationHistory() {
  * Analyzes an uploaded tender document.
  * 
  * @param {File | Blob} file - The tender document file to analyze.
- * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @returns {Promise<any>} The parsed JSON response from the server.
  * @throws {Error} Clear error message if validation, network request, or server response fails.
  */
 export async function analyzeTender(file) {
@@ -133,7 +133,7 @@ export async function analyzeTender(file) {
  * Classifies an uploaded document to determine its type and validity.
  * 
  * @param {File | Blob} file - The document file to classify.
- * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @returns {Promise<any>} The parsed JSON response from the server.
  * @throws {Error} Clear error message if validation, network request, or server response fails.
  */
 export async function classifyDocument(file) {
@@ -215,7 +215,7 @@ export async function fetchTenderHistory() {
  * 
  * @param {string} name1 - First entity name.
  * @param {string} name2 - Second entity name.
- * @returns {Promise<Object>} The parsed JSON response comparing the entities.
+ * @returns {Promise<any>} The parsed JSON response comparing the entities.
  * @throws {Error} Clear error message if validation, network request, or server response fails.
  */
 export async function compareEntities(name1, name2) {
@@ -257,7 +257,7 @@ export async function compareEntities(name1, name2) {
  * Batch classifies documents packaged in a zip archive.
  * 
  * @param {File | Blob} zipFile - The zip file containing documents to classify.
- * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @returns {Promise<any>} The parsed JSON response from the server.
  * @throws {Error} Clear error message if validation, network request, or server response fails.
  */
 export async function batchClassifyDocuments(zipFile) {
@@ -304,7 +304,7 @@ export async function batchClassifyDocuments(zipFile) {
  * @param {File | Blob} tenderFile - The tender RFP / criteria document.
  * @param {File | Blob} bidderFile - The bidder evidence document.
  * @param {string | number} requirementId - The target requirement ID to evaluate against.
- * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @returns {Promise<any>} The parsed JSON response from the server.
  * @throws {Error} Clear error message if validation, network request, or server response fails.
  */
 export async function verifyBid(tenderFile, bidderFile, requirementId) {
@@ -352,7 +352,7 @@ export async function verifyBid(tenderFile, bidderFile, requirementId) {
  *
  * @param {string} question - The procurement question to ask the AI.
  * @param {string} [contextText] - Optional context text (e.g. tender clause, document extract).
- * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @returns {Promise<any>} The parsed JSON response from the server.
  * @throws {Error} Clear error message if validation, network request, or server response fails.
  */
 export async function askProcurementQuestion(question, contextText = '') {
@@ -400,7 +400,7 @@ export async function askProcurementQuestion(question, contextText = '') {
  * Analyzes a bidder's data for fraud risk indicators using AI.
  *
  * @param {Object} bidderData - The bidder profile / submission data to evaluate.
- * @returns {Promise<Object>} The parsed JSON fraud risk analysis response.
+ * @returns {Promise<any>} The parsed JSON fraud risk analysis response.
  * @throws {Error} Clear error message if validation, network request, or server response fails.
  */
 export async function analyzeFraudRisk(bidderData) {
@@ -445,7 +445,7 @@ export async function analyzeFraudRisk(bidderData) {
  * Generates an executive-level procurement audit report from compiled audit data.
  *
  * @param {Object} auditData - The compiled audit data to use for report generation.
- * @returns {Promise<Object>} The parsed JSON executive report response.
+ * @returns {Promise<any>} The parsed JSON executive report response.
  * @throws {Error} Clear error message if validation, network request, or server response fails.
  */
 export async function generateExecutiveReport(auditData) {
@@ -490,7 +490,7 @@ export async function generateExecutiveReport(auditData) {
  * Generates a formal clarification / shortfall notice for non-compliant bidders.
  *
  * @param {Object} complianceData - Data regarding bidder compliance and missing documents.
- * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @returns {Promise<any>} The parsed JSON response from the server.
  * @throws {Error} Clear error message if validation, network request, or server response fails.
  */
 export async function generateShortfallNotice(complianceData) {
@@ -536,7 +536,7 @@ export async function generateShortfallNotice(complianceData) {
  *
  * @param {Object} tenderData - Details of the tender document and requirements.
  * @param {Object} winnerData - Details of the winning bidder and offer.
- * @returns {Promise<Object>} The parsed JSON response from the server.
+ * @returns {Promise<any>} The parsed JSON response from the server.
  * @throws {Error} Clear error message if validation, network request, or server response fails.
  */
 export async function generateAwardContract(tenderData, winnerData) {
@@ -581,7 +581,7 @@ export async function generateAwardContract(tenderData, winnerData) {
  *
  * @param {File} tenderFile - The tender PDF file.
  * @param {File} [bidderFile] - The bidder PDF/evidence file.
- * @returns {Promise<Object>} The unified master evaluation JSON response from the server.
+ * @returns {Promise<any>} The unified master evaluation JSON response from the server.
  * @throws {Error} Clear error message if validation, network request, or server response fails.
  */
 export async function evaluateComplete(tenderFile, bidderFile) {
@@ -629,7 +629,7 @@ export async function evaluateComplete(tenderFile, bidderFile) {
  * Ingests a structured simulated GeM procurement package via the Mock-GeM adapter.
  * 
  * @param {Object} payload - The simulated GeM procurement package.
- * @returns {Promise<Object>} The canonical ProcurementIngestionResult.
+ * @returns {Promise<any>} The canonical ProcurementIngestionResult.
  */
 export async function ingestMockGeMPackage(payload) {
   try {
@@ -662,7 +662,7 @@ export async function ingestMockGeMPackage(payload) {
 /**
  * Ingests the pre-packaged synthetic CPCL Water Quality Monitoring procurement (DEMO/CPCL/WQM/2026/017).
  * 
- * @returns {Promise<Object>} The canonical ProcurementIngestionResult.
+ * @returns {Promise<any>} The canonical ProcurementIngestionResult.
  */
 export async function ingestMockGeMDemo() {
   try {
@@ -692,7 +692,7 @@ export async function ingestMockGeMDemo() {
  * Uploads a simulated GeM ZIP package containing metadata.json and procurement documents.
  * 
  * @param {File | Blob} zipFile - The ZIP package file.
- * @returns {Promise<Object>} The canonical ProcurementIngestionResult.
+ * @returns {Promise<any>} The canonical ProcurementIngestionResult.
  */
 export async function ingestMockGeMZip(zipFile) {
   if (!zipFile) {
@@ -726,7 +726,258 @@ export async function ingestMockGeMZip(zipFile) {
   }
 }
 
-export default {
+/**
+ * Fetches paginated procurement workspace summaries.
+ * 
+ * @param {number} limit - Max records to return.
+ * @param {number} offset - Offset index.
+ * @returns {Promise<any>} Object containing procurements array, total, limit, and offset.
+ */
+export async function fetchProcurements(limit = 50, offset = 0) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/procurements?limit=${limit}&offset=${offset}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching procurement list:', error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Fetches single procurement workspace detail.
+ * 
+ * @param {string} procurementId - Procurement UUID.
+ * @returns {Promise<any>} Procurement detail object.
+ */
+export async function fetchProcurementDetail(procurementId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/procurements/${encodeURIComponent(procurementId)}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching procurement detail for ${procurementId}:`, error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Fetches tender workspace detail by tender ID.
+ * 
+ * @param {string} tenderId - Tender UUID.
+ * @returns {Promise<any>} Tender workspace detail object.
+ */
+export async function fetchTenderDetail(tenderId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/tenders/${encodeURIComponent(tenderId)}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching tender detail for ${tenderId}:`, error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Fetches submission detail by submission ID.
+ * 
+ * @param {string} submissionId - Bid submission UUID.
+ * @returns {Promise<any>} Submission detail object.
+ */
+export async function fetchSubmissionDetail(submissionId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/submissions/${encodeURIComponent(submissionId)}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching submission detail for ${submissionId}:`, error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Fetches bidder profile detail by bidder ID.
+ * 
+ * @param {string} bidderId - Bidder UUID.
+ * @returns {Promise<any>} Bidder detail object.
+ */
+export async function fetchBidderDetail(bidderId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/bidders/${encodeURIComponent(bidderId)}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching bidder detail for ${bidderId}:`, error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Fetches canonical structured requirements for a specific tender.
+ * 
+ * @param {string} tenderId - Tender UUID.
+ * @returns {Promise<any[]>} List of TenderRequirement objects.
+ */
+export async function fetchTenderRequirements(tenderId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/tenders/${encodeURIComponent(tenderId)}/requirements`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching requirements for tender ${tenderId}:`, error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Fetches bidder submissions for a specific tender.
+ * 
+ * @param {string} tenderId - Tender UUID.
+ * @returns {Promise<any[]>} List of SubmissionSummary objects.
+ */
+export async function fetchTenderSubmissions(tenderId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/tenders/${encodeURIComponent(tenderId)}/submissions`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching submissions for tender ${tenderId}:`, error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Fetches evaluation contract for a specific tender.
+ * 
+ * @param {string} tenderId - Tender UUID.
+ * @returns {Promise<any>} TenderEvaluationContract object.
+ */
+export async function fetchTenderEvaluationContract(tenderId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/tenders/${encodeURIComponent(tenderId)}/evaluation-contract`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message)) {
+          errorMessage = errorBody.detail || errorBody.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching evaluation contract for tender ${tenderId}:`, error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+// Canonical alias exports for convenience
+export const getProcurements = fetchProcurements;
+export const getProcurement = fetchProcurementDetail;
+export const getTender = fetchTenderDetail;
+export const getTenderRequirements = fetchTenderRequirements;
+export const getTenderSubmissions = fetchTenderSubmissions;
+export const getSubmission = fetchSubmissionDetail;
+export const getBidder = fetchBidderDetail;
+export const getTenderEvaluationContract = fetchTenderEvaluationContract;
+
+const api = {
   verifyGSTDocument,
   fetchVerificationHistory,
   analyzeTender,
@@ -744,5 +995,24 @@ export default {
   ingestMockGeMPackage,
   ingestMockGeMDemo,
   ingestMockGeMZip,
+  fetchProcurements,
+  fetchProcurementDetail,
+  fetchTenderDetail,
+  fetchSubmissionDetail,
+  fetchBidderDetail,
+  fetchTenderRequirements,
+  fetchTenderSubmissions,
+  fetchTenderEvaluationContract,
+  getProcurements,
+  getProcurement,
+  getTender,
+  getTenderRequirements,
+  getTenderSubmissions,
+  getSubmission,
+  getBidder,
+  getTenderEvaluationContract,
 };
+
+export default api;
+
 

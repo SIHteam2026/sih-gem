@@ -308,6 +308,23 @@ export default function MockGeMSimulatorPage() {
               <p><span className="text-slate-500">External Ref:</span> {result.external_reference}</p>
               <p><span className="text-slate-500">Tender UUID:</span> {result.tender_id}</p>
             </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-3">
+              <Link
+                href={`/procurements/${result.procurement_id}`}
+                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-md transition-all cursor-pointer"
+              >
+                Open Procurement Workspace <ArrowRight className="w-4 h-4" />
+              </Link>
+              {result.tender_id && (
+                <Link
+                  href={`/tenders/${result.tender_id}`}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all cursor-pointer"
+                >
+                  Open Tender Workspace <ArrowRight className="w-4 h-4" />
+                </Link>
+              )}
+            </div>
           </div>
         )}
       </main>
