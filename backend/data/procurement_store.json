@@ -6,9 +6,19 @@
       "external_reference": "DEMO/CPCL/WQM/2026/017",
       "title": "Supply and commissioning of industrial water quality monitoring units",
       "organization": "Chennai Petroleum Corporation Limited (CPCL)",
-      "status": "READY",
+      "status": "PROCESSING",
       "created_at": "2026-09-05T05:48:52.001564+00:00",
-      "updated_at": "2026-09-05T05:48:52.001564+00:00"
+      "updated_at": "2026-09-05T08:12:06.803236+00:00",
+      "processing_metadata": {
+        "status": "PROCESSING",
+        "current_stage": "TENDER_INTELLIGENCE",
+        "completed_stages": [],
+        "failed_stage": null,
+        "stage_results": [],
+        "retry_count": 11,
+        "last_error_code": null,
+        "last_error_message": null
+      }
     }
   },
   "tenders": {
@@ -238,5 +248,206 @@
       "updated_at": "2026-09-05T05:48:52.001564+00:00"
     }
   },
-  "requirements": {}
+  "requirements": {
+    "CPCL/WQM/2026/RFP-017": [
+      {
+        "id": null,
+        "tender_id": null,
+        "requirement_id": "REQ-001",
+        "category": "GST_AND_TAX",
+        "description": "Bidder must have active GSTIN registration.",
+        "mandatory": true,
+        "evidence_required": [
+          "GST Registration Certificate"
+        ],
+        "is_ambiguous": false,
+        "ambiguity_reason": null,
+        "title": "Active GSTIN Registration",
+        "raw_statement": "Bidder must have active GSTIN registration.",
+        "applicability": "applies_to_all=True target_entity='ALL_BIDDERS' msme_exemption_applicable=False startup_exemption_applicable=False exemption_notes=None notes=None",
+        "structured_condition": "metric=None field_name=None operator=None threshold_value=None unit=None currency=None period_years=None period_description=None is_quantifiable=False",
+        "evidence_specs": [
+          "document_type='GST_CERTIFICATE' description='Valid GSTIN registration certificate.' mandatory=True issuing_authority='Statutory Authority'"
+        ],
+        "source_provenance": "page_number=1 clause_number='Clause 1' section_title=None verbatim_quote='Bidder must have active GSTIN registration.'",
+        "ambiguity": "is_ambiguous=False ambiguity_type=<AmbiguityType.NONE: 'NONE'> ambiguity_reason=None",
+        "created_at": null,
+        "updated_at": null
+      },
+      {
+        "id": null,
+        "tender_id": null,
+        "requirement_id": "REQ-002",
+        "category": "LOCAL_CONTENT_MII",
+        "description": "Minimum local content under Make in India policy shall be 20.0%.",
+        "mandatory": true,
+        "evidence_required": [
+          "Local Content Declaration"
+        ],
+        "is_ambiguous": false,
+        "ambiguity_reason": null,
+        "title": "Minimum Local Content",
+        "raw_statement": "Minimum local content under Make in India policy shall be 20.0%.",
+        "applicability": "applies_to_all=True target_entity='ALL_BIDDERS' msme_exemption_applicable=False startup_exemption_applicable=False exemption_notes=None notes=None",
+        "structured_condition": "metric='LOCAL_CONTENT_PERCENTAGE' field_name=None operator='>=' threshold_value=20.0 unit='PERCENT' currency=None period_years=None period_description=None is_quantifiable=True",
+        "evidence_specs": [
+          "document_type='LOCAL_CONTENT_DECLARATION' description='Declaration of local content percentage as per Make in India policy.' mandatory=True issuing_authority='Bidder'"
+        ],
+        "source_provenance": "page_number=1 clause_number='Clause 2' section_title=None verbatim_quote='Minimum local content under Make in India policy shall be 20.0%.'",
+        "ambiguity": "is_ambiguous=False ambiguity_type=<AmbiguityType.NONE: 'NONE'> ambiguity_reason=None",
+        "created_at": null,
+        "updated_at": null
+      },
+      {
+        "id": null,
+        "tender_id": null,
+        "requirement_id": "REQ-003",
+        "category": "FINANCIAL_TURNOVER",
+        "description": "Average annual financial turnover over past 3 years shall be greater than or equal to Rs. 10.0 Crores.",
+        "mandatory": true,
+        "evidence_required": [
+          "Audited Balance Sheets",
+          "CA Turnover Certificate with UDIN"
+        ],
+        "is_ambiguous": false,
+        "ambiguity_reason": null,
+        "title": "Average Annual Financial Turnover",
+        "raw_statement": "Average annual financial turnover over past 3 years shall be greater than or equal to Rs. 10.0 Crores.",
+        "applicability": "applies_to_all=True target_entity='ALL_BIDDERS' msme_exemption_applicable=False startup_exemption_applicable=False exemption_notes=None notes=None",
+        "structured_condition": "metric='AVERAGE_ANNUAL_TURNOVER' field_name=None operator='>=' threshold_value=100000000.0 unit='INR' currency='INR' period_years=3.0 period_description='past 3 years' is_quantifiable=True",
+        "evidence_specs": [
+          "document_type='AUDITED_BALANCE_SHEETS' description='Audited balance sheets for the last three financial years.' mandatory=True issuing_authority='Practicing Chartered Accountant'",
+          "document_type='CA_CERTIFICATE' description='Chartered Accountant turnover certificate with UDIN.' mandatory=True issuing_authority='Practicing Chartered Accountant'"
+        ],
+        "source_provenance": "page_number=1 clause_number='Clause 3' section_title=None verbatim_quote='Average annual financial turnover over past 3 years shall be greater than or equal to Rs. 10.0 Crores.'",
+        "ambiguity": "is_ambiguous=False ambiguity_type=<AmbiguityType.NONE: 'NONE'> ambiguity_reason=None",
+        "created_at": null,
+        "updated_at": null
+      },
+      {
+        "id": null,
+        "tender_id": null,
+        "requirement_id": "REQ-004",
+        "category": "OEM_AUTHORIZATION",
+        "description": "Bidder must submit valid OEM Manufacturer Authorization Form (MAF).",
+        "mandatory": true,
+        "evidence_required": [
+          "OEM Manufacturer Authorization Form (MAF)"
+        ],
+        "is_ambiguous": false,
+        "ambiguity_reason": null,
+        "title": "OEM Manufacturer Authorization Form",
+        "raw_statement": "Bidder must submit valid OEM Manufacturer Authorization Form (MAF).",
+        "applicability": "applies_to_all=True target_entity='ALL_BIDDERS' msme_exemption_applicable=False startup_exemption_applicable=False exemption_notes=None notes=None",
+        "structured_condition": "metric=None field_name=None operator=None threshold_value=None unit=None currency=None period_years=None period_description=None is_quantifiable=False",
+        "evidence_specs": [
+          "document_type='OEM_AUTHORIZATION' description='Valid OEM Manufacturer Authorization Form (MAF).' mandatory=True issuing_authority='OEM / Manufacturer'"
+        ],
+        "source_provenance": "page_number=1 clause_number='Clause 4' section_title=None verbatim_quote='Bidder must submit valid OEM Manufacturer Authorization Form (MAF).'",
+        "ambiguity": "is_ambiguous=False ambiguity_type=<AmbiguityType.NONE: 'NONE'> ambiguity_reason=None",
+        "created_at": null,
+        "updated_at": null
+      }
+    ],
+    "64adfe14-68df-4411-8715-f41db95cd14c": [
+      {
+        "id": null,
+        "tender_id": null,
+        "requirement_id": "REQ-001",
+        "category": "GST_AND_TAX",
+        "description": "Bidder must have active GSTIN registration.",
+        "mandatory": true,
+        "evidence_required": [
+          "GST Registration Certificate"
+        ],
+        "is_ambiguous": false,
+        "ambiguity_reason": null,
+        "title": "Active GSTIN Registration",
+        "raw_statement": "Bidder must have active GSTIN registration.",
+        "applicability": "applies_to_all=True target_entity='ALL_BIDDERS' msme_exemption_applicable=False startup_exemption_applicable=False exemption_notes=None notes=None",
+        "structured_condition": "metric=None field_name=None operator=None threshold_value=None unit=None currency=None period_years=None period_description=None is_quantifiable=False",
+        "evidence_specs": [
+          "document_type='GST_CERTIFICATE' description='Valid GSTIN registration certificate.' mandatory=True issuing_authority='Statutory Authority'"
+        ],
+        "source_provenance": "page_number=1 clause_number='Clause 1' section_title=None verbatim_quote='Bidder must have active GSTIN registration.'",
+        "ambiguity": "is_ambiguous=False ambiguity_type=<AmbiguityType.NONE: 'NONE'> ambiguity_reason=None",
+        "created_at": null,
+        "updated_at": null
+      },
+      {
+        "id": null,
+        "tender_id": null,
+        "requirement_id": "REQ-002",
+        "category": "LOCAL_CONTENT_MII",
+        "description": "Minimum local content under Make in India policy shall be 20.0%.",
+        "mandatory": true,
+        "evidence_required": [
+          "Local Content Declaration"
+        ],
+        "is_ambiguous": false,
+        "ambiguity_reason": null,
+        "title": "Minimum Local Content",
+        "raw_statement": "Minimum local content under Make in India policy shall be 20.0%.",
+        "applicability": "applies_to_all=True target_entity='ALL_BIDDERS' msme_exemption_applicable=False startup_exemption_applicable=False exemption_notes=None notes=None",
+        "structured_condition": "metric='LOCAL_CONTENT_PERCENTAGE' field_name=None operator='>=' threshold_value=20.0 unit='PERCENT' currency=None period_years=None period_description=None is_quantifiable=True",
+        "evidence_specs": [
+          "document_type='LOCAL_CONTENT_DECLARATION' description='Declaration of local content percentage as per Make in India policy.' mandatory=True issuing_authority='Bidder'"
+        ],
+        "source_provenance": "page_number=1 clause_number='Clause 2' section_title=None verbatim_quote='Minimum local content under Make in India policy shall be 20.0%.'",
+        "ambiguity": "is_ambiguous=False ambiguity_type=<AmbiguityType.NONE: 'NONE'> ambiguity_reason=None",
+        "created_at": null,
+        "updated_at": null
+      },
+      {
+        "id": null,
+        "tender_id": null,
+        "requirement_id": "REQ-003",
+        "category": "FINANCIAL_TURNOVER",
+        "description": "Average annual financial turnover over past 3 years shall be greater than or equal to Rs. 10.0 Crores.",
+        "mandatory": true,
+        "evidence_required": [
+          "Audited Balance Sheets",
+          "CA Turnover Certificate with UDIN"
+        ],
+        "is_ambiguous": false,
+        "ambiguity_reason": null,
+        "title": "Average Annual Financial Turnover",
+        "raw_statement": "Average annual financial turnover over past 3 years shall be greater than or equal to Rs. 10.0 Crores.",
+        "applicability": "applies_to_all=True target_entity='ALL_BIDDERS' msme_exemption_applicable=False startup_exemption_applicable=False exemption_notes=None notes=None",
+        "structured_condition": "metric='AVERAGE_ANNUAL_TURNOVER' field_name=None operator='>=' threshold_value=100000000.0 unit='INR' currency='INR' period_years=3.0 period_description='past 3 years' is_quantifiable=True",
+        "evidence_specs": [
+          "document_type='AUDITED_BALANCE_SHEETS' description='Audited balance sheets for the last three financial years.' mandatory=True issuing_authority='Practicing Chartered Accountant'",
+          "document_type='CA_CERTIFICATE' description='Chartered Accountant turnover certificate with UDIN.' mandatory=True issuing_authority='Practicing Chartered Accountant'"
+        ],
+        "source_provenance": "page_number=1 clause_number='Clause 3' section_title=None verbatim_quote='Average annual financial turnover over past 3 years shall be greater than or equal to Rs. 10.0 Crores.'",
+        "ambiguity": "is_ambiguous=False ambiguity_type=<AmbiguityType.NONE: 'NONE'> ambiguity_reason=None",
+        "created_at": null,
+        "updated_at": null
+      },
+      {
+        "id": null,
+        "tender_id": null,
+        "requirement_id": "REQ-004",
+        "category": "OEM_AUTHORIZATION",
+        "description": "Bidder must submit valid OEM Manufacturer Authorization Form (MAF).",
+        "mandatory": true,
+        "evidence_required": [
+          "OEM Manufacturer Authorization Form (MAF)"
+        ],
+        "is_ambiguous": false,
+        "ambiguity_reason": null,
+        "title": "OEM Manufacturer Authorization Form",
+        "raw_statement": "Bidder must submit valid OEM Manufacturer Authorization Form (MAF).",
+        "applicability": "applies_to_all=True target_entity='ALL_BIDDERS' msme_exemption_applicable=False startup_exemption_applicable=False exemption_notes=None notes=None",
+        "structured_condition": "metric=None field_name=None operator=None threshold_value=None unit=None currency=None period_years=None period_description=None is_quantifiable=False",
+        "evidence_specs": [
+          "document_type='OEM_AUTHORIZATION' description='Valid OEM Manufacturer Authorization Form (MAF).' mandatory=True issuing_authority='OEM / Manufacturer'"
+        ],
+        "source_provenance": "page_number=1 clause_number='Clause 4' section_title=None verbatim_quote='Bidder must submit valid OEM Manufacturer Authorization Form (MAF).'",
+        "ambiguity": "is_ambiguous=False ambiguity_type=<AmbiguityType.NONE: 'NONE'> ambiguity_reason=None",
+        "created_at": null,
+        "updated_at": null
+      }
+    ]
+  }
 }

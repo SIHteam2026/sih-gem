@@ -1,0 +1,3 @@
+import inspect
+from app.services.master_pipeline import evaluate_canonical_submission_by_id
+print(inspect.getsource(evaluate_canonical_submission_by_id))
