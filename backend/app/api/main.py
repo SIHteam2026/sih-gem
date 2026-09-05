@@ -782,8 +782,14 @@ async def evaluate_complete_endpoint(payload: MasterEvaluationRequest):
                     unresolved_contradiction_count=canonical["unresolved_contradiction_count"],
                     unverified_count=canonical["unverified_count"],
                 )
+            except HTTPException:
+                raise
             except Exception as ce:
-                logger.warning("Canonical evaluation by submission_id failed, falling back to legacy: %s", ce)
+                logger.exception("Canonical evaluation by submission_id '%s' failed: %s", payload.submission_id, ce)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Canonical evaluation failed for submission '{payload.submission_id}': {str(ce)}",
+                )
 
         # 1. Collect & aggregate document texts
         combined_bidder_text_parts = []

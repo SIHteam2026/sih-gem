@@ -6,8 +6,8 @@ forensic trust scores, compliance findings, executive reports,
 and automated contract or shortfall generation.
 """
 
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional, Union
+from pydantic import BaseModel, ConfigDict, Field
 
 from .contract import LetterOfAward
 from .document import DocumentClassificationResult
@@ -94,52 +94,54 @@ class LegalCitation(BaseModel):
 
 class MasterEvaluationResponse(BaseModel):
     """Complete aggregated response from the multi-agent procurement evaluation orchestrator."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     tender_id: str = Field(..., description="Tender identifier.")
     bidder_name: str = Field(..., description="Bidder corporate name.")
     evaluation_timestamp: str = Field(..., description="ISO 8601 evaluation timestamp.")
     
     # 1. Deterministic Rule Checks
     deterministic_checks: DeterministicCheckSummary = Field(
-        ...,
+        default_factory=DeterministicCheckSummary,
         description="Summary of deterministic GST, PAN, and fuzzy entity matching checks.",
     )
     
     # 2. OCR & Document Classification
-    classified_documents: List[DocumentClassificationResult] = Field(
+    classified_documents: List[Union[DocumentClassificationResult, Dict[str, Any], Any]] = Field(
         default_factory=list,
         description="Classified document inventory across the bidder submission.",
     )
     
     # 3. Multilingual Translations
-    translations: List[TranslationResult] = Field(
+    translations: List[Union[TranslationResult, Dict[str, Any], Any]] = Field(
         default_factory=list,
         description="Results of regional language detections and English legal normalizations.",
     )
     
     # 4. RAG Legal & Statutory Citations
-    legal_citations: List[LegalCitation] = Field(
+    legal_citations: List[Union[LegalCitation, Dict[str, Any], Any]] = Field(
         default_factory=list,
         description="RAG-retrieved public procurement statutory rules and legal citations.",
     )
     
     # 5. Forensic Fraud & Trust Scoring
-    fraud_analysis: Optional[FraudAnalysisResult] = Field(
+    fraud_analysis: Optional[Union[FraudAnalysisResult, Dict[str, Any], Any]] = Field(
         default=None,
         description="Forensic fraud risk assessment, date cross-verification, and trust score.",
     )
     
     # 6. Commercial & Financial BOQ Audit
-    financial_evaluation: Optional[FinancialEvaluationResult] = Field(
+    financial_evaluation: Optional[Union[FinancialEvaluationResult, Dict[str, Any], Any]] = Field(
         default=None,
         description="Mathematical BOQ audit, unit rate check, and abnormally low bid analysis.",
     )
     
     # 7. Compliance Findings & Contradiction Analysis
-    compliance_findings: List[ComplianceFinding] = Field(
+    compliance_findings: List[Union[ComplianceFinding, Dict[str, Any], Any]] = Field(
         default_factory=list,
         description="Requirement-by-requirement contradiction and compliance analysis findings.",
     )
-    requirement_results: List[RequirementEvaluationResult] = Field(
+    requirement_results: List[Union[RequirementEvaluationResult, Dict[str, Any], Any]] = Field(
         default_factory=list,
         description="Canonical requirement-level machine evaluation results; never a procurement decision.",
     )
@@ -153,19 +155,19 @@ class MasterEvaluationResponse(BaseModel):
     unverified_count: int = Field(default=0)
     
     # 8. Executive Decision & Final Report
-    final_report: Optional[FinalAuditReport] = Field(
+    final_report: Optional[Union[FinalAuditReport, Dict[str, Any], Any]] = Field(
         default=None,
         description="Executive summary, itemized violations, and final procurement recommendation.",
     )
     
     # 9. Automated Contract Generation (Optional)
-    letter_of_award: Optional[LetterOfAward] = Field(
+    letter_of_award: Optional[Union[LetterOfAward, Dict[str, Any], Any]] = Field(
         default=None,
         description="Drafted Letter of Award (LoA) generated if bid is ACCEPT.",
     )
     
     # 10. Automated Shortfall Notice (Optional)
-    shortfall_notice: Optional[ShortfallRequest] = Field(
+    shortfall_notice: Optional[Union[ShortfallRequest, Dict[str, Any], Any]] = Field(
         default=None,
         description="Drafted 48-hour shortfall clarification notice generated if discrepancies or missing proofs exist.",
     )
