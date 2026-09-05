@@ -743,19 +743,25 @@ async def get_procurement_detail_db(procurement_id: str) -> Optional[Dict[str, A
             tender["requirement_count"] = len(reqs)
 
             # Submissions
-            sub_res = await asyncio.to_thread(
-                lambda: db_client.table("bid_submissions").select("*, bidders(*)").eq("tender_id", t_id).execute()
-            )
-            submissions = sub_res.data if sub_res and sub_res.data else []
+            try:
+                sub_res = await asyncio.to_thread(
+                    lambda: db_client.table("bid_submissions").select("*").eq("tender_id", t_id).execute()
+                )
+                submissions = sub_res.data if sub_res and sub_res.data else []
+            except Exception:
+                submissions = [s for s in _IN_MEMORY_SUBMISSIONS.values() if s.get("tender_id") == t_id]
+
             for sub in submissions:
                 sub_id = sub["id"]
-                sub_doc_res = await asyncio.to_thread(
-                    lambda: db_client.table("documents").select("*").eq("bid_submission_id", sub_id).execute()
-                )
-                sub["documents"] = sub_doc_res.data if sub_doc_res and sub_doc_res.data else []
-                if "bidders" in sub and sub["bidders"]:
-                    sub["bidder"] = sub["bidders"]
-                elif sub.get("bidder_id"):
+                try:
+                    sub_doc_res = await asyncio.to_thread(
+                        lambda: db_client.table("documents").select("*").eq("bid_submission_id", sub_id).execute()
+                    )
+                    sub["documents"] = sub_doc_res.data if sub_doc_res and sub_doc_res.data else []
+                except Exception:
+                    sub["documents"] = [d for d in _IN_MEMORY_DOCUMENTS.values() if d.get("bid_submission_id") == sub_id]
+
+                if sub.get("bidder_id"):
                     b_id = sub["bidder_id"]
                     if b_id in _IN_MEMORY_BIDDERS:
                         sub["bidder"] = _IN_MEMORY_BIDDERS[b_id]
@@ -817,20 +823,26 @@ async def get_tender_detail_db(tender_id: str) -> Optional[Dict[str, Any]]:
         tender["requirement_count"] = len(reqs)
 
         # Submissions
-        sub_res = await asyncio.to_thread(
-            lambda: db_client.table("bid_submissions").select("*, bidders(*)").eq("tender_id", tender_id).execute()
-        )
-        submissions = sub_res.data if sub_res and sub_res.data else []
+        try:
+            sub_res = await asyncio.to_thread(
+                lambda: db_client.table("bid_submissions").select("*").eq("tender_id", tender_id).execute()
+            )
+            submissions = sub_res.data if sub_res and sub_res.data else []
+        except Exception:
+            submissions = [s for s in _IN_MEMORY_SUBMISSIONS.values() if s.get("tender_id") == tender_id]
+
         for sub in submissions:
             sub_id = sub["id"]
-            sub_doc_res = await asyncio.to_thread(
-                lambda: db_client.table("documents").select("*").eq("bid_submission_id", sub_id).execute()
-            )
-            sub["documents"] = sub_doc_res.data if sub_doc_res and sub_doc_res.data else []
+            try:
+                sub_doc_res = await asyncio.to_thread(
+                    lambda: db_client.table("documents").select("*").eq("bid_submission_id", sub_id).execute()
+                )
+                sub["documents"] = sub_doc_res.data if sub_doc_res and sub_doc_res.data else []
+            except Exception:
+                sub["documents"] = [d for d in _IN_MEMORY_DOCUMENTS.values() if d.get("bid_submission_id") == sub_id]
+
             sub["document_count"] = len(sub["documents"])
-            if "bidders" in sub and sub["bidders"]:
-                sub["bidder"] = sub["bidders"]
-            elif sub.get("bidder_id"):
+            if sub.get("bidder_id"):
                 b_id = sub["bidder_id"]
                 if b_id in _IN_MEMORY_BIDDERS:
                     sub["bidder"] = _IN_MEMORY_BIDDERS[b_id]
@@ -854,18 +866,23 @@ async def get_tender_detail_db(tender_id: str) -> Optional[Dict[str, Any]]:
 
 async def get_submission_detail_db(submission_id: str) -> Optional[Dict[str, Any]]:
     """Retrieves single bid submission workspace detail by submission UUID."""
+    if submission_id in _IN_MEMORY_SUBMISSIONS:
+        return _IN_MEMORY_SUBMISSIONS[submission_id]
+
     try:
         db_client = get_supabase_client()
-        sub_res = await asyncio.to_thread(
-            lambda: db_client.table("bid_submissions").select("*, bidders(*)").eq("id", submission_id).execute()
-        )
+        try:
+            sub_res = await asyncio.to_thread(
+                lambda: db_client.table("bid_submissions").select("*").eq("id", submission_id).execute()
+            )
+        except Exception:
+            sub_res = None
+
         if not sub_res or not sub_res.data:
-            return None
+            return _IN_MEMORY_SUBMISSIONS.get(submission_id)
 
         sub = sub_res.data[0]
-        if "bidders" in sub and sub["bidders"]:
-            sub["bidder"] = sub["bidders"]
-        elif sub.get("bidder_id"):
+        if sub.get("bidder_id"):
             b_id = sub["bidder_id"]
             if b_id in _IN_MEMORY_BIDDERS:
                 sub["bidder"] = _IN_MEMORY_BIDDERS[b_id]
@@ -879,15 +896,19 @@ async def get_submission_detail_db(submission_id: str) -> Optional[Dict[str, Any
                 except Exception:
                     pass
 
-        sub_doc_res = await asyncio.to_thread(
-            lambda: db_client.table("documents").select("*").eq("bid_submission_id", submission_id).execute()
-        )
-        sub["documents"] = sub_doc_res.data if sub_doc_res and sub_doc_res.data else []
+        try:
+            sub_doc_res = await asyncio.to_thread(
+                lambda: db_client.table("documents").select("*").eq("bid_submission_id", submission_id).execute()
+            )
+            sub["documents"] = sub_doc_res.data if sub_doc_res and sub_doc_res.data else []
+        except Exception:
+            sub["documents"] = [d for d in _IN_MEMORY_DOCUMENTS.values() if d.get("bid_submission_id") == submission_id]
+
         sub["document_count"] = len(sub["documents"])
         return sub
     except Exception as exc:
         logger.warning("Error fetching submission detail for '%s': %s", submission_id, exc)
-        return None
+        return _IN_MEMORY_SUBMISSIONS.get(submission_id)
 
 
 async def get_bidder_detail_db(bidder_id: str) -> Optional[Dict[str, Any]]:
