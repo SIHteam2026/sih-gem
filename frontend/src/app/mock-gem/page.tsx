@@ -14,6 +14,7 @@ import {
   Code2,
   Info,
   Sparkles,
+  Download,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import {
@@ -156,6 +157,29 @@ export default function MockGeMSimulatorPage() {
           <p className="text-sm sm:text-base text-slate-400 max-w-2xl mx-auto">
             Simulate incoming procurement packages from an external source (GeM) into OPAL canonical entities without officer-facing file uploads.
           </p>
+        </div>
+
+        {/* Sample Documents ZIP Download Banner */}
+        <div className="p-4 rounded-xl bg-slate-900 border border-blue-500/30 text-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center shrink-0">
+              <FolderArchive className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-white">Download Sample Bidder PDFs & Tender Archive (.ZIP)</h4>
+              <p className="text-xs text-slate-400">
+                Contains all 8 official PDF documents (Tender RFP, HydroTech GST/MII/Turnover/MAF, AquaPure GST/MII/Turnover).
+              </p>
+            </div>
+          </div>
+          <a
+            href="/sample_documents/Mock_GeM_CPCL_Tender_and_Bidders_Package.zip"
+            download="Mock_GeM_CPCL_Tender_and_Bidders_Package.zip"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold text-xs shadow-md transition-all shrink-0 cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            Download ZIP Bundle
+          </a>
         </div>
 
         {/* Ingestion Actions Grid */}
