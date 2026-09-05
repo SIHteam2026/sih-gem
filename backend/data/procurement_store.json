@@ -1,14 +1,14 @@
 {
   "procurements": {
-    "311e514e-a16b-4b47-82fe-43805e1d5fb6": {
-      "id": "311e514e-a16b-4b47-82fe-43805e1d5fb6",
+    "baac9a63-5bd0-4b87-894a-f95e5fc06d4f": {
+      "id": "baac9a63-5bd0-4b87-894a-f95e5fc06d4f",
       "source_system": "MOCK_GEM",
       "external_reference": "DEMO/CPCL/WQM/2026/017",
       "title": "Supply and commissioning of industrial water quality monitoring units",
       "organization": "Chennai Petroleum Corporation Limited (CPCL)",
       "status": "READY",
-      "created_at": "2026-09-05T05:18:01.326235+00:00",
-      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+      "created_at": "2026-09-05T05:48:52.001564+00:00",
+      "updated_at": "2026-09-05T05:48:52.001564+00:00"
     }
   },
   "tenders": {
@@ -22,6 +22,28 @@
       "category": "INDUSTRIAL_EQUIPMENT",
       "created_at": "2026-09-05T05:18:01.326235+00:00",
       "updated_at": "2026-09-05T05:18:01.326235+00:00"
+    },
+    "8c05fc00-afef-4514-b512-7fde89770346": {
+      "id": "8c05fc00-afef-4514-b512-7fde89770346",
+      "procurement_id": "b04eb457-abb5-40b6-a272-bf13a5e23043",
+      "tender_reference": "CPCL/WQM/2026/RFP-017",
+      "title": "RFP for Industrial Water Quality Monitoring Sensor Network",
+      "description": "Turnkey procurement of online water quality sensors and analyzer units with mandatory GST, >=20% Local Content, >=Rs 10 Cr Turnover, and OEM MAF.",
+      "estimated_value": 45000000.0,
+      "category": "INDUSTRIAL_EQUIPMENT",
+      "created_at": "2026-09-05T05:48:07.401924+00:00",
+      "updated_at": "2026-09-05T05:48:07.401924+00:00"
+    },
+    "f418ad55-47ad-4084-a1df-df4b9dff22d3": {
+      "id": "f418ad55-47ad-4084-a1df-df4b9dff22d3",
+      "procurement_id": "baac9a63-5bd0-4b87-894a-f95e5fc06d4f",
+      "tender_reference": "CPCL/WQM/2026/RFP-017",
+      "title": "RFP for Industrial Water Quality Monitoring Sensor Network",
+      "description": "Turnkey procurement of online water quality sensors and analyzer units with mandatory GST, >=20% Local Content, >=Rs 10 Cr Turnover, and OEM MAF.",
+      "estimated_value": 45000000.0,
+      "category": "INDUSTRIAL_EQUIPMENT",
+      "created_at": "2026-09-05T05:48:52.001564+00:00",
+      "updated_at": "2026-09-05T05:48:52.001564+00:00"
     }
   },
   "bidders": {
@@ -42,86 +64,179 @@
       "email": "tenders@aquapure.in",
       "created_at": "2026-09-05T05:18:01.326235+00:00",
       "updated_at": "2026-09-05T05:18:01.326235+00:00"
+    },
+    "c671c42c-237b-49dc-b390-e129d6d02430": {
+      "id": "c671c42c-237b-49dc-b390-e129d6d02430",
+      "legal_name": "HydroTech Analytics India Pvt Ltd",
+      "gstin": "33AAACH123411Z9",
+      "pan": "AAACH12341",
+      "email": "bids@hydrotech.co.in",
+      "created_at": "2026-09-05T05:48:07.401924+00:00",
+      "updated_at": "2026-09-05T05:48:07.401924+00:00"
+    },
+    "e01eb60f-9682-4124-9875-20337293e1ea": {
+      "id": "e01eb60f-9682-4124-9875-20337293e1ea",
+      "legal_name": "AquaPure Monitoring Systems & Instrumentation Ltd",
+      "gstin": "27BBBCA987622Z4",
+      "pan": "BBBCA98762",
+      "email": "tenders@aquapure.in",
+      "created_at": "2026-09-05T05:48:07.401924+00:00",
+      "updated_at": "2026-09-05T05:48:07.401924+00:00"
+    },
+    "9a9416cb-28f8-4141-9354-890d707edb44": {
+      "id": "9a9416cb-28f8-4141-9354-890d707edb44",
+      "legal_name": "HydroTech Analytics India Pvt Ltd",
+      "gstin": "33AAACH123411Z9",
+      "pan": "AAACH12341",
+      "email": "bids@hydrotech.co.in",
+      "created_at": "2026-09-05T05:48:52.001564+00:00",
+      "updated_at": "2026-09-05T05:48:52.001564+00:00"
+    },
+    "797bc0b7-0ee7-49d0-8244-7ec171cf11a0": {
+      "id": "797bc0b7-0ee7-49d0-8244-7ec171cf11a0",
+      "legal_name": "AquaPure Monitoring Systems & Instrumentation Ltd",
+      "gstin": "27BBBCA987622Z4",
+      "pan": "BBBCA98762",
+      "email": "tenders@aquapure.in",
+      "created_at": "2026-09-05T05:48:52.001564+00:00",
+      "updated_at": "2026-09-05T05:48:52.001564+00:00"
     }
   },
   "submissions": {
-    "9e660067-3ad0-423a-8731-047f1f746bee": {
-      "id": "9e660067-3ad0-423a-8731-047f1f746bee",
-      "tender_id": "64adfe14-68df-4411-8715-f41db95cd14c",
-      "bidder_id": "31af1da5-276f-4473-9bcd-376c4f6efba1",
+    "94d384a8-b872-4e11-8e31-90159ec439f1": {
+      "id": "94d384a8-b872-4e11-8e31-90159ec439f1",
+      "tender_id": "f418ad55-47ad-4084-a1df-df4b9dff22d3",
+      "bidder_id": "9a9416cb-28f8-4141-9354-890d707edb44",
       "external_submission_reference": "GEM-SUB-HTA-2026-017",
       "submitted_at": "2026-09-01T10:30:00+00:00",
       "status": "SUBMITTED",
-      "created_at": "2026-09-05T05:18:01.326235+00:00",
-      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+      "created_at": "2026-09-05T05:48:52.001564+00:00",
+      "updated_at": "2026-09-05T05:48:52.001564+00:00"
     },
-    "2601f47e-a503-4a1e-ad7f-ff1866d08c9b": {
-      "id": "2601f47e-a503-4a1e-ad7f-ff1866d08c9b",
-      "tender_id": "64adfe14-68df-4411-8715-f41db95cd14c",
-      "bidder_id": "5e2ed972-e82a-42c2-9ad7-0c6c1cac336f",
+    "93795762-de10-4f0b-b94d-b21576b9e9a0": {
+      "id": "93795762-de10-4f0b-b94d-b21576b9e9a0",
+      "tender_id": "f418ad55-47ad-4084-a1df-df4b9dff22d3",
+      "bidder_id": "797bc0b7-0ee7-49d0-8244-7ec171cf11a0",
       "external_submission_reference": "GEM-SUB-APS-2026-017",
       "submitted_at": "2026-09-01T11:15:00+00:00",
       "status": "SUBMITTED",
-      "created_at": "2026-09-05T05:18:01.326235+00:00",
-      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+      "created_at": "2026-09-05T05:48:52.001564+00:00",
+      "updated_at": "2026-09-05T05:48:52.001564+00:00"
     }
   },
   "documents": {
-    "7da9622b-37aa-43d9-9a8b-29a4388bbcf6": {
-      "id": "7da9622b-37aa-43d9-9a8b-29a4388bbcf6",
-      "procurement_id": "311e514e-a16b-4b47-82fe-43805e1d5fb6",
-      "tender_id": "64adfe14-68df-4411-8715-f41db95cd14c",
+    "8fc52946-9972-452f-90f2-bcec61e71224": {
+      "id": "8fc52946-9972-452f-90f2-bcec61e71224",
+      "procurement_id": "baac9a63-5bd0-4b87-894a-f95e5fc06d4f",
+      "tender_id": "f418ad55-47ad-4084-a1df-df4b9dff22d3",
       "bid_submission_id": null,
       "filename": "RFP_Specification_WQM_2026_017.pdf",
       "document_type": "TENDER_SPECIFICATION",
       "mime_type": "application/pdf",
       "file_size": 3240000,
       "storage_path": "mock_storage/tenders/RFP_Specification_WQM_2026_017.pdf",
-      "content_text": "Notice Inviting Tender for CPCL Water Quality Sensors...",
-      "created_at": "2026-09-05T05:18:01.326235+00:00",
-      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+      "content_text": "Chennai Petroleum Corporation Limited (CPCL) - Notice Inviting Tender (NIT)\nClause 1: Bidder must have active GSTIN registration.\nClause 2: Minimum local content under Make in India policy shall be 20.0%.\nClause 3: Average annual financial turnover over past 3 years shall be greater than or equal to Rs. 10.0 Crores.\nClause 4: Bidder must submit valid OEM Manufacturer Authorization Form (MAF).",
+      "created_at": "2026-09-05T05:48:52.001564+00:00",
+      "updated_at": "2026-09-05T05:48:52.001564+00:00"
     },
-    "3141e66a-8f82-4fb8-a02a-af0521906998": {
-      "id": "3141e66a-8f82-4fb8-a02a-af0521906998",
-      "procurement_id": "311e514e-a16b-4b47-82fe-43805e1d5fb6",
-      "tender_id": "64adfe14-68df-4411-8715-f41db95cd14c",
-      "bid_submission_id": "9e660067-3ad0-423a-8731-047f1f746bee",
+    "be9514ee-5e1f-484b-b3d4-0342c9f9f671": {
+      "id": "be9514ee-5e1f-484b-b3d4-0342c9f9f671",
+      "procurement_id": "baac9a63-5bd0-4b87-894a-f95e5fc06d4f",
+      "tender_id": "f418ad55-47ad-4084-a1df-df4b9dff22d3",
+      "bid_submission_id": "94d384a8-b872-4e11-8e31-90159ec439f1",
       "filename": "HydroTech_GST_Registration.pdf",
       "document_type": "GST_CERTIFICATE",
       "mime_type": "application/pdf",
       "file_size": 450000,
       "storage_path": "mock_storage/submissions/HTA_GST.pdf",
-      "content_text": "GSTIN: 33AAACH123411Z9 Legal Name: HydroTech Analytics...",
-      "created_at": "2026-09-05T05:18:01.326235+00:00",
-      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+      "content_text": "Government of India - GST Registration Certificate (Form GST REG-06)\nGSTIN: 33AAACH123411Z9\nLegal Name: HydroTech Analytics India Pvt Ltd\nTrade Name: HydroTech Analytics\nStatus: ACTIVE\nDate of Registration: 01/07/2017\nPrincipal Place of Business: Guindy Industrial Estate, Chennai, Tamil Nadu - 600032",
+      "created_at": "2026-09-05T05:48:52.001564+00:00",
+      "updated_at": "2026-09-05T05:48:52.001564+00:00"
     },
-    "412903ef-baeb-49df-9de8-865aa6475a50": {
-      "id": "412903ef-baeb-49df-9de8-865aa6475a50",
-      "procurement_id": "311e514e-a16b-4b47-82fe-43805e1d5fb6",
-      "tender_id": "64adfe14-68df-4411-8715-f41db95cd14c",
-      "bid_submission_id": "9e660067-3ad0-423a-8731-047f1f746bee",
+    "c59c869d-6102-4643-94df-319d050a1b96": {
+      "id": "c59c869d-6102-4643-94df-319d050a1b96",
+      "procurement_id": "baac9a63-5bd0-4b87-894a-f95e5fc06d4f",
+      "tender_id": "f418ad55-47ad-4084-a1df-df4b9dff22d3",
+      "bid_submission_id": "94d384a8-b872-4e11-8e31-90159ec439f1",
+      "filename": "HydroTech_MII_LocalContent_Declaration.pdf",
+      "document_type": "LOCAL_CONTENT_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 520000,
+      "storage_path": "mock_storage/submissions/HTA_MII.pdf",
+      "content_text": "Make in India (MII) Local Content Declaration & Certificate\nUnder Public Procurement (Preference to Make in India) Order 2017\nWe hereby certify and declare that the Local Content for Model WQ-900 Industrial Online Water Quality Monitoring Units is 27.5%.\nLocation of local value addition: Chennai, Tamil Nadu, India.",
+      "created_at": "2026-09-05T05:48:52.001564+00:00",
+      "updated_at": "2026-09-05T05:48:52.001564+00:00"
+    },
+    "bf863bda-fcf3-4f1d-b5a5-14b75dd1cf01": {
+      "id": "bf863bda-fcf3-4f1d-b5a5-14b75dd1cf01",
+      "procurement_id": "baac9a63-5bd0-4b87-894a-f95e5fc06d4f",
+      "tender_id": "f418ad55-47ad-4084-a1df-df4b9dff22d3",
+      "bid_submission_id": "94d384a8-b872-4e11-8e31-90159ec439f1",
+      "filename": "HydroTech_CA_Turnover_Certificate.pdf",
+      "document_type": "TURNOVER_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 680000,
+      "storage_path": "mock_storage/submissions/HTA_Turnover.pdf",
+      "content_text": "Chartered Accountant Certificate of Annual Financial Turnover\nUDIN: 24089123AAAAAA1001\nThis is to certify that average annual turnover of M/s HydroTech Analytics India Pvt Ltd for the past 3 financial years (FY 2022-23, FY 2023-24, FY 2024-25) is INR 14.50 Crores (INR 145000000).",
+      "created_at": "2026-09-05T05:48:52.001564+00:00",
+      "updated_at": "2026-09-05T05:48:52.001564+00:00"
+    },
+    "840c4504-05aa-4a8e-b1bd-a9f89f7e573e": {
+      "id": "840c4504-05aa-4a8e-b1bd-a9f89f7e573e",
+      "procurement_id": "baac9a63-5bd0-4b87-894a-f95e5fc06d4f",
+      "tender_id": "f418ad55-47ad-4084-a1df-df4b9dff22d3",
+      "bid_submission_id": "94d384a8-b872-4e11-8e31-90159ec439f1",
       "filename": "HydroTech_OEM_Authorization_WQM.pdf",
       "document_type": "OEM_AUTHORIZATION",
       "mime_type": "application/pdf",
       "file_size": 890000,
       "storage_path": "mock_storage/submissions/HTA_OEM.pdf",
-      "content_text": "OEM Authorization for WQM Sensors Model WQ-900...",
-      "created_at": "2026-09-05T05:18:01.326235+00:00",
-      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+      "content_text": "Manufacturer Authorization Form (MAF)\nTo: Chennai Petroleum Corporation Limited (CPCL)\nWe, Global Sensors GmbH (OEM), hereby authorize M/s HydroTech Analytics India Pvt Ltd as our authorized distributor and service partner for Model WQ-900 water quality monitoring analyzers with full warranty support.",
+      "created_at": "2026-09-05T05:48:52.001564+00:00",
+      "updated_at": "2026-09-05T05:48:52.001564+00:00"
     },
-    "38b5ca4e-89a3-4d13-9df3-5c22d861b592": {
-      "id": "38b5ca4e-89a3-4d13-9df3-5c22d861b592",
-      "procurement_id": "311e514e-a16b-4b47-82fe-43805e1d5fb6",
-      "tender_id": "64adfe14-68df-4411-8715-f41db95cd14c",
-      "bid_submission_id": "2601f47e-a503-4a1e-ad7f-ff1866d08c9b",
+    "b9efdb2c-674e-4863-aafd-162521d79822": {
+      "id": "b9efdb2c-674e-4863-aafd-162521d79822",
+      "procurement_id": "baac9a63-5bd0-4b87-894a-f95e5fc06d4f",
+      "tender_id": "f418ad55-47ad-4084-a1df-df4b9dff22d3",
+      "bid_submission_id": "93795762-de10-4f0b-b94d-b21576b9e9a0",
+      "filename": "AquaPure_GST_Registration.pdf",
+      "document_type": "GST_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 420000,
+      "storage_path": "mock_storage/submissions/APS_GST.pdf",
+      "content_text": "Government of India - GST Registration Certificate\nGSTIN: 27BBBCA987622Z4\nLegal Name: AquaPure Monitoring Systems & Instrumentation Ltd\nStatus: ACTIVE",
+      "created_at": "2026-09-05T05:48:52.001564+00:00",
+      "updated_at": "2026-09-05T05:48:52.001564+00:00"
+    },
+    "b50561f0-a64e-4727-ab43-b9b996eeed08": {
+      "id": "b50561f0-a64e-4727-ab43-b9b996eeed08",
+      "procurement_id": "baac9a63-5bd0-4b87-894a-f95e5fc06d4f",
+      "tender_id": "f418ad55-47ad-4084-a1df-df4b9dff22d3",
+      "bid_submission_id": "93795762-de10-4f0b-b94d-b21576b9e9a0",
+      "filename": "AquaPure_MII_Declaration.pdf",
+      "document_type": "LOCAL_CONTENT_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 510000,
+      "storage_path": "mock_storage/submissions/APS_MII.pdf",
+      "content_text": "Make in India Self-Declaration:\nWe hereby declare that the local content in our offered sensor units is 14.0% local content.",
+      "created_at": "2026-09-05T05:48:52.001564+00:00",
+      "updated_at": "2026-09-05T05:48:52.001564+00:00"
+    },
+    "d456cc78-3843-4167-b52b-013b129a3a4a": {
+      "id": "d456cc78-3843-4167-b52b-013b129a3a4a",
+      "procurement_id": "baac9a63-5bd0-4b87-894a-f95e5fc06d4f",
+      "tender_id": "f418ad55-47ad-4084-a1df-df4b9dff22d3",
+      "bid_submission_id": "93795762-de10-4f0b-b94d-b21576b9e9a0",
       "filename": "AquaPure_Financial_Turnover_Audited.pdf",
       "document_type": "TURNOVER_CERTIFICATE",
       "mime_type": "application/pdf",
       "file_size": 1560000,
       "storage_path": "mock_storage/submissions/APS_Turnover.pdf",
-      "content_text": "CA Certified Turnover Certificate FY 2024-2025...",
-      "created_at": "2026-09-05T05:18:01.326235+00:00",
-      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+      "content_text": "CA Certified Turnover Certificate:\nThe average annual turnover of AquaPure Monitoring Systems over the past 3 financial years is INR 6.50 Crores (INR 65000000).",
+      "created_at": "2026-09-05T05:48:52.001564+00:00",
+      "updated_at": "2026-09-05T05:48:52.001564+00:00"
     }
-  }
+  },
+  "requirements": {}
 }

@@ -625,13 +625,13 @@ def map_facts_to_requirements(
             "units": {"PERCENT", "%"},
         },
         "GST": {
-            "fields": {"gst_status", "gstin_active", "gst_registration"},
+            "fields": {"gst_status", "gstin_active", "gst_registration", "gstin_status", "gstin"},
             "terms": {"GST", "GSTIN", "GSTR-3B", "GOODS AND SERVICES TAX"},
             "categories": {"GST_AND_TAX", "GST"},
             "units": {"STATUS"},
         },
         "PAN": {
-            "fields": {"pan_validity", "pan_valid", "corporate_registration"},
+            "fields": {"pan_validity", "pan_valid", "corporate_registration", "pan"},
             "terms": {"PAN", "PERMANENT ACCOUNT NUMBER", "INCORPORATION"},
             "categories": {"PAN_IDENTITY", "CORPORATE_IDENTITY"},
             "units": {"STATUS"},
@@ -649,9 +649,9 @@ def map_facts_to_requirements(
             "units": {"COUNT"},
         },
         "OEM": {
-            "fields": {"oem_authorization", "maf_status"},
-            "terms": {"MANUFACTURER AUTHORIZATION", "OEM AUTHORIZATION", "MAF"},
-            "categories": {"OEM_AUTHORIZATION"},
+            "fields": {"oem_authorization", "maf_status", "oem_authorized"},
+            "terms": {"MANUFACTURER AUTHORIZATION", "OEM AUTHORIZATION", "MAF", "OEM"},
+            "categories": {"OEM_AUTHORIZATION", "OEM_AUTH"},
             "units": {"STATUS"},
         },
         "DEBAR": {

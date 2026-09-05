@@ -7,34 +7,70 @@ Procurement -> Tender -> Bidder -> BidSubmission -> Documents.
 
 import asyncio
 import logging
+import sys
 import uuid
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
-from app.db.client import (
-    get_procurement_by_source_and_ref,
-    get_procurement_hierarchy,
-    insert_bid_submission,
-    insert_bidder,
-    insert_document,
-    insert_procurement,
-    insert_tender,
-    update_procurement_status_db,
-)
-from app.models.procurement import (
-    Bidder,
-    BidSubmission,
-    BidSubmissionWithDetails,
-    Document,
-    DocumentType,
-    Procurement,
-    ProcurementHierarchy,
-    ProcurementIngestionPayload,
-    ProcurementIngestionResult,
-    ProcurementStatus,
-    Tender,
-    TenderWithDetails,
-)
+# Ensure project root and backend paths are available for imports
+_current_file = Path(__file__).resolve()
+_backend_dir = _current_file.parent.parent.parent
+_root_dir = _backend_dir.parent
+for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+try:
+    from backend.app.db.client import (
+        get_procurement_by_source_and_ref,
+        get_procurement_hierarchy,
+        insert_bid_submission,
+        insert_bidder,
+        insert_document,
+        insert_procurement,
+        insert_tender,
+        update_procurement_status_db,
+    )
+    from backend.app.models.procurement import (
+        Bidder,
+        BidSubmission,
+        BidSubmissionWithDetails,
+        Document,
+        DocumentType,
+        Procurement,
+        ProcurementHierarchy,
+        ProcurementIngestionPayload,
+        ProcurementIngestionResult,
+        ProcurementStatus,
+        Tender,
+        TenderWithDetails,
+    )
+except ImportError:
+    from app.db.client import (
+        get_procurement_by_source_and_ref,
+        get_procurement_hierarchy,
+        insert_bid_submission,
+        insert_bidder,
+        insert_document,
+        insert_procurement,
+        insert_tender,
+        update_procurement_status_db,
+    )
+    from app.models.procurement import (
+        Bidder,
+        BidSubmission,
+        BidSubmissionWithDetails,
+        Document,
+        DocumentType,
+        Procurement,
+        ProcurementHierarchy,
+        ProcurementIngestionPayload,
+        ProcurementIngestionResult,
+        ProcurementStatus,
+        Tender,
+        TenderWithDetails,
+    )
 
 logger = logging.getLogger(__name__)
 

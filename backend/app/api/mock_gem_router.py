@@ -62,7 +62,9 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
     External Reference: DEMO/CPCL/WQM/2026/017
     Title: Supply and commissioning of industrial water quality monitoring units
     Source System: MOCK_GEM
-    Bidders: 2 bidders (HydroTech Analytics & AquaPure Systems) with submissions and documents.
+    Bidders:
+      1. HydroTech Analytics: Fully compliant bidder with valid GST, 27.5% Local Content, ₹14.5 Cr Turnover, and OEM MAF.
+      2. AquaPure Systems: Non-compliant / contradictory bidder with 14% Local Content (fails 20% rule) and ₹6.5 Cr Turnover (fails ₹10 Cr rule).
     """
     return ProcurementIngestionPayload(
         source_system="MOCK_GEM",
@@ -74,7 +76,7 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
         tender=IngestionTenderInfo(
             tender_reference="CPCL/WQM/2026/RFP-017",
             title="RFP for Industrial Water Quality Monitoring Sensor Network",
-            description="Turnkey procurement of online water quality sensors and analyzer units.",
+            description="Turnkey procurement of online water quality sensors and analyzer units with mandatory GST, >=20% Local Content, >=Rs 10 Cr Turnover, and OEM MAF.",
             estimated_value=45000000.0,
             category="INDUSTRIAL_EQUIPMENT",
             documents=[
@@ -84,7 +86,7 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
                     mime_type="application/pdf",
                     file_size=3240000,
                     storage_path="mock_storage/tenders/RFP_Specification_WQM_2026_017.pdf",
-                    content_text="Notice Inviting Tender for CPCL Water Quality Sensors...",
+                    content_text="Chennai Petroleum Corporation Limited (CPCL) - Notice Inviting Tender (NIT)\nClause 1: Bidder must have active GSTIN registration.\nClause 2: Minimum local content under Make in India policy shall be 20.0%.\nClause 3: Average annual financial turnover over past 3 years shall be greater than or equal to Rs. 10.0 Crores.\nClause 4: Bidder must submit valid OEM Manufacturer Authorization Form (MAF).",
                 )
             ],
         ),
@@ -108,7 +110,23 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
                         mime_type="application/pdf",
                         file_size=450000,
                         storage_path="mock_storage/submissions/HTA_GST.pdf",
-                        content_text="GSTIN: 33AAACH123411Z9 Legal Name: HydroTech Analytics...",
+                        content_text="Government of India - GST Registration Certificate (Form GST REG-06)\nGSTIN: 33AAACH123411Z9\nLegal Name: HydroTech Analytics India Pvt Ltd\nTrade Name: HydroTech Analytics\nStatus: ACTIVE\nDate of Registration: 01/07/2017\nPrincipal Place of Business: Guindy Industrial Estate, Chennai, Tamil Nadu - 600032",
+                    ),
+                    IngestionDocumentInput(
+                        filename="HydroTech_MII_LocalContent_Declaration.pdf",
+                        document_type=DocumentType.LOCAL_CONTENT_CERTIFICATE,
+                        mime_type="application/pdf",
+                        file_size=520000,
+                        storage_path="mock_storage/submissions/HTA_MII.pdf",
+                        content_text="Make in India (MII) Local Content Declaration & Certificate\nUnder Public Procurement (Preference to Make in India) Order 2017\nWe hereby certify and declare that the Local Content for Model WQ-900 Industrial Online Water Quality Monitoring Units is 27.5%.\nLocation of local value addition: Chennai, Tamil Nadu, India.",
+                    ),
+                    IngestionDocumentInput(
+                        filename="HydroTech_CA_Turnover_Certificate.pdf",
+                        document_type=DocumentType.TURNOVER_CERTIFICATE,
+                        mime_type="application/pdf",
+                        file_size=680000,
+                        storage_path="mock_storage/submissions/HTA_Turnover.pdf",
+                        content_text="Chartered Accountant Certificate of Annual Financial Turnover\nUDIN: 24089123AAAAAA1001\nThis is to certify that average annual turnover of M/s HydroTech Analytics India Pvt Ltd for the past 3 financial years (FY 2022-23, FY 2023-24, FY 2024-25) is INR 14.50 Crores (INR 145000000).",
                     ),
                     IngestionDocumentInput(
                         filename="HydroTech_OEM_Authorization_WQM.pdf",
@@ -116,7 +134,7 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
                         mime_type="application/pdf",
                         file_size=890000,
                         storage_path="mock_storage/submissions/HTA_OEM.pdf",
-                        content_text="OEM Authorization for WQM Sensors Model WQ-900...",
+                        content_text="Manufacturer Authorization Form (MAF)\nTo: Chennai Petroleum Corporation Limited (CPCL)\nWe, Global Sensors GmbH (OEM), hereby authorize M/s HydroTech Analytics India Pvt Ltd as our authorized distributor and service partner for Model WQ-900 water quality monitoring analyzers with full warranty support.",
                     ),
                 ],
             ),
@@ -134,13 +152,29 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
                 ),
                 documents=[
                     IngestionDocumentInput(
+                        filename="AquaPure_GST_Registration.pdf",
+                        document_type=DocumentType.GST_CERTIFICATE,
+                        mime_type="application/pdf",
+                        file_size=420000,
+                        storage_path="mock_storage/submissions/APS_GST.pdf",
+                        content_text="Government of India - GST Registration Certificate\nGSTIN: 27BBBCA987622Z4\nLegal Name: AquaPure Monitoring Systems & Instrumentation Ltd\nStatus: ACTIVE",
+                    ),
+                    IngestionDocumentInput(
+                        filename="AquaPure_MII_Declaration.pdf",
+                        document_type=DocumentType.LOCAL_CONTENT_CERTIFICATE,
+                        mime_type="application/pdf",
+                        file_size=510000,
+                        storage_path="mock_storage/submissions/APS_MII.pdf",
+                        content_text="Make in India Self-Declaration:\nWe hereby declare that the local content in our offered sensor units is 14.0% local content.",
+                    ),
+                    IngestionDocumentInput(
                         filename="AquaPure_Financial_Turnover_Audited.pdf",
                         document_type=DocumentType.TURNOVER_CERTIFICATE,
                         mime_type="application/pdf",
                         file_size=1560000,
                         storage_path="mock_storage/submissions/APS_Turnover.pdf",
-                        content_text="CA Certified Turnover Certificate FY 2024-2025...",
-                    )
+                        content_text="CA Certified Turnover Certificate:\nThe average annual turnover of AquaPure Monitoring Systems over the past 3 financial years is INR 6.50 Crores (INR 65000000).",
+                    ),
                 ],
             ),
         ],
