@@ -92,6 +92,8 @@ export default function RequirementFindingCard({
   const isMandatory = result.mandatory ?? true;
   const methodLabel = getEvaluationMethodLabel(result.evaluation_method);
   const riskInfo = getRiskBadge(result.risk_level);
+  const isFail = String(result.state).toUpperCase() === "FAIL";
+  const isPass = String(result.state).toUpperCase() === "PASS";
   const isUnverified = String(result.state).toUpperCase() === "UNVERIFIED";
   const isReview = String(result.state).toUpperCase() === "REVIEW" || result.review_required;
 
@@ -99,11 +101,14 @@ export default function RequirementFindingCard({
   const provenanceList = result.provenance || [];
   const supportingList = result.supporting_evidence || [];
   const conflictingList = result.conflicting_evidence || [];
+  const primaryDoc = provenanceList[0] || supportingList[0] || null;
 
   return (
     <article
       className={`rounded border transition-all ${
-        isReview
+        isFail
+          ? "border-red-300 bg-[#fffdfd] shadow-xs"
+          : isReview
           ? "border-amber-300 bg-[#fffdfa] shadow-xs"
           : isUnverified
           ? "border-stone-300 bg-[#fafafa]"
@@ -112,7 +117,7 @@ export default function RequirementFindingCard({
       aria-labelledby={`heading-${reqId}`}
     >
       {/* Collapsed / Summary Header (Always Visible) */}
-      <div className="p-4 sm:p-5">
+      <div className="p-4 sm:p-5 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs font-bold text-[#163a5f] bg-[#eef3f7] px-2 py-0.5 rounded border border-[#ccdbe6]">
@@ -151,13 +156,102 @@ export default function RequirementFindingCard({
           </div>
         </div>
 
-        {/* Concise One-Line Reason */}
-        <div className="mt-2.5 text-xs text-[#283848] leading-relaxed">
-          <p className="font-medium">{result.reason}</p>
+        {/* Side-by-Side Required vs Uploaded Delta Comparison Box */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3.5 rounded border border-[#e1e6e1] bg-[#ffffff]">
+          {/* Left: Necessary Requirement (Tender Expectation) */}
+          <div className="space-y-1.5 border-b md:border-b-0 md:border-r border-[#ecefec] pb-2.5 md:pb-0 md:pr-3">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#163a5f]">
+              <Scale className="w-3.5 h-3.5 text-[#163a5f]" />
+              <span>1. Tender Necessary Requirement</span>
+            </div>
+            <div className="text-xs font-semibold text-[#162333] line-clamp-2">
+              {result.description || title}
+            </div>
+            <div className="flex flex-wrap gap-1.5 pt-1 text-[11px] font-mono text-[#334656]">
+              {result.expected_condition?.value !== undefined && (
+                <span className="bg-[#eef3f7] px-2 py-0.5 rounded border border-[#ccdbe6]">
+                  Threshold: <strong>{String(result.expected_condition.operator || "≥")} {String(result.expected_condition.value)}{result.expected_condition.unit ? ` ${result.expected_condition.unit}` : ""}</strong>
+                </span>
+              )}
+              {result.expected_condition?.evidence_required && (
+                <span className="bg-[#f0f4f0] px-2 py-0.5 rounded border border-[#ccdcd0] text-[#1b432a]">
+                  Doc: <strong>{result.expected_condition.evidence_required.join(", ")}</strong>
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Right: Uploaded Evidence (Observed Bidder Proof) */}
+          <div className="space-y-1.5 md:pl-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#2d4a2d]">
+                <FileText className="w-3.5 h-3.5 text-[#2d4a2d]" />
+                <span>2. Uploaded Bidder Evidence</span>
+              </div>
+              {isUnverified && (
+                <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-stone-200 text-stone-800">
+                  Not Submitted
+                </span>
+              )}
+            </div>
+
+            {primaryDoc ? (
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-[#162333] flex flex-wrap items-center gap-1">
+                  <span className="font-semibold text-[#163a5f]">{primaryDoc.source_document || "Uploaded Document"}</span>
+                  {primaryDoc.page_number && (
+                    <span className="text-[11px] text-[#71808b]">(Page {primaryDoc.page_number})</span>
+                  )}
+                </div>
+                <div className="font-mono text-xs font-bold bg-[#f8faf8] p-1.5 rounded border border-[#e2e7e2]">
+                  Observed: <span className={isFail ? "text-red-700" : isPass ? "text-emerald-800" : "text-amber-800"}>{String(primaryDoc.raw_value || result.observed_values?.[0] || "Declared")}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-[#8c6b6b] italic bg-[#faf6f6] p-2 rounded border border-[#eddcdc]">
+                No supporting proof document or certificate detected in submission package.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Evaluation Reason & Action Alert */}
+        <div
+          className={`p-3 rounded border text-xs leading-relaxed flex items-start gap-2 ${
+            isFail
+              ? "bg-red-50/80 border-red-200 text-red-900"
+              : isReview
+              ? "bg-amber-50/80 border-amber-200 text-amber-900"
+              : isUnverified
+              ? "bg-stone-100/90 border-stone-200 text-stone-800"
+              : "bg-emerald-50/70 border-emerald-200 text-emerald-900"
+          }`}
+        >
+          {isFail ? (
+            <XCircle className="w-4 h-4 text-red-700 shrink-0 mt-0.5" />
+          ) : isReview ? (
+            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+          ) : isUnverified ? (
+            <HelpCircle className="w-4 h-4 text-stone-600 shrink-0 mt-0.5" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+          )}
+          <div className="space-y-0.5">
+            <span className="font-bold block">
+              {isFail
+                ? "Requirement Discrepancy / Deficit Detected"
+                : isReview
+                ? "Procurement Officer Review Required"
+                : isUnverified
+                ? "Mandatory Evidence Missing"
+                : "Requirement Compliant"}
+            </span>
+            <p className="font-normal">{result.reason}</p>
+          </div>
         </div>
 
         {/* Secondary Metadata Tags */}
-        <div className="mt-3 pt-2.5 border-t border-[#edf0ee] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#607180]">
+        <div className="pt-2 border-t border-[#edf0ee] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#607180]">
           <div className="flex flex-wrap items-center gap-2.5 font-mono">
             <span>
               Method: <strong>{methodLabel}</strong>
