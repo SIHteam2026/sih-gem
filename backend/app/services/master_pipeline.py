@@ -17,7 +17,7 @@ import sys
 import uuid
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Ensure project root and backend paths are available for imports
 _current_file = Path(__file__).resolve()

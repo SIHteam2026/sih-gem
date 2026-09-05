@@ -1,0 +1,127 @@
+{
+  "procurements": {
+    "311e514e-a16b-4b47-82fe-43805e1d5fb6": {
+      "id": "311e514e-a16b-4b47-82fe-43805e1d5fb6",
+      "source_system": "MOCK_GEM",
+      "external_reference": "DEMO/CPCL/WQM/2026/017",
+      "title": "Supply and commissioning of industrial water quality monitoring units",
+      "organization": "Chennai Petroleum Corporation Limited (CPCL)",
+      "status": "READY",
+      "created_at": "2026-09-05T05:18:01.326235+00:00",
+      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+    }
+  },
+  "tenders": {
+    "64adfe14-68df-4411-8715-f41db95cd14c": {
+      "id": "64adfe14-68df-4411-8715-f41db95cd14c",
+      "procurement_id": "311e514e-a16b-4b47-82fe-43805e1d5fb6",
+      "tender_reference": "CPCL/WQM/2026/RFP-017",
+      "title": "RFP for Industrial Water Quality Monitoring Sensor Network",
+      "description": "Turnkey procurement of online water quality sensors and analyzer units.",
+      "estimated_value": 45000000.0,
+      "category": "INDUSTRIAL_EQUIPMENT",
+      "created_at": "2026-09-05T05:18:01.326235+00:00",
+      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+    }
+  },
+  "bidders": {
+    "31af1da5-276f-4473-9bcd-376c4f6efba1": {
+      "id": "31af1da5-276f-4473-9bcd-376c4f6efba1",
+      "legal_name": "HydroTech Analytics India Pvt Ltd",
+      "gstin": "33AAACH123411Z9",
+      "pan": "AAACH12341",
+      "email": "bids@hydrotech.co.in",
+      "created_at": "2026-09-05T05:18:01.326235+00:00",
+      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+    },
+    "5e2ed972-e82a-42c2-9ad7-0c6c1cac336f": {
+      "id": "5e2ed972-e82a-42c2-9ad7-0c6c1cac336f",
+      "legal_name": "AquaPure Monitoring Systems & Instrumentation Ltd",
+      "gstin": "27BBBCA987622Z4",
+      "pan": "BBBCA98762",
+      "email": "tenders@aquapure.in",
+      "created_at": "2026-09-05T05:18:01.326235+00:00",
+      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+    }
+  },
+  "submissions": {
+    "9e660067-3ad0-423a-8731-047f1f746bee": {
+      "id": "9e660067-3ad0-423a-8731-047f1f746bee",
+      "tender_id": "64adfe14-68df-4411-8715-f41db95cd14c",
+      "bidder_id": "31af1da5-276f-4473-9bcd-376c4f6efba1",
+      "external_submission_reference": "GEM-SUB-HTA-2026-017",
+      "submitted_at": "2026-09-01T10:30:00+00:00",
+      "status": "SUBMITTED",
+      "created_at": "2026-09-05T05:18:01.326235+00:00",
+      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+    },
+    "2601f47e-a503-4a1e-ad7f-ff1866d08c9b": {
+      "id": "2601f47e-a503-4a1e-ad7f-ff1866d08c9b",
+      "tender_id": "64adfe14-68df-4411-8715-f41db95cd14c",
+      "bidder_id": "5e2ed972-e82a-42c2-9ad7-0c6c1cac336f",
+      "external_submission_reference": "GEM-SUB-APS-2026-017",
+      "submitted_at": "2026-09-01T11:15:00+00:00",
+      "status": "SUBMITTED",
+      "created_at": "2026-09-05T05:18:01.326235+00:00",
+      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+    }
+  },
+  "documents": {
+    "7da9622b-37aa-43d9-9a8b-29a4388bbcf6": {
+      "id": "7da9622b-37aa-43d9-9a8b-29a4388bbcf6",
+      "procurement_id": "311e514e-a16b-4b47-82fe-43805e1d5fb6",
+      "tender_id": "64adfe14-68df-4411-8715-f41db95cd14c",
+      "bid_submission_id": null,
+      "filename": "RFP_Specification_WQM_2026_017.pdf",
+      "document_type": "TENDER_SPECIFICATION",
+      "mime_type": "application/pdf",
+      "file_size": 3240000,
+      "storage_path": "mock_storage/tenders/RFP_Specification_WQM_2026_017.pdf",
+      "content_text": "Notice Inviting Tender for CPCL Water Quality Sensors...",
+      "created_at": "2026-09-05T05:18:01.326235+00:00",
+      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+    },
+    "3141e66a-8f82-4fb8-a02a-af0521906998": {
+      "id": "3141e66a-8f82-4fb8-a02a-af0521906998",
+      "procurement_id": "311e514e-a16b-4b47-82fe-43805e1d5fb6",
+      "tender_id": "64adfe14-68df-4411-8715-f41db95cd14c",
+      "bid_submission_id": "9e660067-3ad0-423a-8731-047f1f746bee",
+      "filename": "HydroTech_GST_Registration.pdf",
+      "document_type": "GST_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 450000,
+      "storage_path": "mock_storage/submissions/HTA_GST.pdf",
+      "content_text": "GSTIN: 33AAACH123411Z9 Legal Name: HydroTech Analytics...",
+      "created_at": "2026-09-05T05:18:01.326235+00:00",
+      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+    },
+    "412903ef-baeb-49df-9de8-865aa6475a50": {
+      "id": "412903ef-baeb-49df-9de8-865aa6475a50",
+      "procurement_id": "311e514e-a16b-4b47-82fe-43805e1d5fb6",
+      "tender_id": "64adfe14-68df-4411-8715-f41db95cd14c",
+      "bid_submission_id": "9e660067-3ad0-423a-8731-047f1f746bee",
+      "filename": "HydroTech_OEM_Authorization_WQM.pdf",
+      "document_type": "OEM_AUTHORIZATION",
+      "mime_type": "application/pdf",
+      "file_size": 890000,
+      "storage_path": "mock_storage/submissions/HTA_OEM.pdf",
+      "content_text": "OEM Authorization for WQM Sensors Model WQ-900...",
+      "created_at": "2026-09-05T05:18:01.326235+00:00",
+      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+    },
+    "38b5ca4e-89a3-4d13-9df3-5c22d861b592": {
+      "id": "38b5ca4e-89a3-4d13-9df3-5c22d861b592",
+      "procurement_id": "311e514e-a16b-4b47-82fe-43805e1d5fb6",
+      "tender_id": "64adfe14-68df-4411-8715-f41db95cd14c",
+      "bid_submission_id": "2601f47e-a503-4a1e-ad7f-ff1866d08c9b",
+      "filename": "AquaPure_Financial_Turnover_Audited.pdf",
+      "document_type": "TURNOVER_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 1560000,
+      "storage_path": "mock_storage/submissions/APS_Turnover.pdf",
+      "content_text": "CA Certified Turnover Certificate FY 2024-2025...",
+      "created_at": "2026-09-05T05:18:01.326235+00:00",
+      "updated_at": "2026-09-05T05:18:01.326235+00:00"
+    }
+  }
+}

@@ -33,8 +33,8 @@ class RawDocumentItem(BaseModel):
 
 class MasterEvaluationRequest(BaseModel):
     """Request model for full master evaluation orchestration."""
-    tender_id: str = Field(..., description="Unique tender reference identifier (e.g., 'GEM/2026/B/88219').")
-    bidder_name: str = Field(..., description="Legal company name of the bidder under evaluation.")
+    tender_id: Optional[str] = Field(default=None, description="Unique tender reference identifier (e.g., 'GEM/2026/B/88219').")
+    bidder_name: Optional[str] = Field(default=None, description="Legal company name of the bidder under evaluation.")
     document_urls: Optional[List[str]] = Field(
         default=None,
         description="List of downloadable document URLs stored in cloud storage.",

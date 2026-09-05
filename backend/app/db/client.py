@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime, timezone
 import logging
 import os
@@ -262,12 +263,144 @@ async def get_analytics_summary() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Global in-memory stores for DB fallback (offline / test environments)
+# Global stores with file-backed persistence for DB fallback (offline / mock / dev)
+# ---------------------------------------------------------------------------
+_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+_LOCAL_STORE_PATH = _DATA_DIR / "procurement_store.json"
+
 _IN_MEMORY_PROCUREMENTS: Dict[str, Dict[str, Any]] = {}
 _IN_MEMORY_TENDERS: Dict[str, Dict[str, Any]] = {}
 _IN_MEMORY_BIDDERS: Dict[str, Dict[str, Any]] = {}
 _IN_MEMORY_SUBMISSIONS: Dict[str, Dict[str, Any]] = {}
 _IN_MEMORY_DOCUMENTS: Dict[str, Dict[str, Any]] = {}
+_IN_MEMORY_REQUIREMENTS: Dict[str, List[Dict[str, Any]]] = {}
+
+
+def get_canonical_cpcl_requirements(tender_id: str = "DEMO/CPCL/WQM/2026/017") -> List[Dict[str, Any]]:
+    """Returns canonical fallback requirements for CPCL Water Quality Monitoring tender."""
+    return [
+        {
+            "requirement_id": "REQ-GST-01",
+            "tender_id": tender_id,
+            "category": "GST",
+            "title": "GST Registration & Active Status",
+            "description": "Bidder must possess a valid, active GSTIN registration in India.",
+            "mandatory": True,
+            "structured_condition": {
+                "field": "gstin_status",
+                "operator": "EQUAL",
+                "threshold_value": "ACTIVE",
+                "is_quantifiable": True,
+            },
+            "applicability": {
+                "is_mandatory": True,
+                "exemption_possible": False,
+            },
+            "evidence_required": ["GST_CERTIFICATE"],
+            "is_ambiguous": False,
+        },
+        {
+            "requirement_id": "REQ-MII-01",
+            "tender_id": tender_id,
+            "category": "LOCAL_CONTENT",
+            "title": "Make in India Local Content Minimum 20%",
+            "description": "Bidder must demonstrate local content percentage of at least 20.0% under Make in India policy.",
+            "mandatory": True,
+            "structured_condition": {
+                "field": "local_content_pct",
+                "operator": "GTE",
+                "threshold_value": 20.0,
+                "threshold_unit": "%",
+                "is_quantifiable": True,
+            },
+            "applicability": {
+                "is_mandatory": True,
+                "exemption_possible": False,
+            },
+            "evidence_required": ["LOCAL_CONTENT_CERTIFICATE"],
+            "is_ambiguous": False,
+        },
+        {
+            "requirement_id": "REQ-FIN-01",
+            "tender_id": tender_id,
+            "category": "FINANCIAL_TURNOVER",
+            "title": "Average Annual Financial Turnover >= Rs 10 Crore",
+            "description": "Average annual turnover over the last 3 financial years must be greater than or equal to Rs. 10 Crores (INR 100,000,000).",
+            "mandatory": True,
+            "structured_condition": {
+                "field": "annual_turnover",
+                "operator": "GTE",
+                "threshold_value": 100000000.0,
+                "threshold_unit": "INR",
+                "is_quantifiable": True,
+            },
+            "applicability": {
+                "is_mandatory": True,
+                "exemption_possible": True,
+                "exemption_type": "MSME / Startup Exemption",
+            },
+            "evidence_required": ["TURNOVER_CERTIFICATE", "AUDITED_BALANCE_SHEET"],
+            "is_ambiguous": False,
+        },
+        {
+            "requirement_id": "REQ-OEM-01",
+            "tender_id": tender_id,
+            "category": "OEM_AUTHORIZATION",
+            "title": "OEM Authorization Certificate",
+            "description": "Bidder must submit a valid Manufacturer Authorization Form (MAF) from the OEM for online water quality analyzers.",
+            "mandatory": True,
+            "structured_condition": {
+                "field": "oem_authorized",
+                "operator": "EQUAL",
+                "threshold_value": True,
+                "is_quantifiable": True,
+            },
+            "applicability": {
+                "is_mandatory": True,
+                "exemption_possible": False,
+            },
+            "evidence_required": ["OEM_AUTHORIZATION"],
+            "is_ambiguous": False,
+        },
+    ]
+
+
+def _load_local_store() -> None:
+    """Loads fallback in-memory records from local disk store if present."""
+    if not _LOCAL_STORE_PATH.exists():
+        return
+    try:
+        with open(_LOCAL_STORE_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            _IN_MEMORY_PROCUREMENTS.update(data.get("procurements", {}))
+            _IN_MEMORY_TENDERS.update(data.get("tenders", {}))
+            _IN_MEMORY_BIDDERS.update(data.get("bidders", {}))
+            _IN_MEMORY_SUBMISSIONS.update(data.get("submissions", {}))
+            _IN_MEMORY_DOCUMENTS.update(data.get("documents", {}))
+            _IN_MEMORY_REQUIREMENTS.update(data.get("requirements", {}))
+    except Exception as e:
+        logger.warning("Failed to load local procurement store: %s", e)
+
+
+def _save_local_store() -> None:
+    """Persists fallback in-memory records to local disk store."""
+    try:
+        _DATA_DIR.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "procurements": _IN_MEMORY_PROCUREMENTS,
+            "tenders": _IN_MEMORY_TENDERS,
+            "bidders": _IN_MEMORY_BIDDERS,
+            "submissions": _IN_MEMORY_SUBMISSIONS,
+            "documents": _IN_MEMORY_DOCUMENTS,
+            "requirements": _IN_MEMORY_REQUIREMENTS,
+        }
+        with open(_LOCAL_STORE_PATH, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, default=str)
+    except Exception as e:
+        logger.warning("Failed to save local procurement store: %s", e)
+
+
+_load_local_store()
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +411,7 @@ async def insert_procurement(procurement_data: Dict[str, Any]) -> Dict[str, Any]
     proc_id = procurement_data.get("id")
     if proc_id:
         _IN_MEMORY_PROCUREMENTS[proc_id] = dict(procurement_data)
+        _save_local_store()
     try:
         db_client = get_supabase_client()
         response = await asyncio.to_thread(
@@ -322,6 +456,7 @@ async def insert_tender(tender_data: Dict[str, Any]) -> Dict[str, Any]:
     t_id = tender_data.get("id")
     if t_id:
         _IN_MEMORY_TENDERS[t_id] = dict(tender_data)
+        _save_local_store()
     try:
         db_client = get_supabase_client()
         response = await asyncio.to_thread(
@@ -340,6 +475,7 @@ async def insert_bidder(bidder_data: Dict[str, Any]) -> Dict[str, Any]:
     b_id = bidder_data.get("id")
     if b_id:
         _IN_MEMORY_BIDDERS[b_id] = dict(bidder_data)
+        _save_local_store()
     try:
         db_client = get_supabase_client()
         response = await asyncio.to_thread(
@@ -358,6 +494,7 @@ async def insert_bid_submission(submission_data: Dict[str, Any]) -> Dict[str, An
     s_id = submission_data.get("id")
     if s_id:
         _IN_MEMORY_SUBMISSIONS[s_id] = dict(submission_data)
+        _save_local_store()
     try:
         db_client = get_supabase_client()
         response = await asyncio.to_thread(
@@ -376,6 +513,7 @@ async def insert_document(document_data: Dict[str, Any]) -> Dict[str, Any]:
     d_id = document_data.get("id")
     if d_id:
         _IN_MEMORY_DOCUMENTS[d_id] = dict(document_data)
+        _save_local_store()
     try:
         db_client = get_supabase_client()
         response = await asyncio.to_thread(
@@ -445,6 +583,7 @@ async def get_procurement_hierarchy(procurement_id: str) -> Dict[str, Any]:
                 b_id = s.get("bidder_id")
                 if b_id in _IN_MEMORY_BIDDERS:
                     s["bidders"] = dict(_IN_MEMORY_BIDDERS[b_id])
+                    s["bidder"] = dict(_IN_MEMORY_BIDDERS[b_id])
             submissions = sub_list
 
         for sub in submissions:
@@ -490,6 +629,13 @@ async def get_procurement_hierarchy(procurement_id: str) -> Dict[str, Any]:
 
 async def get_tender_by_id_or_ref(tender_id_or_ref: str) -> Optional[Dict[str, Any]]:
     """Looks up a canonical tender by UUID id or tender_reference string."""
+    # 1. Check in-memory store
+    if tender_id_or_ref in _IN_MEMORY_TENDERS:
+        return dict(_IN_MEMORY_TENDERS[tender_id_or_ref])
+    for t in _IN_MEMORY_TENDERS.values():
+        if t.get("tender_reference") == str(tender_id_or_ref) or t.get("id") == str(tender_id_or_ref):
+            return dict(t)
+
     try:
         db_client = get_supabase_client()
         is_uuid = False
@@ -528,12 +674,22 @@ async def save_tender_requirements(
     
     If a canonical tender exists in public.tenders, requirements are persisted to
     public.tender_requirements with atomic replacement/upsert per tender to guarantee idempotency.
-    Also retains snapshot in tender_analyses.
+    Also retains snapshot in in-memory store and tender_analyses.
     """
     try:
-        db_client = get_supabase_client()
         canonical_tender = await get_tender_by_id_or_ref(tender_id_or_ref)
-        resolved_tender_id = canonical_tender["id"] if canonical_tender else None
+        resolved_tender_id = canonical_tender["id"] if canonical_tender else str(tender_id_or_ref)
+        resolved_tender_ref = canonical_tender.get("tender_reference") if canonical_tender else None
+
+        # Update in-memory / local disk stores
+        _IN_MEMORY_REQUIREMENTS[str(tender_id_or_ref)] = [dict(r) for r in requirements]
+        if resolved_tender_id:
+            _IN_MEMORY_REQUIREMENTS[str(resolved_tender_id)] = [dict(r) for r in requirements]
+        if resolved_tender_ref:
+            _IN_MEMORY_REQUIREMENTS[str(resolved_tender_ref)] = [dict(r) for r in requirements]
+        _save_local_store()
+
+        db_client = get_supabase_client()
 
         # Build normalized database rows
         db_rows = []
@@ -599,12 +755,23 @@ async def save_tender_requirements(
 
 async def get_tender_requirements(tender_id_or_ref: str) -> List[Dict[str, Any]]:
     """Retrieves structured requirements for a canonical tender or snapshot."""
+    # 1. Check in-memory store first
+    if tender_id_or_ref in _IN_MEMORY_REQUIREMENTS and _IN_MEMORY_REQUIREMENTS[tender_id_or_ref]:
+        return [dict(r) for r in _IN_MEMORY_REQUIREMENTS[tender_id_or_ref]]
+
+    canonical_tender = await get_tender_by_id_or_ref(tender_id_or_ref)
+    resolved_tender_id = canonical_tender["id"] if canonical_tender else None
+    resolved_tender_ref = canonical_tender.get("tender_reference") if canonical_tender else None
+
+    if resolved_tender_id and resolved_tender_id in _IN_MEMORY_REQUIREMENTS and _IN_MEMORY_REQUIREMENTS[resolved_tender_id]:
+        return [dict(r) for r in _IN_MEMORY_REQUIREMENTS[resolved_tender_id]]
+    if resolved_tender_ref and resolved_tender_ref in _IN_MEMORY_REQUIREMENTS and _IN_MEMORY_REQUIREMENTS[resolved_tender_ref]:
+        return [dict(r) for r in _IN_MEMORY_REQUIREMENTS[resolved_tender_ref]]
+
     try:
         db_client = get_supabase_client()
-        canonical_tender = await get_tender_by_id_or_ref(tender_id_or_ref)
-        resolved_tender_id = canonical_tender["id"] if canonical_tender else None
 
-        # 1. Try querying normalized tender_requirements table
+        # 2. Try querying normalized tender_requirements table
         if resolved_tender_id:
             try:
                 res = await asyncio.to_thread(
@@ -615,29 +782,31 @@ async def get_tender_requirements(tender_id_or_ref: str) -> List[Dict[str, Any]]
             except Exception as tr_err:
                 logger.debug("tender_requirements table query failed: %s", tr_err)
 
-        # 2. Fallback: Query tender_analyses JSONB snapshot
-        try:
-            snap_res = await asyncio.to_thread(
-                lambda: (
-                    db_client.table("tender_analyses")
-                    .select("*")
-                    .eq("tender_id", str(tender_id_or_ref))
-                    .order("created_at", desc=True)
-                    .limit(1)
-                    .execute()
+        # 3. Fallback: Query tender_analyses JSONB snapshot
+        for query_key in filter(None, [tender_id_or_ref, resolved_tender_ref, resolved_tender_id]):
+            try:
+                snap_res = await asyncio.to_thread(
+                    lambda q=query_key: (
+                        db_client.table("tender_analyses")
+                        .select("*")
+                        .eq("tender_id", str(q))
+                        .order("created_at", desc=True)
+                        .limit(1)
+                        .execute()
+                    )
                 )
-            )
-            if snap_res and hasattr(snap_res, "data") and snap_res.data:
-                analysis = snap_res.data[0].get("analysis_data", {}) or {}
-                if "requirements" in analysis and isinstance(analysis["requirements"], list):
-                    return analysis["requirements"]
-        except Exception as snap_err:
-            logger.debug("tender_analyses snapshot query failed: %s", snap_err)
+                if snap_res and hasattr(snap_res, "data") and snap_res.data:
+                    analysis = snap_res.data[0].get("analysis_data", {}) or {}
+                    if "requirements" in analysis and isinstance(analysis["requirements"], list) and analysis["requirements"]:
+                        return analysis["requirements"]
+            except Exception as snap_err:
+                logger.debug("tender_analyses snapshot query failed: %s", snap_err)
 
-        return []
     except Exception as exc:
         logger.warning("Error fetching requirements for tender '%s': %s", tender_id_or_ref, exc)
-        return []
+
+    # 4. Canonical fallback for demo CPCL tender
+    return get_canonical_cpcl_requirements(resolved_tender_id or str(tender_id_or_ref))
 
 
 async def list_procurements(limit: int = 50, offset: int = 0) -> Dict[str, Any]:
@@ -866,49 +1035,55 @@ async def get_tender_detail_db(tender_id: str) -> Optional[Dict[str, Any]]:
 
 async def get_submission_detail_db(submission_id: str) -> Optional[Dict[str, Any]]:
     """Retrieves single bid submission workspace detail by submission UUID."""
+    sub = None
     if submission_id in _IN_MEMORY_SUBMISSIONS:
-        return _IN_MEMORY_SUBMISSIONS[submission_id]
-
-    try:
-        db_client = get_supabase_client()
+        sub = dict(_IN_MEMORY_SUBMISSIONS[submission_id])
+    else:
         try:
+            db_client = get_supabase_client()
             sub_res = await asyncio.to_thread(
                 lambda: db_client.table("bid_submissions").select("*").eq("id", submission_id).execute()
             )
-        except Exception:
-            sub_res = None
+            if sub_res and sub_res.data:
+                sub = dict(sub_res.data[0])
+        except Exception as exc:
+            logger.warning("Error querying submission from DB for '%s': %s", submission_id, exc)
 
-        if not sub_res or not sub_res.data:
-            return _IN_MEMORY_SUBMISSIONS.get(submission_id)
+    if not sub:
+        return None
 
-        sub = sub_res.data[0]
-        if sub.get("bidder_id"):
-            b_id = sub["bidder_id"]
-            if b_id in _IN_MEMORY_BIDDERS:
-                sub["bidder"] = _IN_MEMORY_BIDDERS[b_id]
-            else:
-                try:
-                    b_lookup = await asyncio.to_thread(
-                        lambda target_b_id=b_id: db_client.table("bidders").select("*").eq("id", target_b_id).execute()
-                    )
-                    if b_lookup and b_lookup.data:
-                        sub["bidder"] = b_lookup.data[0]
-                except Exception:
-                    pass
+    # Resolve bidder details
+    b_id = sub.get("bidder_id")
+    if b_id:
+        if b_id in _IN_MEMORY_BIDDERS:
+            sub["bidder"] = dict(_IN_MEMORY_BIDDERS[b_id])
+        else:
+            try:
+                db_client = get_supabase_client()
+                b_lookup = await asyncio.to_thread(
+                    lambda target_b_id=b_id: db_client.table("bidders").select("*").eq("id", target_b_id).execute()
+                )
+                if b_lookup and b_lookup.data:
+                    sub["bidder"] = b_lookup.data[0]
+            except Exception:
+                pass
 
+    # Resolve documents
+    docs = [dict(d) for d in _IN_MEMORY_DOCUMENTS.values() if d.get("bid_submission_id") == submission_id]
+    if not docs:
         try:
+            db_client = get_supabase_client()
             sub_doc_res = await asyncio.to_thread(
                 lambda: db_client.table("documents").select("*").eq("bid_submission_id", submission_id).execute()
             )
-            sub["documents"] = sub_doc_res.data if sub_doc_res and sub_doc_res.data else []
+            if sub_doc_res and sub_doc_res.data:
+                docs = sub_doc_res.data
         except Exception:
-            sub["documents"] = [d for d in _IN_MEMORY_DOCUMENTS.values() if d.get("bid_submission_id") == submission_id]
+            pass
 
-        sub["document_count"] = len(sub["documents"])
-        return sub
-    except Exception as exc:
-        logger.warning("Error fetching submission detail for '%s': %s", submission_id, exc)
-        return _IN_MEMORY_SUBMISSIONS.get(submission_id)
+    sub["documents"] = docs
+    sub["document_count"] = len(docs)
+    return sub
 
 
 async def get_bidder_detail_db(bidder_id: str) -> Optional[Dict[str, Any]]:
