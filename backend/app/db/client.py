@@ -753,11 +753,21 @@ async def get_procurement_detail_db(procurement_id: str) -> Optional[Dict[str, A
                     lambda: db_client.table("documents").select("*").eq("bid_submission_id", sub_id).execute()
                 )
                 sub["documents"] = sub_doc_res.data if sub_doc_res and sub_doc_res.data else []
-                sub["document_count"] = len(sub["documents"])
                 if "bidders" in sub and sub["bidders"]:
                     sub["bidder"] = sub["bidders"]
-
-            tender["submissions"] = submissions
+                elif sub.get("bidder_id"):
+                    b_id = sub["bidder_id"]
+                    if b_id in _IN_MEMORY_BIDDERS:
+                        sub["bidder"] = _IN_MEMORY_BIDDERS[b_id]
+                    else:
+                        try:
+                            b_lookup = await asyncio.to_thread(
+                                lambda target_b_id=b_id: db_client.table("bidders").select("*").eq("id", target_b_id).execute()
+                            )
+                            if b_lookup and b_lookup.data:
+                                sub["bidder"] = b_lookup.data[0]
+                        except Exception:
+                            pass
             tender["bidder_count"] = len(submissions)
 
         procurement["tenders"] = tenders
@@ -820,6 +830,19 @@ async def get_tender_detail_db(tender_id: str) -> Optional[Dict[str, Any]]:
             sub["document_count"] = len(sub["documents"])
             if "bidders" in sub and sub["bidders"]:
                 sub["bidder"] = sub["bidders"]
+            elif sub.get("bidder_id"):
+                b_id = sub["bidder_id"]
+                if b_id in _IN_MEMORY_BIDDERS:
+                    sub["bidder"] = _IN_MEMORY_BIDDERS[b_id]
+                else:
+                    try:
+                        b_lookup = await asyncio.to_thread(
+                            lambda target_b_id=b_id: db_client.table("bidders").select("*").eq("id", target_b_id).execute()
+                        )
+                        if b_lookup and b_lookup.data:
+                            sub["bidder"] = b_lookup.data[0]
+                    except Exception:
+                        pass
 
         tender["submissions"] = submissions
         tender["bidder_count"] = len(submissions)
@@ -842,6 +865,19 @@ async def get_submission_detail_db(submission_id: str) -> Optional[Dict[str, Any
         sub = sub_res.data[0]
         if "bidders" in sub and sub["bidders"]:
             sub["bidder"] = sub["bidders"]
+        elif sub.get("bidder_id"):
+            b_id = sub["bidder_id"]
+            if b_id in _IN_MEMORY_BIDDERS:
+                sub["bidder"] = _IN_MEMORY_BIDDERS[b_id]
+            else:
+                try:
+                    b_lookup = await asyncio.to_thread(
+                        lambda target_b_id=b_id: db_client.table("bidders").select("*").eq("id", target_b_id).execute()
+                    )
+                    if b_lookup and b_lookup.data:
+                        sub["bidder"] = b_lookup.data[0]
+                except Exception:
+                    pass
 
         sub_doc_res = await asyncio.to_thread(
             lambda: db_client.table("documents").select("*").eq("bid_submission_id", submission_id).execute()
