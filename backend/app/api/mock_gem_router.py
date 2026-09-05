@@ -9,6 +9,7 @@ Note: Mock-GeM is a development/demo simulation tool; it is not a live GeM integ
 import io
 import json
 import logging
+import os
 import uuid
 import zipfile
 from datetime import datetime, timezone
