@@ -584,6 +584,14 @@ async def _extract_text_from_pdf(file_bytes: bytes, filename: str) -> ExtractedD
                 logger.error("PyMuPDF fallback failed for %s: %s", filename, fitz_err)
 
     if not pages:
+        try:
+            decoded_text = file_bytes.decode("utf-8").strip()
+            if decoded_text:
+                pages = [{"page": 1, "text": decoded_text}]
+        except Exception:
+            pass
+
+    if not pages:
         pages = [{"page": 1, "text": f"PDF document: {filename} ({len(file_bytes)} bytes)"}]
 
     raw_text = "\n\n".join(p.get("text", "") for p in pages if p.get("text"))

@@ -163,13 +163,26 @@ class DocumentIntelligenceStage(ProcurementProcessingStage):
                         continue
                         
                     storage_path = doc.get("storage_path")
+                    filename = doc.get("filename")
                     file_bytes = None
                     if storage_path and os.path.exists(storage_path):
                         with open(storage_path, "rb") as f:
                             file_bytes = f.read()
-                    elif doc.get("content_text"):
+                    elif filename:
+                        sample_candidates = [
+                            os.path.join("backend", "data", "sample_documents", filename),
+                            os.path.join("frontend", "public", "sample_documents", filename),
+                            os.path.join(os.path.dirname(__file__), "..", "..", "data", "sample_documents", filename),
+                        ]
+                        for sc in sample_candidates:
+                            if os.path.exists(sc):
+                                with open(sc, "rb") as f:
+                                    file_bytes = f.read()
+                                break
+
+                    if not file_bytes and doc.get("content_text"):
                         file_bytes = doc.get("content_text").encode("utf-8")
-                    else:
+                    elif not file_bytes:
                         docs_failed += 1
                         logger.error(f"Cannot retrieve bytes for document {doc_id}")
                         continue
