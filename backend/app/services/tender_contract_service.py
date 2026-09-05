@@ -132,6 +132,7 @@ def derive_evaluation_mode(req: TenderRequirement) -> Tuple[EvaluationMode, List
         RequirementCategory.PAST_EXPERIENCE,
         RequirementCategory.TECHNICAL_SPECIFICATION,
         RequirementCategory.DELIVERY_AND_SLA,
+        RequirementCategory.COMMERCIAL,
     ):
         if cond and cond.threshold_value is not None and cond.is_quantifiable:
             return EvaluationMode.DETERMINISTIC, [EvaluationMode.DOCUMENT_PRESENCE]
@@ -200,14 +201,14 @@ def derive_evaluation_field(req: TenderRequirement) -> Optional[str]:
         if cond and cond.unit == "COUNT":
             return CanonicalEvaluationField.SIMILAR_CONTRACT_COUNT.value
         return CanonicalEvaluationField.GENERAL_EXPERIENCE.value
-    elif cat in (RequirementCategory.TECHNICAL_SPECIFICATION, RequirementCategory.DELIVERY_AND_SLA):
-        if cond and (cond.unit == "MONTHS" or "warranty" in (req.title or "").lower() or "warranty" in req.description.lower()):
+    elif cat in (RequirementCategory.TECHNICAL_SPECIFICATION, RequirementCategory.DELIVERY_AND_SLA, RequirementCategory.COMMERCIAL):
+        if (cond and cond.unit == "MONTHS") or "warranty" in (req.title or "").lower() or "warranty" in req.description.lower():
             return CanonicalEvaluationField.WARRANTY_MONTHS.value
+        if cat == RequirementCategory.COMMERCIAL:
+            return CanonicalEvaluationField.COMMERCIAL_PRICE.value
         return CanonicalEvaluationField.TECHNICAL_SPECIFICATION.value
     elif cat == RequirementCategory.EMD_AND_PBG:
         return CanonicalEvaluationField.EMD_SECURITY_DEPOSIT.value
-    elif cat == RequirementCategory.COMMERCIAL:
-        return CanonicalEvaluationField.COMMERCIAL_PRICE.value
 
     return CanonicalEvaluationField.OTHER.value if not req.is_ambiguous else None
 

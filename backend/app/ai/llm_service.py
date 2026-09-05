@@ -357,10 +357,6 @@ async def analyze_tender_with_llm(
             "temperature": 0.1,
         }
         candidate_models = [
-            "gemini-3.6-flash",
-            "gemini-3.5-flash",
-            "gemini-flash-latest",
-            "gemini-2.5-pro",
             "gemini-2.5-flash",
         ]
 
@@ -371,7 +367,10 @@ async def analyze_tender_with_llm(
                     generation_config=generation_config,
                 )
 
-                response = await model.generate_content_async(prompt)
+                response = await asyncio.wait_for(
+                    model.generate_content_async(prompt),
+                    timeout=4.0,
+                )
                 if not response or not response.text:
                     raise ValueError("Received empty response from Gemini API.")
 

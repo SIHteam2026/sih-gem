@@ -56,10 +56,11 @@ async def insert_tender_analysis(tender_id: str, analysis_data: Dict[str, Any]) 
         analysis_data (dict): The complete tender analysis dictionary (stored as JSONB).
     """
     try:
+        from fastapi.encoders import jsonable_encoder
         db_client = get_supabase_client()
         record = {
             "tender_id": tender_id,
-            "analysis_data": analysis_data,
+            "analysis_data": jsonable_encoder(analysis_data),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await asyncio.to_thread(
@@ -79,6 +80,7 @@ async def insert_bid_evaluation(
 ) -> None:
     """Inserts a bid evaluation record into Supabase (supporting bidder_evaluations and bid_evaluations)."""
     try:
+        from fastapi.encoders import jsonable_encoder
         db_client = get_supabase_client()
         eval_payload = evaluation_data if evaluation_data is not None else {}
         if isinstance(bidder_name, dict) and evaluation_data is None:
@@ -89,7 +91,7 @@ async def insert_bid_evaluation(
             "tender_id": tender_id,
             "bidder_name": bidder_name or "Unknown",
             "bid_id": bid_id or tender_id,
-            "evaluation_data": eval_payload,
+            "evaluation_data": jsonable_encoder(eval_payload),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         
@@ -281,90 +283,366 @@ _IN_MEMORY_REQUIREMENTS: Dict[str, List[Dict[str, Any]]] = {}
 
 
 def get_canonical_cpcl_requirements(tender_id: str = "DEMO/CPCL/WQM/2026/017") -> List[Dict[str, Any]]:
-    """Returns canonical fallback requirements for CPCL Water Quality Monitoring tender."""
+    """Returns canonical fallback requirements for CPCL Water Quality Monitoring tender (REQ-001 through REQ-009)."""
     return [
         {
-            "requirement_id": "REQ-GST-01",
+            "requirement_id": "REQ-001",
             "tender_id": tender_id,
-            "category": "GST",
-            "title": "GST Registration & Active Status",
-            "description": "Bidder must possess a valid, active GSTIN registration in India.",
+            "category": "GST_AND_TAX",
+            "title": "GST Registration & Filing",
+            "description": "The bidder must possess a valid and active GST Registration Certificate with latest GSTR-3B filing.",
             "mandatory": True,
             "structured_condition": {
-                "field": "gstin_status",
-                "operator": "EQUAL",
+                "field_name": "gstin_active",
+                "operator": "==",
                 "threshold_value": "ACTIVE",
+                "unit": "STATUS",
                 "is_quantifiable": True,
             },
             "applicability": {
-                "is_mandatory": True,
-                "exemption_possible": False,
+                "applies_to_all": True,
+                "target_entity": "ALL_BIDDERS",
+                "msme_exemption_applicable": False,
+                "startup_exemption_applicable": False,
             },
-            "evidence_required": ["GST_CERTIFICATE"],
+            "evidence_required": ["Active GSTIN Certificate", "GSTR-3B receipts for last 3 months"],
+            "evidence_specs": [
+                {
+                    "document_type": "GST_CERTIFICATE",
+                    "description": "Active GSTIN Certificate and latest GSTR-3B return receipts",
+                    "mandatory": True,
+                    "issuing_authority": "Goods and Services Tax Network (GSTN)",
+                }
+            ],
+            "source_provenance": {
+                "page_number": 1,
+                "clause_number": "Clause 1.1",
+                "section_title": "Statutory & Tax Compliance",
+                "verbatim_quote": "The bidder must possess a valid and active GST Registration Certificate under the Central Goods and Services Tax Act.",
+            },
             "is_ambiguous": False,
+            "ambiguity": {
+                "is_ambiguous": False,
+                "ambiguity_type": "NONE",
+            },
         },
         {
-            "requirement_id": "REQ-MII-01",
+            "requirement_id": "REQ-002",
             "tender_id": tender_id,
-            "category": "LOCAL_CONTENT",
-            "title": "Make in India Local Content Minimum 20%",
-            "description": "Bidder must demonstrate local content percentage of at least 20.0% under Make in India policy.",
+            "category": "PAN_IDENTITY",
+            "title": "PAN Card & Corporate Registration",
+            "description": "The bidder must submit a valid Permanent Account Number (PAN) and Certificate of Incorporation.",
             "mandatory": True,
             "structured_condition": {
-                "field": "local_content_pct",
-                "operator": "GTE",
-                "threshold_value": 20.0,
-                "threshold_unit": "%",
+                "field_name": "pan_valid",
+                "operator": "==",
+                "threshold_value": "VALID",
+                "unit": "STATUS",
                 "is_quantifiable": True,
             },
             "applicability": {
-                "is_mandatory": True,
-                "exemption_possible": False,
+                "applies_to_all": True,
+                "target_entity": "ALL_BIDDERS",
             },
-            "evidence_required": ["LOCAL_CONTENT_CERTIFICATE"],
+            "evidence_required": ["PAN Card copy", "Certificate of Incorporation / Partnership Deed"],
+            "evidence_specs": [
+                {
+                    "document_type": "PAN_CARD",
+                    "description": "Permanent Account Number card",
+                    "mandatory": True,
+                    "issuing_authority": "Income Tax Department, Government of India",
+                }
+            ],
+            "source_provenance": {
+                "page_number": 1,
+                "clause_number": "Clause 1.2",
+                "section_title": "Statutory & Tax Compliance",
+                "verbatim_quote": "Bidder shall submit valid Permanent Account Number (PAN) issued by Income Tax Department.",
+            },
             "is_ambiguous": False,
+            "ambiguity": {
+                "is_ambiguous": False,
+                "ambiguity_type": "NONE",
+            },
         },
         {
-            "requirement_id": "REQ-FIN-01",
+            "requirement_id": "REQ-003",
             "tender_id": tender_id,
             "category": "FINANCIAL_TURNOVER",
-            "title": "Average Annual Financial Turnover >= Rs 10 Crore",
-            "description": "Average annual turnover over the last 3 financial years must be greater than or equal to Rs. 10 Crores (INR 100,000,000).",
+            "title": "Average Annual Financial Turnover",
+            "description": "The bidder shall have an average annual financial turnover of not less than INR 5.0 Crores during the last three completed financial years.",
             "mandatory": True,
             "structured_condition": {
-                "field": "annual_turnover",
-                "operator": "GTE",
-                "threshold_value": 100000000.0,
-                "threshold_unit": "INR",
+                "field_name": "annual_turnover",
+                "operator": ">=",
+                "threshold_value": 50000000.0,
+                "unit": "INR",
+                "currency": "INR",
+                "period_years": 3.0,
+                "period_description": "last three completed financial years",
                 "is_quantifiable": True,
             },
             "applicability": {
-                "is_mandatory": True,
-                "exemption_possible": True,
-                "exemption_type": "MSME / Startup Exemption",
+                "applies_to_all": False,
+                "target_entity": "ALL_BIDDERS",
+                "msme_exemption_applicable": True,
+                "startup_exemption_applicable": True,
+                "exemption_notes": "Micro and Small Enterprises (MSEs) registered under Udyam and DPIIT-recognized Startups are exempt from financial turnover criteria.",
             },
-            "evidence_required": ["TURNOVER_CERTIFICATE", "AUDITED_BALANCE_SHEET"],
+            "evidence_required": ["Audited Balance Sheets and P&L Statements", "CA Turnover Certificate with UDIN"],
+            "evidence_specs": [
+                {
+                    "document_type": "CA_TURNOVER_CERTIFICATE",
+                    "description": "Turnover certificate certified by practicing CA with valid UDIN",
+                    "mandatory": True,
+                    "issuing_authority": "Practicing Chartered Accountant",
+                }
+            ],
+            "source_provenance": {
+                "page_number": 2,
+                "clause_number": "Clause 2.1",
+                "section_title": "Financial Standing",
+                "verbatim_quote": "The bidder shall have an average annual financial turnover of not less than INR 5.0 Crores during the last three completed financial years.",
+            },
             "is_ambiguous": False,
+            "ambiguity": {
+                "is_ambiguous": False,
+                "ambiguity_type": "NONE",
+            },
         },
         {
-            "requirement_id": "REQ-OEM-01",
+            "requirement_id": "REQ-004",
             "tender_id": tender_id,
-            "category": "OEM_AUTHORIZATION",
-            "title": "OEM Authorization Certificate",
-            "description": "Bidder must submit a valid Manufacturer Authorization Form (MAF) from the OEM for online water quality analyzers.",
+            "category": "PAST_EXPERIENCE",
+            "title": "Past Similar Work Experience",
+            "description": "The bidder must have successfully executed at least 2 contracts for supply and commissioning of continuous water quality or effluent monitoring systems in the last 5 years, each contract value not less than INR 1.0 Crore.",
             "mandatory": True,
             "structured_condition": {
-                "field": "oem_authorized",
-                "operator": "EQUAL",
-                "threshold_value": True,
+                "field_name": "executed_contracts_count",
+                "operator": ">=",
+                "threshold_value": 2.0,
+                "unit": "COUNT",
+                "period_years": 5.0,
+                "period_description": "last 5 years",
                 "is_quantifiable": True,
             },
             "applicability": {
-                "is_mandatory": True,
-                "exemption_possible": False,
+                "applies_to_all": True,
+                "target_entity": "ALL_BIDDERS",
+                "msme_exemption_applicable": False,
+                "startup_exemption_applicable": False,
             },
-            "evidence_required": ["OEM_AUTHORIZATION"],
+            "evidence_required": ["Work Completion Certificates", "Copies of Purchase Orders"],
+            "evidence_specs": [
+                {
+                    "document_type": "COMPLETION_CERTIFICATE",
+                    "description": "Satisfactory work completion certificates from end-users",
+                    "mandatory": True,
+                    "issuing_authority": "Client / PSU Project Authority",
+                }
+            ],
+            "source_provenance": {
+                "page_number": 2,
+                "clause_number": "Clause 2.2",
+                "section_title": "Past Technical Experience",
+                "verbatim_quote": "Bidder must have successfully executed at least 2 contracts for supply and commissioning of continuous water quality systems in the last 5 years.",
+            },
             "is_ambiguous": False,
+            "ambiguity": {
+                "is_ambiguous": False,
+                "ambiguity_type": "NONE",
+            },
+        },
+        {
+            "requirement_id": "REQ-005",
+            "tender_id": tender_id,
+            "category": "OEM_AUTHORIZATION",
+            "title": "Manufacturer Authorization Form (MAF)",
+            "description": "Bidder must submit a valid Manufacturer Authorization Form (MAF) from the sensor and analyzer OEM.",
+            "mandatory": True,
+            "structured_condition": {
+                "field_name": "oem_authorization",
+                "operator": "==",
+                "threshold_value": "AUTHORIZED",
+                "unit": "STATUS",
+                "is_quantifiable": True,
+            },
+            "applicability": {
+                "applies_to_all": True,
+                "target_entity": "ALL_BIDDERS",
+            },
+            "evidence_required": ["Manufacturer Authorization Form (MAF)"],
+            "evidence_specs": [
+                {
+                    "document_type": "OEM_AUTHORIZATION",
+                    "description": "Official MAF certificate signed by authorized OEM executive",
+                    "mandatory": True,
+                    "issuing_authority": "Original Equipment Manufacturer",
+                }
+            ],
+            "source_provenance": {
+                "page_number": 3,
+                "clause_number": "Clause 3.1",
+                "section_title": "Technical Specifications & OEM Support",
+                "verbatim_quote": "If the bidder is not an OEM, an authentic Manufacturer Authorization Form (MAF) specific to this tender must be submitted.",
+            },
+            "is_ambiguous": False,
+            "ambiguity": {
+                "is_ambiguous": False,
+                "ambiguity_type": "NONE",
+            },
+        },
+        {
+            "requirement_id": "REQ-006",
+            "tender_id": tender_id,
+            "category": "LOCAL_CONTENT_MII",
+            "title": "Make in India (MII) Local Content Preference",
+            "description": "Minimum 20% local content is mandatory under Public Procurement (Preference to Make in India) Order.",
+            "mandatory": True,
+            "structured_condition": {
+                "field_name": "local_content_percentage",
+                "operator": ">=",
+                "threshold_value": 20.0,
+                "unit": "PERCENT",
+                "is_quantifiable": True,
+            },
+            "applicability": {
+                "applies_to_all": True,
+                "target_entity": "ALL_BIDDERS",
+            },
+            "evidence_required": ["Self-declaration of local content percentage and location of value addition"],
+            "evidence_specs": [
+                {
+                    "document_type": "LOCAL_CONTENT_DECLARATION",
+                    "description": "Self-declaration of local content percentage on company letterhead",
+                    "mandatory": True,
+                    "issuing_authority": "Authorized Bidder Signatory",
+                }
+            ],
+            "source_provenance": {
+                "page_number": 3,
+                "clause_number": "Clause 3.2",
+                "section_title": "Statutory Local Content Mandate",
+                "verbatim_quote": "Minimum 20% local content is mandatory under Make in India guidelines.",
+            },
+            "is_ambiguous": False,
+            "ambiguity": {
+                "is_ambiguous": False,
+                "ambiguity_type": "NONE",
+            },
+        },
+        {
+            "requirement_id": "REQ-007",
+            "tender_id": tender_id,
+            "category": "LEGAL_AND_DEBARMENT",
+            "title": "Non-Blacklisting & Non-Debarment Undertaking",
+            "description": "The bidder must not be debarred, blacklisted, or under holiday listing by any Central/State Government or PSU.",
+            "mandatory": True,
+            "structured_condition": {
+                "field_name": "debarment_status",
+                "operator": "==",
+                "threshold_value": "CLEAR",
+                "unit": "STATUS",
+                "is_quantifiable": True,
+            },
+            "applicability": {
+                "applies_to_all": True,
+                "target_entity": "ALL_BIDDERS",
+            },
+            "evidence_required": ["Self-undertaking on non-debarment"],
+            "evidence_specs": [
+                {
+                    "document_type": "NON_DEBARMENT_UNDERTAKING",
+                    "description": "Notarized declaration of non-debarment",
+                    "mandatory": True,
+                    "issuing_authority": "Authorized Signatory / Notary Public",
+                }
+            ],
+            "source_provenance": {
+                "page_number": 3,
+                "clause_number": "Clause 3.3",
+                "section_title": "Governance & Legal Compliance",
+                "verbatim_quote": "The bidder must not be under debarment or holiday listing by any Central/State Govt or PSU.",
+            },
+            "is_ambiguous": False,
+            "ambiguity": {
+                "is_ambiguous": False,
+                "ambiguity_type": "NONE",
+            },
+        },
+        {
+            "requirement_id": "REQ-008",
+            "tender_id": tender_id,
+            "category": "DELIVERY_AND_SLA",
+            "title": "Comprehensive OEM Onsite Warranty",
+            "description": "The supplier shall provide comprehensive onsite warranty of not less than 24 months from the date of successful commissioning.",
+            "mandatory": True,
+            "structured_condition": {
+                "field_name": "warranty_period_months",
+                "operator": ">=",
+                "threshold_value": 24.0,
+                "unit": "MONTHS",
+                "period_years": 2.0,
+                "is_quantifiable": True,
+            },
+            "applicability": {
+                "applies_to_all": True,
+                "target_entity": "ALL_BIDDERS",
+            },
+            "evidence_required": ["Warranty Undertaking from OEM/Bidder"],
+            "evidence_specs": [
+                {
+                    "document_type": "WARRANTY_UNDERTAKING",
+                    "description": "24-month OEM comprehensive onsite warranty certificate",
+                    "mandatory": True,
+                    "issuing_authority": "OEM / Prime Bidder",
+                }
+            ],
+            "source_provenance": {
+                "page_number": 3,
+                "clause_number": "Clause 3.4",
+                "section_title": "Service Level Agreement & Warranty",
+                "verbatim_quote": "Comprehensive onsite warranty of not less than 24 months from commissioning date.",
+            },
+            "is_ambiguous": False,
+            "ambiguity": {
+                "is_ambiguous": False,
+                "ambiguity_type": "NONE",
+            },
+        },
+        {
+            "requirement_id": "REQ-009",
+            "tender_id": tender_id,
+            "category": "PAST_EXPERIENCE",
+            "title": "Industrial Capability Clause",
+            "description": "Bidder should have adequate experience and satisfactory reputation in similar industrial domains.",
+            "mandatory": False,
+            "is_ambiguous": True,
+            "ambiguity_reason": "The clause relies on vague subjective terms ('adequate experience' and 'satisfactory reputation') without establishing quantifiable threshold values or objective parameters.",
+            "structured_condition": {
+                "field_name": "adequate_experience",
+                "operator": "==",
+                "threshold_value": None,
+                "unit": None,
+                "is_quantifiable": False,
+            },
+            "applicability": {
+                "applies_to_all": True,
+                "target_entity": "ALL_BIDDERS",
+            },
+            "evidence_required": [],
+            "evidence_specs": [],
+            "source_provenance": {
+                "page_number": 3,
+                "clause_number": "Clause 3.5",
+                "section_title": "General Quality Criteria",
+                "verbatim_quote": "Bidder should have adequate experience and satisfactory reputation in similar industrial domains.",
+            },
+            "ambiguity": {
+                "is_ambiguous": True,
+                "ambiguity_type": "VAGUE_TERMINOLOGY",
+                "ambiguity_reason": "Vague subjective terms without quantifiable thresholds.",
+            },
         },
     ]
 
@@ -915,10 +1193,6 @@ async def get_procurement_detail_db(procurement_id: str) -> Optional[Dict[str, A
                 procurement = dict(p)
                 procurement_id = procurement["id"]
                 break
-
-    if not procurement and len(_IN_MEMORY_PROCUREMENTS) == 1:
-        procurement = dict(list(_IN_MEMORY_PROCUREMENTS.values())[0])
-        procurement_id = procurement["id"]
 
     if not procurement:
         try:

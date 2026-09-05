@@ -78,21 +78,25 @@ class TenderIntelligenceStage(ProcurementProcessingStage):
                 tender_docs = [d for d in t_docs if "TENDER_SPECIFICATION" in str(d.get("document_type", ""))]
                 
             if not tender_docs:
-                raise Exception("No TENDER_SPECIFICATION document found for procurement.")
-                
-            tender_doc = tender_docs[0]
-            
-            storage_path = tender_doc.get("storage_path")
-            file_bytes = None
-            filename = tender_doc.get("filename", "tender.txt")
-            if storage_path and os.path.exists(storage_path):
-                with open(storage_path, "rb") as f:
-                    file_bytes = f.read()
-            elif tender_doc.get("content_text"):
-                file_bytes = tender_doc.get("content_text").encode("utf-8")
-                filename = "tender.txt" # Force txt extraction for mock strings
+                # If no explicit tender specification document was uploaded, build from tender metadata
+                tender_text = f"TENDER: {tender.get('title', 'Procurement Tender')}\nDESCRIPTION: {tender.get('description', '')}\nREFERENCE: {tender_id}"
+                file_bytes = tender_text.encode("utf-8")
+                filename = "tender.txt"
             else:
-                raise Exception(f"Cannot retrieve document bytes for {tender_doc.get('id')}")
+                tender_doc = tender_docs[0]
+                storage_path = tender_doc.get("storage_path")
+                file_bytes = None
+                filename = tender_doc.get("filename", "tender.txt")
+                if storage_path and os.path.exists(storage_path):
+                    with open(storage_path, "rb") as f:
+                        file_bytes = f.read()
+                elif tender_doc.get("content_text"):
+                    file_bytes = tender_doc.get("content_text").encode("utf-8")
+                    filename = "tender.txt"  # Force txt extraction for mock strings
+                else:
+                    tender_text = f"TENDER: {tender.get('title', 'Procurement Tender')}\nDESCRIPTION: {tender.get('description', '')}\nREFERENCE: {tender_id}"
+                    file_bytes = tender_text.encode("utf-8")
+                    filename = "tender.txt"
             
             # 4. Invoke Tender Intelligence service
             analysis_result = await analyze_tender(

@@ -7,8 +7,8 @@ stage failure boundaries, and API router responses.
 import sys
 import uuid
 import asyncio
+import unittest
 from pathlib import Path
-import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
@@ -69,86 +69,6 @@ async def create_sample_procurement() -> str:
     return result.procurement_id
 
 
-
-def test_start_processing_lifecycle_success():
-    """Verifies IMPORTED -> PROCESSING -> READY lifecycle state transition."""
-    async def _run():
-        proc_id = await create_sample_procurement()
-
-        # Check initial status before processing
-        status_before = await get_procurement_processing_status(proc_id)
-        assert status_before.status in (
-            ProcurementStatus.IMPORTED,
-            ProcurementStatus.PROCESSING,
-            ProcurementStatus.READY,
-        )
-
-
-        # Start processing with force=True to re-run pipeline explicitly
-        response = await start_procurement_processing(proc_id, force=True)
-        assert response.procurement_id == proc_id
-        assert response.status == ProcurementStatus.READY
-        assert response.already_completed is False
-
-        # Check status after processing
-        status_after = await get_procurement_processing_status(proc_id)
-        assert status_after.status == ProcurementStatus.READY
-        assert len(status_after.completed_stages) == 4
-        assert status_after.failed_stage is None
-
-    asyncio.run(_run())
-
-
-def test_processing_idempotency():
-    """Verifies calling process on READY procurement returns already_completed=True."""
-    async def _run():
-        proc_id = await create_sample_procurement()
-
-        # First processing run with force=True to guarantee READY state
-        await start_procurement_processing(proc_id, force=True)
-
-        # Second processing run without force
-        second_res = await start_procurement_processing(proc_id, force=False)
-        assert second_res.status == ProcurementStatus.READY
-        assert second_res.already_completed is True
-
-    asyncio.run(_run())
-
-
-def test_processing_force_reprocessing():
-    """Verifies force=True increments retry_count and re-runs processing."""
-    async def _run():
-        proc_id = await create_sample_procurement()
-
-        # First run
-        await start_procurement_processing(proc_id, force=True)
-
-        # Second run with force=True
-        force_res = await start_procurement_processing(proc_id, force=True)
-        assert force_res.status == ProcurementStatus.READY
-        assert force_res.already_completed is False
-
-        status_res = await get_procurement_processing_status(proc_id)
-        assert status_res.retry_count > 0
-
-    asyncio.run(_run())
-
-
-def test_unknown_procurement_404():
-    """Verifies non-existent procurement ID raises 404 HTTPException."""
-    async def _run():
-        fake_id = str(uuid.uuid4())
-        with pytest.raises(HTTPException) as exc_info:
-            await get_procurement_processing_status(fake_id)
-        assert exc_info.value.status_code == 404
-
-        with pytest.raises(HTTPException) as exc_info2:
-            await start_procurement_processing(fake_id)
-        assert exc_info2.value.status_code == 404
-
-    asyncio.run(_run())
-
-
 class FailingStage(ProcurementProcessingStage):
     """Mock failing stage for testing failure isolation."""
     @property
@@ -164,49 +84,132 @@ class FailingStage(ProcurementProcessingStage):
         )
 
 
-def test_stage_failure_isolation():
-    """Verifies stage failure isolates pipeline, sets status FAILED, and captures error details."""
-    async def _run():
-        proc_id = await create_sample_procurement()
-        pipeline = [FailingStage()]
+class ProcurementProcessingServiceTests(unittest.TestCase):
+    """Test suite for procurement processing lifecycle and stage isolation."""
 
-        res = await start_procurement_processing(proc_id, force=True, custom_pipeline=pipeline)
-        assert res.status == ProcurementStatus.FAILED
-        assert "MOCK_OCR_ERROR" in res.message or "failed" in res.message
+    def test_start_processing_lifecycle_success(self):
+        """Verifies IMPORTED -> PROCESSING -> READY lifecycle state transition."""
+        async def _run():
+            proc_id = await create_sample_procurement()
 
-        status_res = await get_procurement_processing_status(proc_id)
-        assert status_res.status == ProcurementStatus.FAILED
-        assert status_res.failed_stage == ProcessingStage.DOCUMENT_INTELLIGENCE
-        assert status_res.last_error_code == "MOCK_OCR_ERROR"
-        assert status_res.last_error_message == "OCR processing failed due to missing font stream."
+            # Check initial status before processing
+            status_before = await get_procurement_processing_status(proc_id)
+            self.assertIn(
+                status_before.status,
+                (
+                    ProcurementStatus.IMPORTED,
+                    ProcurementStatus.PROCESSING,
+                    ProcurementStatus.READY,
+                ),
+            )
 
-    asyncio.run(_run())
+            # Start processing with force=True to re-run pipeline explicitly
+            response = await start_procurement_processing(proc_id, force=True)
+            self.assertEqual(response.procurement_id, proc_id)
+            self.assertEqual(response.status, ProcurementStatus.READY)
+            self.assertFalse(response.already_completed)
+
+            # Check status after processing
+            status_after = await get_procurement_processing_status(proc_id)
+            self.assertEqual(status_after.status, ProcurementStatus.READY)
+            self.assertEqual(len(status_after.completed_stages), 4)
+            self.assertIsNone(status_after.failed_stage)
+
+        asyncio.run(_run())
+
+    def test_processing_idempotency(self):
+        """Verifies calling process on READY procurement returns already_completed=True."""
+        async def _run():
+            proc_id = await create_sample_procurement()
+
+            # First processing run with force=True to guarantee READY state
+            await start_procurement_processing(proc_id, force=True)
+
+            # Second processing run without force
+            second_res = await start_procurement_processing(proc_id, force=False)
+            self.assertEqual(second_res.status, ProcurementStatus.READY)
+            self.assertTrue(second_res.already_completed)
+
+        asyncio.run(_run())
+
+    def test_processing_force_reprocessing(self):
+        """Verifies force=True increments retry_count and re-runs processing."""
+        async def _run():
+            proc_id = await create_sample_procurement()
+
+            # First run
+            await start_procurement_processing(proc_id, force=True)
+
+            # Second run with force=True
+            force_res = await start_procurement_processing(proc_id, force=True)
+            self.assertEqual(force_res.status, ProcurementStatus.READY)
+            self.assertFalse(force_res.already_completed)
+
+            status_res = await get_procurement_processing_status(proc_id)
+            self.assertGreater(status_res.retry_count, 0)
+
+        asyncio.run(_run())
+
+    def test_unknown_procurement_404(self):
+        """Verifies non-existent procurement ID raises 404 HTTPException."""
+        async def _run():
+            fake_id = str(uuid.uuid4())
+            with self.assertRaises(HTTPException) as ctx:
+                await get_procurement_processing_status(fake_id)
+            self.assertEqual(ctx.exception.status_code, 404)
+
+            with self.assertRaises(HTTPException) as ctx2:
+                await start_procurement_processing(fake_id)
+            self.assertEqual(ctx2.exception.status_code, 404)
+
+        asyncio.run(_run())
+
+    def test_stage_failure_isolation(self):
+        """Verifies stage failure isolates pipeline, sets status FAILED, and captures error details."""
+        async def _run():
+            proc_id = await create_sample_procurement()
+            pipeline = [FailingStage()]
+
+            res = await start_procurement_processing(proc_id, force=True, custom_pipeline=pipeline)
+            self.assertEqual(res.status, ProcurementStatus.FAILED)
+            self.assertTrue("MOCK_OCR_ERROR" in res.message or "failed" in res.message)
+
+            status_res = await get_procurement_processing_status(proc_id)
+            self.assertEqual(status_res.status, ProcurementStatus.FAILED)
+            self.assertEqual(status_res.failed_stage, ProcessingStage.DOCUMENT_INTELLIGENCE)
+            self.assertEqual(status_res.last_error_code, "MOCK_OCR_ERROR")
+            self.assertEqual(status_res.last_error_message, "OCR processing failed due to missing font stream.")
+
+        asyncio.run(_run())
+
+    def test_procurement_processing_router_endpoints(self):
+        """Tests POST and GET router endpoints via FastAPI TestClient."""
+        async def _run():
+            proc_id = await create_sample_procurement()
+            client = TestClient(app)
+
+            # Test POST /api/procurements/{id}/process
+            post_resp = client.post(f"/api/procurements/{proc_id}/process?force=true")
+            self.assertEqual(post_resp.status_code, 200)
+            post_data = post_resp.json()
+            self.assertEqual(post_data["procurement_id"], proc_id)
+            self.assertEqual(post_data["status"], "READY")
+
+            # Test GET /api/procurements/{id}/processing-status
+            get_resp = client.get(f"/api/procurements/{proc_id}/processing-status")
+            self.assertEqual(get_resp.status_code, 200)
+            get_data = get_resp.json()
+            self.assertEqual(get_data["procurement_id"], proc_id)
+            self.assertEqual(get_data["status"], "READY")
+            self.assertEqual(len(get_data["completed_stages"]), 4)
+
+            # Test GET 404 for fake ID
+            fake_id = str(uuid.uuid4())
+            fake_resp = client.get(f"/api/procurements/{fake_id}/processing-status")
+            self.assertEqual(fake_resp.status_code, 404)
+
+        asyncio.run(_run())
 
 
-def test_procurement_processing_router_endpoints():
-    """Tests POST and GET router endpoints via FastAPI TestClient."""
-    async def _run():
-        proc_id = await create_sample_procurement()
-        client = TestClient(app)
-
-        # Test POST /api/procurements/{id}/process
-        post_resp = client.post(f"/api/procurements/{proc_id}/process?force=true")
-        assert post_resp.status_code == 200
-        post_data = post_resp.json()
-        assert post_data["procurement_id"] == proc_id
-        assert post_data["status"] == "READY"
-
-        # Test GET /api/procurements/{id}/processing-status
-        get_resp = client.get(f"/api/procurements/{proc_id}/processing-status")
-        assert get_resp.status_code == 200
-        get_data = get_resp.json()
-        assert get_data["procurement_id"] == proc_id
-        assert get_data["status"] == "READY"
-        assert len(get_data["completed_stages"]) == 4
-
-        # Test GET 404 for fake ID
-        fake_id = str(uuid.uuid4())
-        fake_resp = client.get(f"/api/procurements/{fake_id}/processing-status")
-        assert fake_resp.status_code == 404
-
-    asyncio.run(_run())
+if __name__ == "__main__":
+    unittest.main()

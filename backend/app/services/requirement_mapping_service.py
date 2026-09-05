@@ -38,12 +38,19 @@ def _score_requirement_candidates(
     is_percent = item.unit == "PERCENT" or "%" in str(item_value)
     is_turnover = "CA_TURNOVER" in item_type or "TURNOVER" in item_type or "TURNOVER" in req_id_tag or item.unit in ("INR", "CURRENCY") or ("crore" in str(item_value).lower() or "lakh" in str(item_value).lower())
     is_exp = "EXPERIENCE" in item_type or "EXP" in req_id_tag or item.unit == "COUNT"
+    is_warranty = item.unit in ("MONTHS", "YEARS") or "warranty" in item_type.lower() or "warranty" in req_id_tag.lower() or "month" in str(item_value).lower() or "year" in str(item_value).lower()
     
     for req in requirements:
         score = 0
         reasons = []
         field_match = False
         
+        # 0. Direct Requirement ID Match
+        if getattr(item, 'requirement_id', None) and item.requirement_id == req.requirement_id:
+            score += 10
+            reasons.append(f"Explicit requirement ID match for `{req.requirement_id}`.")
+            field_match = True
+            
         # 1. Field match
         req_field = req.evaluation_field
         if req_field:
@@ -63,7 +70,7 @@ def _score_requirement_candidates(
                 score += 5
                 reasons.append("Canonical field `average_annual_turnover` matches turnover evidence.")
                 field_match = True
-            elif req_field == CanonicalEvaluationField.WARRANTY_MONTHS and item.unit in ("MONTHS", "YEARS"):
+            elif req_field == CanonicalEvaluationField.WARRANTY_MONTHS and is_warranty:
                 score += 5
                 reasons.append("Canonical field `warranty_months` matches warranty duration.")
                 field_match = True

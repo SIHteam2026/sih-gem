@@ -267,6 +267,32 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
 
     try:
         with zipfile.ZipFile(io.BytesIO(file_bytes)) as zip_ref:
+            # Security validation: Zip bomb & Zip-slip protection
+            total_uncompressed_size = 0
+            MAX_UNCOMPRESSED_SIZE = 50 * 1024 * 1024  # 50 MB
+            MAX_FILE_COUNT = 500
+
+            infolist = zip_ref.infolist()
+            if len(infolist) > MAX_FILE_COUNT:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"ZIP archive contains too many files ({len(infolist)} > {MAX_FILE_COUNT}).",
+                )
+
+            for info in infolist:
+                total_uncompressed_size += info.file_size
+                if total_uncompressed_size > MAX_UNCOMPRESSED_SIZE:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="ZIP archive exceeds maximum allowable uncompressed size (50 MB).",
+                    )
+                norm_path = os.path.normpath(info.filename)
+                if norm_path.startswith("..") or os.path.isabs(norm_path):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Insecure path detected in ZIP archive: {info.filename}",
+                    )
+
             file_list = [
                 name for name in zip_ref.namelist()
                 if not name.startswith("__MACOSX/") and not Path(name).name.startswith("._")
