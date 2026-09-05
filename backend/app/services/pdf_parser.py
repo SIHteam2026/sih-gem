@@ -1,6 +1,6 @@
 """PDF Parser Service.
 
-Provides asynchronous utility for extracting raw and page-aware text from PDF document bytes using PyMuPDF (fitz)
+Provides asynchronous utility for extracting raw and page-aware text from PDF document bytes using PyMuPDF
 with intelligent OCR fallback for scanned or image-based PDF documents and PII redaction.
 """
 
@@ -9,12 +9,9 @@ import re
 from typing import Any, Dict, List
 from fastapi import HTTPException
 try:
-    import fitz
+    import pymupdf
 except Exception:
-    try:
-        import pymupdf as fitz
-    except Exception:
-        fitz = None
+    pymupdf = None
 
 try:
     from backend.app.services.ocr_service import extract_text_with_ocr
@@ -27,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 async def extract_pages_from_pdf(file_bytes: bytes) -> List[Dict[str, Any]]:
-    """Loads PDF bytes into a fitz.Document and extracts text on a per-page basis,
+    """Loads PDF bytes into a pymupdf.Document and extracts text on a per-page basis,
     preserving exact 1-indexed page boundaries for audit trail and source provenance.
 
     Args:
@@ -44,7 +41,7 @@ async def extract_pages_from_pdf(file_bytes: bytes) -> List[Dict[str, Any]]:
     total_text_len = 0
 
     try:
-        with fitz.open(stream=file_bytes, filetype="pdf") as doc:
+        with pymupdf.open(stream=file_bytes, filetype="pdf") as doc:
             for page_idx, page in enumerate(doc, start=1):
                 page_raw = page.get_text() or ""
                 # Clean whitespace per page

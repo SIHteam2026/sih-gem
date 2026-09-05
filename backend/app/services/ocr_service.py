@@ -20,12 +20,9 @@ except Exception:
     Image = None
 
 try:
-    import fitz
+    import pymupdf
 except Exception:
-    try:
-        import pymupdf as fitz
-    except Exception:
-        fitz = None
+    pymupdf = None
 
 try:
     import pytesseract
@@ -64,13 +61,13 @@ def _process_ocr(file_bytes: bytes) -> str:
         )
         # Attempt 2: PyMuPDF pixmap rendering fallback
         try:
-            with fitz.open(stream=file_bytes, filetype="pdf") as doc:
+            with pymupdf.open(stream=file_bytes, filetype="pdf") as doc:
                 for page in doc:
                     pix = page.get_pixmap(dpi=200)
                     img = Image.open(io.BytesIO(pix.tobytes("png")))
                     images.append(img)
-        except Exception as fitz_err:
-            logger.error("Failed to render PDF pages with PyMuPDF: %s", fitz_err)
+        except Exception as pymupdf_err:
+            logger.error("Failed to render PDF pages with PyMuPDF: %s", pymupdf_err)
             raise
 
     extracted_pages: list[str] = []

@@ -12,10 +12,7 @@ from typing import Any, Dict, List, Union
 try:
     import pymupdf
 except ImportError:
-    try:
-        import fitz as pymupdf
-    except ImportError:
-        pymupdf = None
+    pymupdf = None
 
 
 def compute_file_hash(file_bytes: bytes) -> str:

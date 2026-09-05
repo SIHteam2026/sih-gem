@@ -568,10 +568,7 @@ async def _extract_text_from_pdf(file_bytes: bytes, filename: str) -> ExtractedD
         try:
             import pymupdf
         except ImportError:
-            try:
-                import fitz as pymupdf
-            except ImportError:
-                pymupdf = None
+            pymupdf = None
 
         if pymupdf:
             try:
@@ -580,8 +577,8 @@ async def _extract_text_from_pdf(file_bytes: bytes, filename: str) -> ExtractedD
                     p_text = page.get_text()
                     pages.append({"page": i, "text": p_text})
                 doc.close()
-            except Exception as fitz_err:
-                logger.error("PyMuPDF fallback failed for %s: %s", filename, fitz_err)
+            except Exception as pymupdf_err:
+                logger.error("PyMuPDF fallback failed for %s: %s", filename, pymupdf_err)
 
     if not pages:
         try:
