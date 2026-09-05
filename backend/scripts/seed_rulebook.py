@@ -18,10 +18,7 @@ for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-try:
-    from backend.app.services.rag_service import gov_rules_collection, index_rulebook
-except ImportError:
-    from app.services.rag_service import gov_rules_collection, index_rulebook
+from app.services.rag_service import gov_rules_collection, index_rulebook
 
 # Comprehensive sample procurement rules for RAG initialization
 SAMPLE_RULEBOOK_TEXT = """

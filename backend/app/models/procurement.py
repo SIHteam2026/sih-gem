@@ -10,12 +10,9 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 try:
-    from backend.app.models.tender import TenderRequirement
+    from app.models.tender import TenderRequirement
 except ImportError:
-    try:
-        from app.models.tender import TenderRequirement
-    except ImportError:
-        from models.tender import TenderRequirement
+    from models.tender import TenderRequirement
 
 
 class ProcurementStatus(str, Enum):

@@ -18,9 +18,9 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 
 try:
-    from backend.app.ai.prompts import CONTRADICTION_ANALYSIS_PROMPT
-    from backend.app.models.evaluation import ComplianceFinding, ComplianceState
-    from backend.app.services.ai_router import ai_router
+    from app.ai.prompts import CONTRADICTION_ANALYSIS_PROMPT
+    from app.models.evaluation import ComplianceFinding, ComplianceState
+    from app.services.ai_router import ai_router
 except ImportError:
     try:
         from app.ai.prompts import CONTRADICTION_ANALYSIS_PROMPT

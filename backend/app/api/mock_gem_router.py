@@ -20,7 +20,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
 try:
-    from backend.app.models.procurement import (
+    from app.models.procurement import (
         DocumentType,
         IngestionBidderInfo,
         IngestionBidderPackageInput,
@@ -32,7 +32,7 @@ try:
         ProcurementIngestionResult,
         ProcurementStatus,
     )
-    from backend.app.services.ingestion_service import (
+    from app.services.ingestion_service import (
         ProcurementIngestionError,
         ingest_procurement,
     )

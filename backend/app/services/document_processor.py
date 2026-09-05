@@ -4,11 +4,11 @@ import logging
 from typing import Any, Dict, List, Optional
 
 try:
-    from backend.app.db.client import get_supabase_client
-    from backend.app.services.pdf_parser import extract_pages_from_pdf
-    from backend.app.services.document_classifier import classify_document
-    from backend.app.models.procurement import Document, DocumentType
-    from backend.app.services.multi_format_extractor import extract_data_from_file, detect_file_format
+    from app.db.client import get_supabase_client
+    from app.services.pdf_parser import extract_pages_from_pdf
+    from app.services.document_classifier import classify_document
+    from app.models.procurement import Document, DocumentType
+    from app.services.multi_format_extractor import extract_data_from_file, detect_file_format
 except ImportError:
     from app.db.client import get_supabase_client
     from app.services.pdf_parser import extract_pages_from_pdf
@@ -41,7 +41,7 @@ async def process_canonical_document(document_id: str, file_bytes: bytes) -> Doc
             raise ValueError(f"Document with ID {document_id} not found in DB.")
     except Exception as e:
         # Fallback to memory
-        from backend.app.db.client import _IN_MEMORY_DOCUMENTS
+        from app.db.client import _IN_MEMORY_DOCUMENTS
         if document_id in _IN_MEMORY_DOCUMENTS:
             doc_data = _IN_MEMORY_DOCUMENTS[document_id]
         else:
@@ -56,7 +56,7 @@ async def process_canonical_document(document_id: str, file_bytes: bytes) -> Doc
             _IN_MEMORY_DOCUMENTS[document_id]["processing_status"] = "PROCESSING"
     
     try:
-        from backend.app.services.multi_format_extractor import extract_data_from_file, detect_file_format, _safe_check_zip
+        from app.services.multi_format_extractor import extract_data_from_file, detect_file_format, _safe_check_zip
     except ImportError:
         from app.services.multi_format_extractor import extract_data_from_file, detect_file_format, _safe_check_zip
 
@@ -111,7 +111,7 @@ async def process_canonical_document(document_id: str, file_bytes: bytes) -> Doc
             if update_res and update_res.data:
                 return Document(**update_res.data[0])
         except Exception as update_err:
-            from backend.app.db.client import _IN_MEMORY_DOCUMENTS
+            from app.db.client import _IN_MEMORY_DOCUMENTS
             if document_id in _IN_MEMORY_DOCUMENTS:
                 _IN_MEMORY_DOCUMENTS[document_id].update(update_data)
                 return Document(**_IN_MEMORY_DOCUMENTS[document_id])
@@ -158,7 +158,7 @@ async def process_canonical_submission_zip(procurement_id: str, tender_id: str, 
     zip_buffer = io.BytesIO(zip_bytes)
     with zipfile.ZipFile(zip_buffer, "r") as archive:
         try:
-            from backend.app.services.multi_format_extractor import _safe_check_zip
+            from app.services.multi_format_extractor import _safe_check_zip
         except ImportError:
             try:
                 from app.services.multi_format_extractor import _safe_check_zip

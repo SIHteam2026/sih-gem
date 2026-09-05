@@ -30,11 +30,11 @@ for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
 from fastapi import HTTPException, status
 
 try:
-    from backend.app.services.evaluation_service import evaluate_requirements
-    from backend.app.models.evaluation import ComplianceState, RequirementEvaluationResult
-    from backend.app.models.evidence import BidderClaim, EvidenceObservation
-    from backend.app.models.tender_contract import RequirementEvaluationContract
-    from backend.app.services.requirement_mapping_service import map_evidence_to_requirements
+    from app.services.evaluation_service import evaluate_requirements
+    from app.models.evaluation import ComplianceState, RequirementEvaluationResult
+    from app.models.evidence import BidderClaim, EvidenceObservation
+    from app.models.tender_contract import RequirementEvaluationContract
+    from app.services.requirement_mapping_service import map_evidence_to_requirements
 except ImportError:
     try:
         from app.services.evaluation_service import evaluate_requirements
@@ -55,12 +55,12 @@ logger = logging.getLogger(__name__)
 def _load_legacy_dependencies():
     """Import raw-PDF/LLM compatibility dependencies only for the legacy path."""
     try:
-        from backend.app.ai.llm_evaluator_service import evaluate_compliance
-        from backend.app.ai.llm_evidence_service import extract_evidence_with_llm
-        from backend.app.ai.llm_service import analyze_tender_with_llm
-        from backend.app.rules.validators import run_deterministic_checks
-        from backend.app.services.pdf_parser import extract_text_from_pdf
-        from backend.app.services.rag_service import retrieve_relevant_clauses
+        from app.ai.llm_evaluator_service import evaluate_compliance
+        from app.ai.llm_evidence_service import extract_evidence_with_llm
+        from app.ai.llm_service import analyze_tender_with_llm
+        from app.rules.validators import run_deterministic_checks
+        from app.services.pdf_parser import extract_text_from_pdf
+        from app.services.rag_service import retrieve_relevant_clauses
     except ImportError:
         from app.ai.llm_evaluator_service import evaluate_compliance
         from app.ai.llm_evidence_service import extract_evidence_with_llm
@@ -142,10 +142,10 @@ async def evaluate_canonical_submission_by_id(
     - Preserves full provenance replay.
     """
     try:
-        from backend.app.db.client import get_submission_detail_db
-        from backend.app.services.tender_contract_service import get_tender_evaluation_contract
-        from backend.app.services.claim_extraction_service import process_document_evidence
-        from backend.app.models.procurement import Document
+        from app.db.client import get_submission_detail_db
+        from app.services.tender_contract_service import get_tender_evaluation_contract
+        from app.services.claim_extraction_service import process_document_evidence
+        from app.models.procurement import Document
     except ImportError:
         try:
             from app.db.client import get_submission_detail_db
@@ -323,7 +323,7 @@ async def run_master_verification(
      run_deterministic_checks, extract_text_from_pdf, retrieve_relevant_clauses) = _load_legacy_dependencies()
 
     try:
-        from backend.app.services.multi_format_extractor import extract_data_from_file
+        from app.services.multi_format_extractor import extract_data_from_file
     except ImportError:
         try:
             from app.services.multi_format_extractor import extract_data_from_file

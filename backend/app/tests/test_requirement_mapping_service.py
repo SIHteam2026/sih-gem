@@ -2,12 +2,12 @@ import json
 import uuid
 from typing import List
 
-from backend.app.models.tender_contract import RequirementEvaluationContract, EvaluationMode, CanonicalEvaluationField
-from backend.app.models.tender import RequirementCategory
-from backend.app.models.evidence import EvidenceObservation, BidderClaim
-from backend.app.models.procurement import Document
-from backend.app.services.requirement_mapping_service import map_single_item, map_evidence_to_requirements
-from backend.app.services.claim_extraction_service import process_document_evidence
+from app.models.tender_contract import RequirementEvaluationContract, EvaluationMode, CanonicalEvaluationField
+from app.models.tender import RequirementCategory
+from app.models.evidence import EvidenceObservation, BidderClaim
+from app.models.procurement import Document
+from app.services.requirement_mapping_service import map_single_item, map_evidence_to_requirements
+from app.services.claim_extraction_service import process_document_evidence
 
 def create_test_req(req_id: str, field: CanonicalEvaluationField, title: str) -> RequirementEvaluationContract:
     return RequirementEvaluationContract(

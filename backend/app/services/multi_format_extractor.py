@@ -32,39 +32,38 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 try:
-    from backend.app.models.document import ExtractedDocumentContent
+    from app.models.document import ExtractedDocumentContent
 except ImportError:
-    try:
-        from app.models.document import ExtractedDocumentContent
-    except ImportError:
-        from pydantic import BaseModel, Field
+    from pydantic import BaseModel, Field
 
-        class ExtractedDocumentContent(BaseModel):  # type: ignore
-            filename: str
-            file_format: str
-            raw_text: str = ""
-            page_count: int = 1
-            pages: List[dict] = Field(default_factory=list)
-            sections: List[dict] = Field(default_factory=list)
-            tables: List[dict] = Field(default_factory=list)
-            source_locations: List[dict] = Field(default_factory=list)
-            file_size: int = 0
-            metadata: dict = Field(default_factory=dict)
+    class ExtractedDocumentContent(BaseModel):  # type: ignore
+        filename: str
+        file_format: str
+        raw_text: str = ""
+        page_count: int = 1
+        pages: List[dict] = Field(default_factory=list)
+        sections: List[dict] = Field(default_factory=list)
+        tables: List[dict] = Field(default_factory=list)
+        source_locations: List[dict] = Field(default_factory=list)
+        file_size: int = 0
+        metadata: dict = Field(default_factory=dict)
 
-            def __getitem__(self, item: str):
-                return getattr(self, item)
+        def __getitem__(self, item: str):
+            return getattr(self, item)
 
-            def get(self, item: str, default=None):
-                return getattr(self, item, default)
+        def get(self, item: str, default=None):
+            return getattr(self, item, default)
 
-            def __contains__(self, item: str) -> bool:
-                return hasattr(self, item)
 
-            def keys(self):
-                return self.__dict__.keys()
+        def __contains__(self, item: str) -> bool:
+            return hasattr(self, item)
 
-            def __iter__(self):
-                return iter(self.__dict__)
+        def keys(self):
+            return self.__dict__.keys()
+
+        def __iter__(self):
+            return iter(self.__dict__)
+
 
 logger = logging.getLogger(__name__)
 
@@ -551,7 +550,7 @@ async def _extract_text_from_pdf(file_bytes: bytes, filename: str) -> ExtractedD
     """Extracts text and pages from a PDF document using PyMuPDF / pdf_parser."""
     pages = []
     try:
-        from backend.app.services.pdf_parser import extract_pages_from_pdf
+        from app.services.pdf_parser import extract_pages_from_pdf
     except ImportError:
         try:
             from app.services.pdf_parser import extract_pages_from_pdf

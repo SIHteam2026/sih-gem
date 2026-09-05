@@ -8,10 +8,7 @@ import difflib
 import re
 from typing import Optional
 
-try:
-    from backend.app.models.entity import EntityMatchResult
-except ImportError:
-    from app.models.entity import EntityMatchResult
+from app.models.entity import EntityMatchResult
 
 
 def normalize_corporate_name(name: Optional[str]) -> str:

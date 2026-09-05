@@ -19,7 +19,7 @@ class TestProcurementProcessingIntegration(unittest.IsolatedAsyncioTestCase):
         self.tender_id = res.tender_id
 
     async def test_canonical_processing_pipeline(self):
-        from backend.app.db.client import get_procurement_hierarchy
+        from app.db.client import get_procurement_hierarchy
         p_detail = await get_procurement_hierarchy(self.procurement_id)
         print("PROC DETAILS docs:", p_detail.get("documents"))
         print("TENDER docs:", p_detail.get("tender", {}).get("documents"))
@@ -36,7 +36,7 @@ class TestProcurementProcessingIntegration(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(status_res.completed_stages), 4)
         
         # 4. Check evaluations
-        from backend.app.db.client import _IN_MEMORY_EVALUATIONS
+        from app.db.client import _IN_MEMORY_EVALUATIONS
         evaluations = [e for e in _IN_MEMORY_EVALUATIONS if e.get("tender_id") == "CPCL/WQM/2026/RFP-017"]
         
         self.assertEqual(len(evaluations), 2)

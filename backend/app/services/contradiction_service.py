@@ -20,8 +20,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import uuid
 
 try:
-    from backend.app.models.evaluation import ComplianceFinding, ComplianceState
-    from backend.app.models.evidence import (
+    from app.models.evaluation import ComplianceFinding, ComplianceState
+    from app.models.evidence import (
         BidderClaim,
         ContradictionFinding,
         ContradictionType,
@@ -32,13 +32,13 @@ try:
         RequirementReconciliationResult,
         SideBySideComparison,
     )
-    from backend.app.models.tender import TenderRequirement
-    from backend.app.rules.engine import (
+    from app.models.tender import TenderRequirement
+    from app.rules.engine import (
         is_unit_compatible,
         parse_date_value,
         parse_numeric_value,
     )
-    from backend.app.services.entity_resolution import compare_entities, normalize_corporate_name
+    from app.services.entity_resolution import compare_entities, normalize_corporate_name
 except ImportError:
     try:
         from app.models.evaluation import ComplianceFinding, ComplianceState

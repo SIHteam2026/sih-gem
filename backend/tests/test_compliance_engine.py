@@ -3,10 +3,10 @@
 from datetime import date
 import unittest
 
-from backend.app.models.evaluation import ComplianceFinding, ComplianceState
-from backend.app.models.evidence import BidderClaim, EvidenceObservation, ExtractedEvidence
-from backend.app.models.tender import RequirementCategory, TenderRequirement
-from backend.app.rules.engine import (
+from app.models.evaluation import ComplianceFinding, ComplianceState
+from app.models.evidence import BidderClaim, EvidenceObservation, ExtractedEvidence
+from app.models.tender import RequirementCategory, TenderRequirement
+from app.rules.engine import (
     evaluate_applicability_exemption,
     evaluate_date_validity,
     evaluate_experience_window,

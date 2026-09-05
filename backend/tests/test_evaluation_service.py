@@ -4,14 +4,14 @@ from datetime import date
 import unittest
 from unittest.mock import MagicMock
 
-from backend.app.models.evaluation import (
+from app.models.evaluation import (
     ComplianceFinding,
     ComplianceState,
     EvaluationMethod,
     ExternalVerificationStatus,
     RequirementEvaluationResult,
 )
-from backend.app.models.evidence import (
+from app.models.evidence import (
     BidderClaim,
     ContradictionFinding,
     ContradictionType,
@@ -20,7 +20,7 @@ from backend.app.models.evidence import (
     ProvenanceRecord,
     RelationshipClassification,
 )
-from backend.app.models.tender import (
+from app.models.tender import (
     AmbiguitySpec,
     AmbiguityType,
     ApplicabilitySpec,
@@ -28,7 +28,7 @@ from backend.app.models.tender import (
     StructuredCondition,
     TenderRequirement,
 )
-from backend.app.services.evaluation_service import (
+from app.services.evaluation_service import (
     DefaultSemanticEvaluator,
     SemanticEvaluatorProtocol,
     evaluate_requirement,

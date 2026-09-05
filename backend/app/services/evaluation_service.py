@@ -29,14 +29,14 @@ from typing import Any, Dict, List, Optional, Protocol, Tuple, Union
 import uuid
 
 try:
-    from backend.app.models.evaluation import (
+    from app.models.evaluation import (
         ComplianceFinding,
         ComplianceState,
         EvaluationMethod,
         ExternalVerificationStatus,
         RequirementEvaluationResult,
     )
-    from backend.app.models.evidence import (
+    from app.models.evidence import (
         BidderClaim,
         ContradictionFinding,
         ContradictionType,
@@ -46,8 +46,8 @@ try:
         RelationshipClassification,
         SideBySideComparison,
     )
-    from backend.app.models.tender import AmbiguityType, TenderRequirement
-    from backend.app.rules.engine import (
+    from app.models.tender import AmbiguityType, TenderRequirement
+    from app.rules.engine import (
         evaluate_date_validity,
         evaluate_experience_window,
         evaluate_mandatory_evidence,
@@ -57,7 +57,7 @@ try:
         parse_date_value,
         parse_numeric_value,
     )
-    from backend.app.services.contradiction_service import (
+    from app.services.contradiction_service import (
         build_provenance_from_claim,
         build_provenance_from_evidence,
         compare_two_facts,
@@ -169,7 +169,7 @@ class DefaultSemanticEvaluator:
         """Checks if live LLM router is configured and available."""
         if self._router is None:
             try:
-                from backend.app.services.ai_router import ai_router
+                from app.services.ai_router import ai_router
                 self._router = ai_router
             except Exception:
                 return False

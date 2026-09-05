@@ -29,25 +29,25 @@ for p in [str(_repo_root), str(_backend_dir)]:
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from backend.app.models.procurement import DocumentType
-from backend.app.models.evaluation import ComplianceState, EvaluationMethod, ExternalVerificationStatus
-from backend.app.models.evidence import BidderClaim, EvidenceObservation, ProvenanceRecord
-from backend.app.models.tender import RequirementCategory, TenderRequirement
-from backend.app.services.claim_extraction_service import process_document_evidence
-from backend.app.services.contradiction_service import detect_contradictions, reconcile_requirement
-from backend.app.services.evaluation_service import evaluate_requirements
-from backend.app.services.master_pipeline import evaluate_canonical_submission
-from backend.app.services.multi_format_extractor import extract_data_from_file
-from backend.app.services.procurement_processing_service import (
+from app.models.procurement import DocumentType
+from app.models.evaluation import ComplianceState, EvaluationMethod, ExternalVerificationStatus
+from app.models.evidence import BidderClaim, EvidenceObservation, ProvenanceRecord
+from app.models.tender import RequirementCategory, TenderRequirement
+from app.services.claim_extraction_service import process_document_evidence
+from app.services.contradiction_service import detect_contradictions, reconcile_requirement
+from app.services.evaluation_service import evaluate_requirements
+from app.services.master_pipeline import evaluate_canonical_submission
+from app.services.multi_format_extractor import extract_data_from_file
+from app.services.procurement_processing_service import (
     start_procurement_processing,
     get_procurement_processing_status,
 )
-from backend.app.services.tender_contract_service import (
+from app.services.tender_contract_service import (
     build_requirement_evaluation_contract,
     build_tender_evaluation_contract,
 )
-from backend.app.services.tender_service import analyze_tender
-from backend.app.db.client import (
+from app.services.tender_service import analyze_tender
+from app.db.client import (
     _IN_MEMORY_BIDDERS,
     _IN_MEMORY_DOCUMENTS,
     _IN_MEMORY_PROCUREMENTS,
@@ -93,8 +93,8 @@ class OpalReleaseGateHardeningTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ACTIVE", raw_text)
 
         # 2. Extract evidence facts and verify page-aware provenance
-        from backend.app.models.procurement import Document
-        from backend.app.services.claim_extraction_service import extract_document_facts
+        from app.models.procurement import Document
+        from app.services.claim_extraction_service import extract_document_facts
         doc = Document(
             id="doc-byte-test-01",
             procurement_id="proc-byte-01",

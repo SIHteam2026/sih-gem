@@ -21,7 +21,7 @@ for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
         sys.path.insert(0, _p)
 
 try:
-    from backend.app.models.tender import (
+    from app.models.tender import (
         AmbiguitySpec,
         AmbiguityType,
         ApplicabilitySpec,
@@ -31,7 +31,7 @@ try:
         StructuredCondition,
         TenderRequirement,
     )
-    from backend.app.models.tender_contract import (
+    from app.models.tender_contract import (
         AmbiguityContract,
         ApplicabilityContract,
         CanonicalEvaluationField,
@@ -41,7 +41,7 @@ try:
         RequirementEvaluationContract,
         TenderEvaluationContract,
     )
-    from backend.app.db.client import get_tender_by_id_or_ref, get_tender_requirements
+    from app.db.client import get_tender_by_id_or_ref, get_tender_requirements
 except ImportError:
     try:
         from app.models.tender import (

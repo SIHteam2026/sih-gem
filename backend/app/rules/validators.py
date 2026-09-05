@@ -5,12 +5,9 @@ import re
 from typing import Any, Dict, List, Optional
 
 try:
-    from backend.app.rules.debarment import is_entity_blacklisted
+    from app.rules.debarment import is_entity_blacklisted
 except ImportError:
-    try:
-        from app.rules.debarment import is_entity_blacklisted
-    except ImportError:
-        from rules.debarment import is_entity_blacklisted
+    from rules.debarment import is_entity_blacklisted
 
 # Standard Indian Document Regex Patterns
 PAN_REGEX = re.compile(r"\b[A-Z]{5}[0-9]{4}[A-Z]\b", re.IGNORECASE)

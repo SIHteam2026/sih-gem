@@ -18,8 +18,8 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
-from backend.app.api.main import app
-from backend.app.services.multi_format_extractor import (
+from app.api.main import app
+from app.services.multi_format_extractor import (
     detect_file_format,
     extract_data_from_file,
 )
@@ -187,7 +187,7 @@ class TestMultiFormatApiIntegration(unittest.TestCase):
         self.assertIn("docx", doc_formats)
         self.assertIn("txt", doc_formats)
 
-    @patch("backend.app.api.main.run_master_verification", new_callable=AsyncMock)
+    @patch("app.api.main.run_master_verification", new_callable=AsyncMock)
     def test_verify_bid_multi_files(self, mock_run_verification):
         """Tests POST /api/verify/bid with multiple bidder files (PDF + CSV + DOCX)."""
         mock_run_verification.return_value = {
@@ -224,7 +224,7 @@ class TestMultiFormatApiIntegration(unittest.TestCase):
         self.assertIn("turnover.csv", filenames)
         self.assertIn("ca_audit.docx", filenames)
 
-    @patch("backend.app.api.main.run_master_verification", new_callable=AsyncMock)
+    @patch("app.api.main.run_master_verification", new_callable=AsyncMock)
     def test_verify_bid_legacy_single_file(self, mock_run_verification):
         """Tests POST /api/verify/bid backward compatibility with single bidder_file."""
         mock_run_verification.return_value = {

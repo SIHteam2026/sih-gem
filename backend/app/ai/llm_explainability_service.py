@@ -17,8 +17,8 @@ for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
 from fastapi import HTTPException, status
 
 try:
-    from backend.app.ai.prompts import AUDIT_EXPLAINABILITY_PROMPT
-    from backend.app.services.ai_router import ai_router
+    from app.ai.prompts import AUDIT_EXPLAINABILITY_PROMPT
+    from app.services.ai_router import ai_router
 except ImportError:
     try:
         from app.ai.prompts import AUDIT_EXPLAINABILITY_PROMPT

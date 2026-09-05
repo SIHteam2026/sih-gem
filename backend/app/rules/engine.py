@@ -17,9 +17,9 @@ import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 try:
-    from backend.app.models.evaluation import ComplianceFinding, ComplianceState
-    from backend.app.models.evidence import BidderClaim, EvidenceObservation, ExtractedEvidence
-    from backend.app.models.tender import TenderRequirement
+    from app.models.evaluation import ComplianceFinding, ComplianceState
+    from app.models.evidence import BidderClaim, EvidenceObservation, ExtractedEvidence
+    from app.models.tender import TenderRequirement
 except ImportError:
     try:
         from app.models.evaluation import ComplianceFinding, ComplianceState

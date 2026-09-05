@@ -3,8 +3,8 @@
 from datetime import date
 import unittest
 
-from backend.app.models.evaluation import ComplianceFinding, ComplianceState
-from backend.app.models.evidence import (
+from app.models.evaluation import ComplianceFinding, ComplianceState
+from app.models.evidence import (
     BidderClaim,
     ContradictionFinding,
     ContradictionType,
@@ -15,8 +15,8 @@ from backend.app.models.evidence import (
     RequirementReconciliationResult,
     SideBySideComparison,
 )
-from backend.app.models.tender import RequirementCategory, TenderRequirement
-from backend.app.services.contradiction_service import (
+from app.models.tender import RequirementCategory, TenderRequirement
+from app.services.contradiction_service import (
     build_provenance_from_claim,
     build_provenance_from_evidence,
     compare_two_facts,

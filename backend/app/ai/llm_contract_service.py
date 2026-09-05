@@ -19,9 +19,9 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 
 try:
-    from backend.app.ai.prompts import CONTRACT_GENERATION_PROMPT
-    from backend.app.models.contract import LetterOfAward
-    from backend.app.services.ai_router import ai_router
+    from app.ai.prompts import CONTRACT_GENERATION_PROMPT
+    from app.models.contract import LetterOfAward
+    from app.services.ai_router import ai_router
 except ImportError:
     try:
         from app.ai.prompts import CONTRACT_GENERATION_PROMPT

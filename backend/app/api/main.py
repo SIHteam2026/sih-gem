@@ -31,14 +31,14 @@ logger = logging.getLogger(__name__)
 # Local imports – fall back to relative imports if the package layout differs
 # ---------------------------------------------------------------------------
 try:
-    from backend.app.parsers.pdf_extractor import (
+    from app.parsers.pdf_extractor import (
         compute_file_hash,
         extract_text_from_pdf,
     )
-    from backend.app.extractors.gemini_gst import extract_gst_fields
-    from backend.app.api.gov_fetcher import verify_gstin_external
-    from backend.app.rules.gst_rules import evaluate_gst
-    from backend.app.db.client import (
+    from app.extractors.gemini_gst import extract_gst_fields
+    from app.api.gov_fetcher import verify_gstin_external
+    from app.rules.gst_rules import evaluate_gst
+    from app.db.client import (
         get_supabase_client,
         insert_tender_analysis,
         insert_bid_evaluation,
@@ -47,55 +47,55 @@ try:
         save_tender_requirements,
         get_tender_requirements,
     )
-    from backend.app.services.tender_service import (
+    from app.services.tender_service import (
         analyze_tender,
         persist_tender_requirements,
         get_requirements_for_tender,
     )
-    from backend.app.services.tender_contract_service import (
+    from app.services.tender_contract_service import (
         get_tender_evaluation_contract,
         get_single_requirement_contract,
     )
-    from backend.app.models.tender import TenderAnalysisResult, TenderRequirement
-    from backend.app.models.tender_contract import (
+    from app.models.tender import TenderAnalysisResult, TenderRequirement
+    from app.models.tender_contract import (
         TenderEvaluationContract,
         RequirementEvaluationContract,
     )
-    from backend.app.services.pdf_parser import (
+    from app.services.pdf_parser import (
         extract_text_from_pdf as extract_pdf_text_service,
     )
-    from backend.app.services.document_classifier import classify_document
-    from backend.app.models.document import DocumentClassificationResult
-    from backend.app.services.entity_resolution import compare_entities
-    from backend.app.models.entity import EntityMatchResult
-    from backend.app.services.master_pipeline import run_master_verification, evaluate_canonical_submission, evaluate_canonical_submission_by_id
-    from backend.app.services.zip_processor import process_bidder_zip
-    from backend.app.ai.chat_service import answer_procurement_question
-    from backend.app.services.boq_parser import extract_financial_tables
-    from backend.app.ai.llm_report_service import generate_final_report
-    from backend.app.models.report import FinalAuditReport
-    from backend.app.ai.llm_fraud_service import analyze_vendor_risk
-    from backend.app.models.fraud import FraudAnalysisResult
-    from backend.app.ai.llm_translation_service import normalize_document_language
-    from backend.app.models.translation import TranslationResult
-    from backend.app.ai.llm_contract_service import generate_award_contract
-    from backend.app.models.contract import LetterOfAward
-    from backend.app.ai.llm_shortfall_service import generate_shortfall_notice
-    from backend.app.models.shortfall import ShortfallRequest
-    from backend.app.ai.llm_explainability_service import generate_audit_explainability
-    from backend.app.models.orchestrator import (
+    from app.services.document_classifier import classify_document
+    from app.models.document import DocumentClassificationResult
+    from app.services.entity_resolution import compare_entities
+    from app.models.entity import EntityMatchResult
+    from app.services.master_pipeline import run_master_verification, evaluate_canonical_submission, evaluate_canonical_submission_by_id
+    from app.services.zip_processor import process_bidder_zip
+    from app.ai.chat_service import answer_procurement_question
+    from app.services.boq_parser import extract_financial_tables
+    from app.ai.llm_report_service import generate_final_report
+    from app.models.report import FinalAuditReport
+    from app.ai.llm_fraud_service import analyze_vendor_risk
+    from app.models.fraud import FraudAnalysisResult
+    from app.ai.llm_translation_service import normalize_document_language
+    from app.models.translation import TranslationResult
+    from app.ai.llm_contract_service import generate_award_contract
+    from app.models.contract import LetterOfAward
+    from app.ai.llm_shortfall_service import generate_shortfall_notice
+    from app.models.shortfall import ShortfallRequest
+    from app.ai.llm_explainability_service import generate_audit_explainability
+    from app.models.orchestrator import (
         DeterministicCheckSummary,
         LegalCitation,
         MasterEvaluationRequest,
         MasterEvaluationResponse,
         RawDocumentItem,
     )
-    from backend.app.ai.llm_evaluator_service import evaluate_compliance
-    from backend.app.ai.llm_evidence_service import extract_evidence_with_llm
-    from backend.app.ai.llm_financial_service import analyze_financial_bid
-    from backend.app.models.evaluation import ComplianceFinding, ComplianceState
-    from backend.app.models.evidence import ExtractedEvidence
-    from backend.app.models.financial import FinancialEvaluationResult
+    from app.ai.llm_evaluator_service import evaluate_compliance
+    from app.ai.llm_evidence_service import extract_evidence_with_llm
+    from app.ai.llm_financial_service import analyze_financial_bid
+    from app.models.evaluation import ComplianceFinding, ComplianceState
+    from app.models.evidence import ExtractedEvidence
+    from app.models.financial import FinancialEvaluationResult
 except ImportError:
     # Compatibility with a flat‑module layout
     from app.parsers.pdf_extractor import (
@@ -194,18 +194,12 @@ app.add_middleware(
 )
 
 # Register Mock-GeM Adapter Router
-try:
-    from backend.app.api.mock_gem_router import router as mock_gem_router
-except ImportError:
-    from app.api.mock_gem_router import router as mock_gem_router
+from app.api.mock_gem_router import router as mock_gem_router
 
 app.include_router(mock_gem_router)
 
 # Register Procurement Workspace Router
-try:
-    from backend.app.api.procurement_router import router as procurement_router
-except ImportError:
-    from app.api.procurement_router import router as procurement_router
+from app.api.procurement_router import router as procurement_router
 
 app.include_router(procurement_router)
 
@@ -1095,7 +1089,7 @@ async def extract_documents_endpoint(
 ):
     """Extracts raw text, structured tables, and metadata from multiple documents of any format (PDF, CSV, DOCX, XLSX, TXT)."""
     try:
-        from backend.app.services.multi_format_extractor import extract_data_from_file
+        from app.services.multi_format_extractor import extract_data_from_file
     except ImportError:
         try:
             from app.services.multi_format_extractor import extract_data_from_file

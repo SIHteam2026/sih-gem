@@ -27,47 +27,47 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
-from backend.app.models.document import ExtractedDocumentContent
-from backend.app.models.evidence import (
+from app.models.document import ExtractedDocumentContent
+from app.models.evidence import (
     BidderClaim,
     EvidenceObservation,
     ProvenanceRecord,
 )
-from backend.app.models.procurement import (
+from app.models.procurement import (
     Document,
     DocumentType,
 )
-from backend.app.models.tender_contract import (
+from app.models.tender_contract import (
     CanonicalEvaluationField,
     EvaluationMode,
     RequirementCategory,
     RequirementEvaluationContract,
 )
-from backend.app.services.claim_extraction_service import (
+from app.services.claim_extraction_service import (
     extract_document_facts,
     process_document_evidence,
 )
-from backend.app.services.contradiction_service import (
+from app.services.contradiction_service import (
     build_provenance_from_claim,
     build_provenance_from_evidence,
     detect_contradictions,
     reconcile_requirement,
 )
-from backend.app.services.document_processor import (
+from app.services.document_processor import (
     process_canonical_document,
 )
-from backend.app.models.evaluation import ComplianceState
-from backend.app.services.evaluation_service import (
+from app.models.evaluation import ComplianceState
+from app.services.evaluation_service import (
     evaluate_requirement,
     evaluate_requirements,
 )
-from backend.app.services.multi_format_extractor import (
+from app.services.multi_format_extractor import (
     MAX_FILE_SIZE,
     _safe_check_zip,
     detect_file_format,
     extract_data_from_file,
 )
-from backend.app.services.requirement_mapping_service import (
+from app.services.requirement_mapping_service import (
     map_evidence_to_requirements,
 )
 
@@ -240,7 +240,7 @@ class TestMultiFormatCanonicalDocuments(unittest.IsolatedAsyncioTestCase):
     # -----------------------------------------------------------------------
     # 2. Canonical Document Processor Serialization
     # -----------------------------------------------------------------------
-    @patch("backend.app.services.document_processor.get_supabase_client")
+    @patch("app.services.document_processor.get_supabase_client")
     async def test_canonical_document_processor_serializes_normalized_content(self, mock_get_client):
         """process_canonical_document serializes ExtractedDocumentContent to Document.content_text."""
         mock_db = MagicMock()

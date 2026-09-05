@@ -14,8 +14,8 @@ except Exception:
     pymupdf = None
 
 try:
-    from backend.app.services.ocr_service import extract_text_with_ocr
-    from backend.app.services.redaction_service import redact_sensitive_data
+    from app.services.ocr_service import extract_text_with_ocr
+    from app.services.redaction_service import redact_sensitive_data
 except ImportError:
     from app.services.ocr_service import extract_text_with_ocr
     from app.services.redaction_service import redact_sensitive_data

@@ -15,28 +15,28 @@ for _p in [str(_root_dir), str(_backend_dir)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from backend.app.services.ai_router import AIRouter, ai_router
-from backend.app.models.tender import TenderAnalysisResult
-from backend.app.models.evaluation import ComplianceFinding
-from backend.app.models.evidence import ExtractedEvidence
-from backend.app.models.financial import FinancialEvaluationResult
-from backend.app.models.fraud import FraudAnalysisResult
-from backend.app.models.report import FinalAuditReport
-from backend.app.models.contract import LetterOfAward
-from backend.app.models.shortfall import ShortfallRequest
-from backend.app.models.translation import TranslationResult
-from backend.app.ai.llm_service import analyze_tender_with_llm
-from backend.app.ai.llm_evaluator_service import evaluate_compliance
-from backend.app.ai.llm_evidence_service import extract_evidence_with_llm
-from backend.app.ai.llm_financial_service import analyze_financial_bid
-from backend.app.ai.llm_fraud_service import analyze_vendor_risk
-from backend.app.ai.llm_report_service import generate_final_report
-from backend.app.ai.llm_contract_service import generate_award_contract
-from backend.app.ai.llm_shortfall_service import generate_shortfall_notice
-from backend.app.ai.llm_translation_service import normalize_document_language
-from backend.app.ai.llm_explainability_service import generate_audit_explainability
-from backend.app.ai.chat_service import answer_procurement_question
-from backend.app.extractors.gemini_gst import extract_gst_fields, extract_gst_fields_async
+from app.services.ai_router import AIRouter, ai_router
+from app.models.tender import TenderAnalysisResult
+from app.models.evaluation import ComplianceFinding
+from app.models.evidence import ExtractedEvidence
+from app.models.financial import FinancialEvaluationResult
+from app.models.fraud import FraudAnalysisResult
+from app.models.report import FinalAuditReport
+from app.models.contract import LetterOfAward
+from app.models.shortfall import ShortfallRequest
+from app.models.translation import TranslationResult
+from app.ai.llm_service import analyze_tender_with_llm
+from app.ai.llm_evaluator_service import evaluate_compliance
+from app.ai.llm_evidence_service import extract_evidence_with_llm
+from app.ai.llm_financial_service import analyze_financial_bid
+from app.ai.llm_fraud_service import analyze_vendor_risk
+from app.ai.llm_report_service import generate_final_report
+from app.ai.llm_contract_service import generate_award_contract
+from app.ai.llm_shortfall_service import generate_shortfall_notice
+from app.ai.llm_translation_service import normalize_document_language
+from app.ai.llm_explainability_service import generate_audit_explainability
+from app.ai.chat_service import answer_procurement_question
+from app.extractors.gemini_gst import extract_gst_fields, extract_gst_fields_async
 
 
 def test_key_loading():
@@ -106,7 +106,7 @@ async def test_fallback_on_429():
         client.chat.completions.create = AsyncMock(side_effect=mock_create)
         return client
 
-    with patch("backend.app.services.ai_router.AsyncGroq", side_effect=mock_client_init):
+    with patch("app.services.ai_router.AsyncGroq", side_effect=mock_client_init):
         router = AIRouter()
         res = await router.generate_json("Test Prompt")
         assert res == {"result": "success", "attempts": 2}
@@ -134,7 +134,7 @@ async def test_model_not_found_is_not_retried_across_keys():
         )
         return client
 
-    with patch("backend.app.services.ai_router.AsyncGroq", side_effect=mock_client_init):
+    with patch("app.services.ai_router.AsyncGroq", side_effect=mock_client_init):
         router = AIRouter()
         try:
             await router.generate_text("Test Prompt", model="retired-model")
@@ -253,7 +253,7 @@ async def test_services_with_groq_router():
     def json_dump(obj):
         return json.dumps(obj)
 
-    with patch("backend.app.services.ai_router.AsyncGroq", side_effect=mock_client_factory):
+    with patch("app.services.ai_router.AsyncGroq", side_effect=mock_client_factory):
         # 1. Tender Analysis
         t_res = await analyze_tender_with_llm("Tender notice for supply of equipment with GST requirement.")
         assert isinstance(t_res, TenderAnalysisResult)
@@ -313,7 +313,7 @@ async def test_services_with_groq_router():
 @pytest.mark.asyncio
 async def test_gemini_genai_sdk_invocation():
     """Test analyze_tender_with_llm using the supported google-genai SDK."""
-    import backend.app.ai.llm_service as llm_service
+    import app.ai.llm_service as llm_service
     import json
 
     mock_response = MagicMock()

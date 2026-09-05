@@ -18,9 +18,9 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 
 try:
-    from backend.app.ai.prompts import EVIDENCE_EXTRACTION_PROMPT
-    from backend.app.models.evidence import ExtractedEvidence
-    from backend.app.services.ai_router import ai_router
+    from app.ai.prompts import EVIDENCE_EXTRACTION_PROMPT
+    from app.models.evidence import ExtractedEvidence
+    from app.services.ai_router import ai_router
 except ImportError:
     try:
         from app.ai.prompts import EVIDENCE_EXTRACTION_PROMPT

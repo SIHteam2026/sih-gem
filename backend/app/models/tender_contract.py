@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
 try:
-    from backend.app.models.tender import (
+    from app.models.tender import (
         AmbiguitySpec,
         AmbiguityType,
         ApplicabilitySpec,

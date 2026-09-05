@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 
-from backend.app.models.procurement import (
+from app.models.procurement import (
     ProcurementStatus,
     ProcessingStage,
     ProcessingStageResult,
@@ -18,7 +18,7 @@ from backend.app.models.procurement import (
     StartProcessingResponse,
     ProcessingContext,
 )
-from backend.app.db.client import (
+from app.db.client import (
     get_procurement_hierarchy,
     update_procurement_status_db,
     get_procurement_processing_metadata_db,
@@ -61,8 +61,8 @@ class TenderIntelligenceStage(ProcurementProcessingStage):
         try:
             import os
             import asyncio
-            from backend.app.services.tender_service import analyze_tender, save_tender_requirements
-            from backend.app.models.tender_contract import RequirementEvaluationContract
+            from app.services.tender_service import analyze_tender, save_tender_requirements
+            from app.models.tender_contract import RequirementEvaluationContract
             
             procurement = context.procurement
             procurement_id = context.procurement_id
@@ -144,7 +144,7 @@ class DocumentIntelligenceStage(ProcurementProcessingStage):
         try:
             import os
             import asyncio
-            from backend.app.services.document_processor import process_canonical_document
+            from app.services.document_processor import process_canonical_document
             
             procurement = context.procurement
             tenders = procurement.get("tenders", [])
@@ -230,10 +230,10 @@ class EvidenceExtractionStage(ProcurementProcessingStage):
         start_time = time.time()
         logger.info("Executing EvidenceExtractionStage for procurement '%s'", context.procurement_id)
         try:
-            from backend.app.services.claim_extraction_service import process_document_evidence
-            from backend.app.db.client import get_procurement_hierarchy
-            from backend.app.services.tender_contract_service import get_tender_evaluation_contract
-            from backend.app.models.procurement import Document
+            from app.services.claim_extraction_service import process_document_evidence
+            from app.db.client import get_procurement_hierarchy
+            from app.services.tender_contract_service import get_tender_evaluation_contract
+            from app.models.procurement import Document
             
             procurement_id = context.procurement_id
             proc_full = await get_procurement_hierarchy(procurement_id)
@@ -302,9 +302,9 @@ class ComplianceEvaluationStage(ProcurementProcessingStage):
         start_time = time.time()
         logger.info("Executing ComplianceEvaluationStage for procurement '%s'", context.procurement_id)
         try:
-            from backend.app.services.master_pipeline import evaluate_canonical_submission_by_id
-            from backend.app.db.client import get_procurement_hierarchy, insert_bid_evaluation
-            from backend.app.models.evaluation import ComplianceState
+            from app.services.master_pipeline import evaluate_canonical_submission_by_id
+            from app.db.client import get_procurement_hierarchy, insert_bid_evaluation
+            from app.models.evaluation import ComplianceState
             
             procurement_id = context.procurement_id
             proc_full = await get_procurement_hierarchy(procurement_id)
@@ -607,7 +607,7 @@ async def _get_procurement_or_raise(procurement_id: str) -> Dict[str, Any]:
     # Check read service fallback
     try:
         try:
-            from backend.app.services.procurement_read_service import get_procurement_detail_service
+            from app.services.procurement_read_service import get_procurement_detail_service
         except ImportError:
             from app.services.procurement_read_service import get_procurement_detail_service
         detail = await get_procurement_detail_service(procurement_id)

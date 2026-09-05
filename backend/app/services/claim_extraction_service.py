@@ -7,11 +7,11 @@ from datetime import datetime, timezone
 from copy import deepcopy
 
 try:
-    from backend.app.models.procurement import Document, DocumentType
-    from backend.app.models.evidence import BidderClaim, EvidenceObservation
-    from backend.app.rules.engine import parse_numeric_value, parse_date_value
-    from backend.app.ai.llm_evidence_service import extract_evidence_with_llm
-    from backend.app.models.tender_contract import RequirementEvaluationContract
+    from app.models.procurement import Document, DocumentType
+    from app.models.evidence import BidderClaim, EvidenceObservation
+    from app.rules.engine import parse_numeric_value, parse_date_value
+    from app.ai.llm_evidence_service import extract_evidence_with_llm
+    from app.models.tender_contract import RequirementEvaluationContract
 except ImportError:
     from app.models.procurement import Document, DocumentType
     from app.models.evidence import BidderClaim, EvidenceObservation
@@ -596,7 +596,7 @@ def process_document_evidence(doc: Document, tender_context: Optional[Dict[str, 
     
     if requirements:
         try:
-            from backend.app.services.requirement_mapping_service import map_evidence_to_requirements
+            from app.services.requirement_mapping_service import map_evidence_to_requirements
         except ImportError:
             from app.services.requirement_mapping_service import map_evidence_to_requirements
             

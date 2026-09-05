@@ -7,7 +7,7 @@ without invoking an LLM.
 
 import re
 from typing import List
-from backend.app.models.document import DocumentCategory, DocumentClassificationResult
+from app.models.document import DocumentCategory, DocumentClassificationResult
 
 # Regex patterns for key identifiers
 GSTIN_REGEX = re.compile(r"\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}\b")

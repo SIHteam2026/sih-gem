@@ -12,9 +12,9 @@ import zipfile
 from fastapi import HTTPException, status
 
 try:
-    from backend.app.services.pdf_parser import extract_text_from_pdf
-    from backend.app.services.document_classifier import classify_document
-    from backend.app.models.document import DocumentClassificationResult
+    from app.services.pdf_parser import extract_text_from_pdf
+    from app.services.document_classifier import classify_document
+    from app.models.document import DocumentClassificationResult
 except ImportError:
     from app.services.pdf_parser import extract_text_from_pdf
     from app.services.document_classifier import classify_document

@@ -3,12 +3,9 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
 try:
-    from backend.app.models.evaluation import ComplianceState
+    from app.models.evaluation import ComplianceState
 except ImportError:
-    try:
-        from app.models.evaluation import ComplianceState
-    except ImportError:
-        from models.evaluation import ComplianceState
+    from models.evaluation import ComplianceState
 
 
 class ContradictionType(str, Enum):

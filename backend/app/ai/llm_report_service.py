@@ -18,9 +18,9 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 
 try:
-    from backend.app.ai.prompts import EXECUTIVE_REPORT_PROMPT
-    from backend.app.models.report import FinalAuditReport
-    from backend.app.services.ai_router import ai_router
+    from app.ai.prompts import EXECUTIVE_REPORT_PROMPT
+    from app.models.report import FinalAuditReport
+    from app.services.ai_router import ai_router
 except ImportError:
     try:
         from app.ai.prompts import EXECUTIVE_REPORT_PROMPT

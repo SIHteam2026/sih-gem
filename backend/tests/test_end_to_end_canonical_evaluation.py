@@ -50,46 +50,46 @@ for _p in [str(_repo_root), str(_backend_dir)]:
 
 from fastapi.testclient import TestClient
 
-from backend.app.api.main import app
-from backend.app.models.evaluation import (
+from app.api.main import app
+from app.models.evaluation import (
     ComplianceState,
     EvaluationMethod,
     ExternalVerificationStatus,
     RequirementEvaluationResult,
 )
-from backend.app.models.evidence import (
+from app.models.evidence import (
     BidderClaim,
     ContradictionFinding,
     EvidenceObservation,
     ProvenanceRecord,
 )
-from backend.app.models.procurement import Document, DocumentType
-from backend.app.models.tender import (
+from app.models.procurement import Document, DocumentType
+from app.models.tender import (
     AmbiguityType,
     RequirementCategory,
     TenderRequirement,
 )
-from backend.app.models.tender_contract import (
+from app.models.tender_contract import (
     CanonicalEvaluationField,
     EvaluationMode,
     RequirementEvaluationContract,
     TenderEvaluationContract,
 )
-from backend.app.rules.engine import evaluate_experience_window
-from backend.app.services.claim_extraction_service import (
+from app.rules.engine import evaluate_experience_window
+from app.services.claim_extraction_service import (
     extract_document_facts,
     map_facts_to_requirements,
     process_document_evidence,
 )
-from backend.app.services.master_pipeline import (
+from app.services.master_pipeline import (
     evaluate_canonical_submission,
     evaluate_canonical_submission_by_id,
 )
-from backend.app.services.tender_contract_service import (
+from app.services.tender_contract_service import (
     build_requirement_evaluation_contract,
     build_tender_evaluation_contract,
 )
-from backend.app.tests.test_tender_persistence import create_synthetic_cpcl_requirements
+from app.tests.test_tender_persistence import create_synthetic_cpcl_requirements
 
 
 class EndToEndCanonicalEvaluationTests(unittest.TestCase):
@@ -161,8 +161,8 @@ class EndToEndCanonicalEvaluationTests(unittest.TestCase):
         }
 
         async def _run():
-            with patch("backend.app.db.client.get_submission_detail_db", new_callable=AsyncMock) as mock_db, \
-                 patch("backend.app.services.tender_contract_service.get_tender_evaluation_contract", new_callable=AsyncMock) as mock_contract:
+            with patch("app.db.client.get_submission_detail_db", new_callable=AsyncMock) as mock_db, \
+                 patch("app.services.tender_contract_service.get_tender_evaluation_contract", new_callable=AsyncMock) as mock_contract:
                 mock_db.return_value = mock_sub_data
                 mock_contract.return_value = self.tender_contract
 
@@ -635,8 +635,8 @@ class EndToEndCanonicalEvaluationTests(unittest.TestCase):
         self.assertIsNone(data.get("letter_of_award"))
 
         # 2. Canonical submission_id mode
-        with patch("backend.app.db.client.get_submission_detail_db", new_callable=AsyncMock) as mock_sub, \
-             patch("backend.app.services.tender_contract_service.get_tender_evaluation_contract", new_callable=AsyncMock) as mock_contract:
+        with patch("app.db.client.get_submission_detail_db", new_callable=AsyncMock) as mock_sub, \
+             patch("app.services.tender_contract_service.get_tender_evaluation_contract", new_callable=AsyncMock) as mock_contract:
             mock_sub.return_value = {
                 "id": "SUB-TEST-18",
                 "tender_id": self.cpcl_tender_id,

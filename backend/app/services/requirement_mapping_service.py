@@ -3,8 +3,8 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
 try:
-    from backend.app.models.tender_contract import RequirementEvaluationContract, CanonicalEvaluationField
-    from backend.app.models.evidence import BidderClaim, EvidenceObservation
+    from app.models.tender_contract import RequirementEvaluationContract, CanonicalEvaluationField
+    from app.models.evidence import BidderClaim, EvidenceObservation
 except ImportError:
     from app.models.tender_contract import RequirementEvaluationContract, CanonicalEvaluationField
     from app.models.evidence import BidderClaim, EvidenceObservation

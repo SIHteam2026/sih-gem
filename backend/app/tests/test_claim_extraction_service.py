@@ -2,8 +2,8 @@ import json
 import uuid
 from typing import Dict, Any
 
-from backend.app.models.procurement import Document, DocumentType
-from backend.app.services.claim_extraction_service import extract_document_facts, process_document_evidence
+from app.models.procurement import Document, DocumentType
+from app.services.claim_extraction_service import extract_document_facts, process_document_evidence
 
 def create_mock_document(filename: str, doc_type: str, text: str) -> Document:
     page_json = json.dumps([{"page": 1, "text": text}])

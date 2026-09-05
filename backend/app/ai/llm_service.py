@@ -21,8 +21,8 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 
 try:
-    from backend.app.ai.prompts import TENDER_EXTRACTION_PROMPT
-    from backend.app.models.tender import (
+    from app.ai.prompts import TENDER_EXTRACTION_PROMPT
+    from app.models.tender import (
         AmbiguitySpec,
         AmbiguityType,
         ApplicabilitySpec,
@@ -33,7 +33,7 @@ try:
         TenderAnalysisResult,
         TenderRequirement,
     )
-    from backend.app.services.ai_router import ai_router
+    from app.services.ai_router import ai_router
 except ImportError:
     try:
         from app.ai.prompts import TENDER_EXTRACTION_PROMPT

@@ -22,7 +22,7 @@ for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
         sys.path.insert(0, _p)
 
 try:
-    from backend.app.db.client import (
+    from app.db.client import (
         get_procurement_by_source_and_ref,
         get_procurement_hierarchy,
         insert_bid_submission,
@@ -32,7 +32,7 @@ try:
         insert_tender,
         update_procurement_status_db,
     )
-    from backend.app.models.procurement import (
+    from app.models.procurement import (
         Bidder,
         BidSubmission,
         BidSubmissionWithDetails,

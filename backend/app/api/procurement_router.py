@@ -10,7 +10,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Query
 
 try:
-    from backend.app.models.procurement import (
+    from app.models.procurement import (
         BidderSummaryResponse,
         ProcurementDetailResponse,
         ProcurementListResponse,
@@ -19,7 +19,7 @@ try:
         SubmissionSummaryResponse,
         TenderWorkspaceDetailResponse,
     )
-    from backend.app.services import procurement_processing_service, procurement_read_service
+    from app.services import procurement_processing_service, procurement_read_service
 except ImportError:
     from app.models.procurement import (
         BidderSummaryResponse,

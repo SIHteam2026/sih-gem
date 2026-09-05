@@ -21,10 +21,10 @@ for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
 from typing import Any, Dict, List, Optional
 
 try:
-    from backend.app.models.tender import TenderAnalysisResult, TenderRequirement
-    from backend.app.services.pdf_parser import extract_pages_from_pdf, extract_text_from_pdf
-    from backend.app.ai.llm_service import analyze_tender_with_llm
-    from backend.app.db.client import save_tender_requirements, get_tender_requirements
+    from app.models.tender import TenderAnalysisResult, TenderRequirement
+    from app.services.pdf_parser import extract_pages_from_pdf, extract_text_from_pdf
+    from app.ai.llm_service import analyze_tender_with_llm
+    from app.db.client import save_tender_requirements, get_tender_requirements
 except ImportError:
     try:
         from app.models.tender import TenderAnalysisResult, TenderRequirement
@@ -56,7 +56,7 @@ async def analyze_tender(
             applicability, evidence specs, provenance, and ambiguity analysis.
     """
     try:
-        from backend.app.services.multi_format_extractor import extract_data_from_file
+        from app.services.multi_format_extractor import extract_data_from_file
     except ImportError:
         try:
             from app.services.multi_format_extractor import extract_data_from_file
@@ -80,7 +80,7 @@ async def analyze_tender(
         logger.warning("LLM tender extraction unavailable or failed (%s). Checking canonical fallback.", llm_err)
         if is_canonical_cpcl:
             try:
-                from backend.app.tests.test_tender_persistence import create_synthetic_cpcl_requirements
+                from app.tests.test_tender_persistence import create_synthetic_cpcl_requirements
             except ImportError:
                 from app.tests.test_tender_persistence import create_synthetic_cpcl_requirements
             reqs = create_synthetic_cpcl_requirements()
@@ -102,7 +102,7 @@ async def analyze_tender(
     if not result.requirements and is_canonical_cpcl:
         logger.info("Canonical CPCL tender identified; initializing benchmark requirements.")
         try:
-            from backend.app.tests.test_tender_persistence import create_synthetic_cpcl_requirements
+            from app.tests.test_tender_persistence import create_synthetic_cpcl_requirements
         except ImportError:
             from app.tests.test_tender_persistence import create_synthetic_cpcl_requirements
         reqs = create_synthetic_cpcl_requirements()

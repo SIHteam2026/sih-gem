@@ -18,9 +18,9 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 
 try:
-    from backend.app.ai.prompts import FINANCIAL_BOQ_PROMPT
-    from backend.app.models.financial import FinancialEvaluationResult
-    from backend.app.services.ai_router import ai_router
+    from app.ai.prompts import FINANCIAL_BOQ_PROMPT
+    from app.models.financial import FinancialEvaluationResult
+    from app.services.ai_router import ai_router
 except ImportError:
     try:
         from app.ai.prompts import FINANCIAL_BOQ_PROMPT

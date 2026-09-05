@@ -18,9 +18,9 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 
 try:
-    from backend.app.ai.prompts import SHORTFALL_GENERATION_PROMPT
-    from backend.app.models.shortfall import ShortfallRequest
-    from backend.app.services.ai_router import ai_router
+    from app.ai.prompts import SHORTFALL_GENERATION_PROMPT
+    from app.models.shortfall import ShortfallRequest
+    from app.services.ai_router import ai_router
 except ImportError:
     try:
         from app.ai.prompts import SHORTFALL_GENERATION_PROMPT

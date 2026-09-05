@@ -16,12 +16,9 @@ for _p in [str(_root_dir), str(_backend_dir), str(_current_file.parent.parent)]:
         sys.path.insert(0, _p)
 
 try:
-    from backend.app.services.ai_router import ai_router
+    from app.services.ai_router import ai_router
 except ImportError:
-    try:
-        from app.services.ai_router import ai_router
-    except ImportError:
-        from services.ai_router import ai_router
+    from services.ai_router import ai_router
 
 # Load environment variables from nearest .env file
 load_dotenv(find_dotenv(usecwd=True))

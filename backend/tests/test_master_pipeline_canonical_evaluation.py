@@ -2,11 +2,11 @@
 
 import unittest
 
-from backend.app.models.evidence import BidderClaim, EvidenceObservation
-from backend.app.models.evaluation import ComplianceState
-from backend.app.models.tender import RequirementCategory, TenderRequirement
-from backend.app.services.master_pipeline import evaluate_canonical_submission
-from backend.app.services.tender_contract_service import build_requirement_evaluation_contract
+from app.models.evidence import BidderClaim, EvidenceObservation
+from app.models.evaluation import ComplianceState
+from app.models.tender import RequirementCategory, TenderRequirement
+from app.services.master_pipeline import evaluate_canonical_submission
+from app.services.tender_contract_service import build_requirement_evaluation_contract
 
 
 def contract(req_id, category, description, **kwargs):
