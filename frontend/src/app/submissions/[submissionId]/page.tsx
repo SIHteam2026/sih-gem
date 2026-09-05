@@ -142,6 +142,13 @@ export default function SubmissionWorkspacePage() {
     }
   }, [submissionId, submission]);
 
+  // Automatically trigger compliance evaluation once submission data is loaded
+  useEffect(() => {
+    if (submission && !evaluation && !evaluating && !evalError) {
+      runEvaluation();
+    }
+  }, [submission, evaluation, evaluating, evalError, runEvaluation]);
+
   // Merge requirement metadata (title, category, description, is_ambiguous) into findings
   const enrichedResults = useMemo<RequirementEvaluationResult[]>(() => {
     if (!evaluation || !Array.isArray(evaluation.requirement_results)) {
