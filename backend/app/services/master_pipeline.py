@@ -34,20 +34,20 @@ try:
     from backend.app.models.evaluation import ComplianceState, RequirementEvaluationResult
     from backend.app.models.evidence import BidderClaim, EvidenceObservation
     from backend.app.models.tender_contract import RequirementEvaluationContract
-    from backend.app.services.claim_extraction_service import map_facts_to_requirements
+    from backend.app.services.requirement_mapping_service import map_evidence_to_requirements
 except ImportError:
     try:
         from app.services.evaluation_service import evaluate_requirements
         from app.models.evaluation import ComplianceState, RequirementEvaluationResult
         from app.models.evidence import BidderClaim, EvidenceObservation
         from app.models.tender_contract import RequirementEvaluationContract
-        from app.services.claim_extraction_service import map_facts_to_requirements
+        from app.services.requirement_mapping_service import map_evidence_to_requirements
     except ImportError:
         from services.evaluation_service import evaluate_requirements
         from models.evaluation import ComplianceState, RequirementEvaluationResult
         from models.evidence import BidderClaim, EvidenceObservation
         from models.tender_contract import RequirementEvaluationContract
-        from services.claim_extraction_service import map_facts_to_requirements
+        from services.requirement_mapping_service import map_evidence_to_requirements
 
 logger = logging.getLogger(__name__)
 
@@ -89,9 +89,8 @@ def evaluate_canonical_submission(
     documents.  It only groups canonical facts and delegates every requirement
     to the tiered evaluator.
     """
-    mapped = map_facts_to_requirements({"claims": claims, "observations": observations}, requirement_contracts)
-    claims = mapped["claims"]
-    observations = mapped["observations"]
+    claims = map_evidence_to_requirements(claims, requirement_contracts)
+    observations = map_evidence_to_requirements(observations, requirement_contracts)
     claim_map: Dict[str, List[BidderClaim]] = {}
     evidence_map: Dict[str, List[EvidenceObservation]] = {}
     for claim in claims:
@@ -123,7 +122,7 @@ def evaluate_canonical_submission(
         "review_required_count": review_count,
         "unresolved_contradiction_count": contradictions,
         "unverified_count": state_counts.get(ComplianceState.UNVERIFIED.value, 0),
-        "unmapped_facts": mapped["unmapped"],
+        "unmapped_facts": [],
         "evaluation_metadata": {"executed_at": datetime.now(timezone.utc).isoformat(), "decision_authority": "HUMAN_PROCUREMENT_OFFICER"},
     }
 

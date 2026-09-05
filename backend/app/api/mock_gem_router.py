@@ -165,7 +165,15 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
                         mime_type="application/pdf",
                         file_size=510000,
                         storage_path="mock_storage/submissions/APS_MII.pdf",
-                        content_text="Make in India Self-Declaration:\nWe hereby declare that the local content in our offered sensor units is 14.0% local content.",
+                        content_text="Make in India Self-Declaration:\nWe hereby declare that our offered sensor units contain 27.0% local content.",
+                    ),
+                    IngestionDocumentInput(
+                        filename="AquaPure_MII_Auditor_Certificate.pdf",
+                        document_type=DocumentType.OTHER,
+                        mime_type="application/pdf",
+                        file_size=510000,
+                        storage_path="mock_storage/submissions/APS_MII_Cert.pdf",
+                        content_text="CA Auditor Certificate:\nUpon audit, the local content for AquaPure is verified as 14.0%.",
                     ),
                     IngestionDocumentInput(
                         filename="AquaPure_Financial_Turnover_Audited.pdf",

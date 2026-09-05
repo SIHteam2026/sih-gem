@@ -69,6 +69,8 @@ async def insert_tender_analysis(tender_id: str, analysis_data: Dict[str, Any]) 
     except Exception as db_err:
         logger.warning("Failed to persist tender analysis to Supabase (non-blocking): %s", db_err)
 
+_IN_MEMORY_EVALUATIONS: List[Dict[str, Any]] = []
+
 async def insert_bid_evaluation(
     tender_id: str,
     bidder_name: str | None = None,
@@ -90,6 +92,9 @@ async def insert_bid_evaluation(
             "evaluation_data": eval_payload,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
+        
+        _IN_MEMORY_EVALUATIONS.append(record)
+        
         try:
             await asyncio.to_thread(
                 lambda: db_client.table("bidder_evaluations").insert(record).execute()
@@ -110,22 +115,21 @@ async def get_bid_evaluations(tender_id: str | None = None, limit: int = 50) -> 
         query = db_client.table("bidder_evaluations").select("*")
         if tender_id:
             query = query.eq("tender_id", tender_id)
-        query = query.order("created_at", desc=True).limit(limit)
+        
+        try:
+            res = await asyncio.to_thread(lambda: query.order("created_at", desc=True).limit(limit).execute())
+        except Exception:
+            query = db_client.table("bid_evaluations").select("*")
+            if tender_id:
+                query = query.eq("tender_id", tender_id)
+            res = await asyncio.to_thread(lambda: query.order("created_at", desc=True).limit(limit).execute())
 
-        response = await asyncio.to_thread(lambda: query.execute())
-        if response and hasattr(response, "data") and response.data:
-            return response.data
-
-        # Fallback to bid_evaluations table
-        query2 = db_client.table("bid_evaluations").select("*")
-        if tender_id:
-            query2 = query2.eq("tender_id", tender_id)
-        query2 = query2.order("created_at", desc=True).limit(limit)
-        response2 = await asyncio.to_thread(lambda: query2.execute())
-        return response2.data if response2 and hasattr(response2, "data") else []
+        if res and hasattr(res, "data") and res.data:
+            return res.data
     except Exception as exc:
         logger.warning("Failed to fetch bid evaluations: %s", exc)
-        return []
+        
+    return [e for e in _IN_MEMORY_EVALUATIONS if not tender_id or e.get("tender_id") == tender_id]
 
 
 

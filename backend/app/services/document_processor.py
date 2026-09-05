@@ -31,19 +31,29 @@ async def process_canonical_document(document_id: str, file_bytes: bytes) -> Doc
     """
     db_client = get_supabase_client()
     
-    # 1. Locate the canonical document
-    doc_res = await asyncio.to_thread(
-        lambda: db_client.table("documents").select("*").eq("id", document_id).execute()
-    )
-    if not doc_res or not doc_res.data:
-        raise ValueError(f"Document with ID {document_id} not found.")
-        
-    doc_data = doc_res.data[0]
+    try:
+        doc_res = await asyncio.to_thread(
+            lambda: db_client.table("documents").select("*").eq("id", document_id).execute()
+        )
+        if doc_res and hasattr(doc_res, "data") and doc_res.data:
+            doc_data = doc_res.data[0]
+        else:
+            raise ValueError(f"Document with ID {document_id} not found in DB.")
+    except Exception as e:
+        # Fallback to memory
+        from backend.app.db.client import _IN_MEMORY_DOCUMENTS
+        if document_id in _IN_MEMORY_DOCUMENTS:
+            doc_data = _IN_MEMORY_DOCUMENTS[document_id]
+        else:
+            raise ValueError(f"Document with ID {document_id} not found in memory fallback: {e}")
     
-    # Set status to PROCESSING
-    await asyncio.to_thread(
-        lambda: db_client.table("documents").update({"processing_status": "PROCESSING"}).eq("id", document_id).execute()
-    )
+    try:
+        await asyncio.to_thread(
+            lambda: db_client.table("documents").update({"processing_status": "PROCESSING"}).eq("id", document_id).execute()
+        )
+    except Exception:
+        if document_id in _IN_MEMORY_DOCUMENTS:
+            _IN_MEMORY_DOCUMENTS[document_id]["processing_status"] = "PROCESSING"
     
     try:
         from backend.app.services.multi_format_extractor import extract_data_from_file, detect_file_format, _safe_check_zip
@@ -94,21 +104,33 @@ async def process_canonical_document(document_id: str, file_bytes: bytes) -> Doc
         }
         
         # Update the document in Supabase
-        update_res = await asyncio.to_thread(
-            lambda: db_client.table("documents").update(update_data).eq("id", document_id).execute()
-        )
-        
-        if update_res and update_res.data:
-            return Document(**update_res.data[0])
-            
+        try:
+            update_res = await asyncio.to_thread(
+                lambda: db_client.table("documents").update(update_data).eq("id", document_id).execute()
+            )
+            if update_res and update_res.data:
+                return Document(**update_res.data[0])
+        except Exception as update_err:
+            from backend.app.db.client import _IN_MEMORY_DOCUMENTS
+            if document_id in _IN_MEMORY_DOCUMENTS:
+                _IN_MEMORY_DOCUMENTS[document_id].update(update_data)
+                return Document(**_IN_MEMORY_DOCUMENTS[document_id])
+                
         return Document(**{**doc_data, **update_data})
 
     except Exception as e:
         logger.error("Failed to process document %s: %s", document_id, e)
-        # Update processing status to FAILED
-        await asyncio.to_thread(
-            lambda: db_client.table("documents").update({"processing_status": "FAILED"}).eq("id", document_id).execute()
-        )
+        update_payload = {
+            "content_text": json.dumps([]),
+            "processing_status": "FAILED"
+        }
+        try:
+            await asyncio.to_thread(
+                lambda: db_client.table("documents").update(update_payload).eq("id", document_id).execute()
+            )
+        except Exception:
+            if document_id in _IN_MEMORY_DOCUMENTS:
+                _IN_MEMORY_DOCUMENTS[document_id].update(update_payload)
         raise
 
 
