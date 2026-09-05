@@ -1,0 +1,87 @@
+{
+  "source_system": "MOCK_GEM",
+  "external_reference": "DEMO/CPCL/WQM/2026/017",
+  "procurement": {
+    "title": "Turnkey Procurement of Industrial Water Quality Monitoring Sensor Network",
+    "organization": "Chennai Petroleum Corporation Limited (CPCL)"
+  },
+  "tender": {
+    "tender_reference": "CPCL/WQM/2026/RFP-017",
+    "title": "RFP for Industrial Water Quality Monitoring Sensor Network",
+    "description": "Turnkey procurement of online water quality sensors with mandatory GST, >=20% Local Content, >=Rs 10 Cr Turnover, and OEM MAF.",
+    "estimated_value": 45000000.0,
+    "category": "INDUSTRIAL_EQUIPMENT",
+    "documents": [
+      {
+        "filename": "RFP_Specification_WQM_2026_017.pdf",
+        "document_type": "TENDER_SPECIFICATION",
+        "mime_type": "application/pdf"
+      }
+    ]
+  },
+  "bidders": [
+    {
+      "bidder": {
+        "legal_name": "HydroTech Analytics India Pvt Ltd",
+        "gstin": "33AAACH123411Z9",
+        "pan": "AAACH12341",
+        "email": "bids@hydrotech.co.in"
+      },
+      "submission": {
+        "external_submission_reference": "GEM-SUB-HTA-2026-017",
+        "status": "SUBMITTED"
+      },
+      "documents": [
+        {
+          "filename": "HydroTech_GST_Registration.pdf",
+          "document_type": "GST_CERTIFICATE",
+          "mime_type": "application/pdf"
+        },
+        {
+          "filename": "HydroTech_MII_LocalContent_Declaration.pdf",
+          "document_type": "LOCAL_CONTENT_CERTIFICATE",
+          "mime_type": "application/pdf"
+        },
+        {
+          "filename": "HydroTech_CA_Turnover_Certificate.pdf",
+          "document_type": "TURNOVER_CERTIFICATE",
+          "mime_type": "application/pdf"
+        },
+        {
+          "filename": "HydroTech_OEM_Authorization_WQM.pdf",
+          "document_type": "OEM_AUTHORIZATION",
+          "mime_type": "application/pdf"
+        }
+      ]
+    },
+    {
+      "bidder": {
+        "legal_name": "AquaPure Monitoring Systems & Instrumentation Ltd",
+        "gstin": "27BBBCA987622Z4",
+        "pan": "BBBCA98762",
+        "email": "tenders@aquapure.in"
+      },
+      "submission": {
+        "external_submission_reference": "GEM-SUB-APS-2026-017",
+        "status": "SUBMITTED"
+      },
+      "documents": [
+        {
+          "filename": "AquaPure_GST_Registration.pdf",
+          "document_type": "GST_CERTIFICATE",
+          "mime_type": "application/pdf"
+        },
+        {
+          "filename": "AquaPure_MII_Declaration.pdf",
+          "document_type": "LOCAL_CONTENT_CERTIFICATE",
+          "mime_type": "application/pdf"
+        },
+        {
+          "filename": "AquaPure_Financial_Turnover_Audited.pdf",
+          "document_type": "TURNOVER_CERTIFICATE",
+          "mime_type": "application/pdf"
+        }
+      ]
+    }
+  ]
+}
