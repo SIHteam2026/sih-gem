@@ -68,16 +68,22 @@ except ImportError:
             ai_router = None  # type: ignore
 
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
 except ImportError:
     genai = None  # type: ignore
+    types = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
-# Initialize Gemini API if key is present
+# Initialize Gemini API client if key is present
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+_genai_client = None
 if genai and GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    try:
+        _genai_client = genai.Client(api_key=GEMINI_API_KEY)
+    except Exception as e:
+        logger.warning("Failed to initialize google-genai client: %s", e)
 
 
 def _normalize_category(cat: str) -> RequirementCategory:
@@ -352,23 +358,30 @@ async def analyze_tender_with_llm(
 
     # Attempt 1: Gemini API
     if genai and GEMINI_API_KEY:
-        generation_config = {
-            "response_mime_type": "application/json",
-            "temperature": 0.1,
-        }
+        client = _genai_client or genai.Client(api_key=GEMINI_API_KEY)
+        config = (
+            types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.1,
+            )
+            if types
+            else {
+                "response_mime_type": "application/json",
+                "temperature": 0.1,
+            }
+        )
         candidate_models = [
             "gemini-2.5-flash",
         ]
 
         for model_name in candidate_models:
             try:
-                model = genai.GenerativeModel(
-                    model_name=model_name,
-                    generation_config=generation_config,
-                )
-
                 response = await asyncio.wait_for(
-                    model.generate_content_async(prompt),
+                    client.aio.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=config,
+                    ),
                     timeout=4.0,
                 )
                 if not response or not response.text:

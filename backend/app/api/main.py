@@ -215,6 +215,7 @@ app.include_router(procurement_router)
 # Health check
 # ---------------------------------------------------------------------------
 @app.get("/health")
+@app.get("/api/health")
 def health_check():
     return {"status": "Engine Running", "layer": "Evidence Engine"}
 

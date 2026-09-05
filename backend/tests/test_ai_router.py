@@ -310,12 +310,47 @@ async def test_services_with_groq_router():
         print("[PASS] All 12 evaluation and AI services successfully tested with Groq router!")
 
 
+@pytest.mark.asyncio
+async def test_gemini_genai_sdk_invocation():
+    """Test analyze_tender_with_llm using the supported google-genai SDK."""
+    import backend.app.ai.llm_service as llm_service
+    import json
+
+    mock_response = MagicMock()
+    mock_response.text = json.dumps({
+        "tender_id": "TENDER-GENAI-2026",
+        "requirements": [
+            {
+                "requirement_id": "REQ-001",
+                "category": "LOCAL_CONTENT_MII",
+                "description": "Minimum 50% local content required",
+                "mandatory": True,
+            }
+        ],
+    })
+
+    mock_client = MagicMock()
+    mock_client.aio = MagicMock()
+    mock_client.aio.models = MagicMock()
+    mock_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
+
+    with patch.object(llm_service, "genai", MagicMock()), \
+         patch.object(llm_service, "GEMINI_API_KEY", "test-gemini-key"), \
+         patch.object(llm_service, "_genai_client", mock_client):
+        result = await llm_service.analyze_tender_with_llm("Sample tender text for MII requirement")
+        assert isinstance(result, TenderAnalysisResult)
+        assert result.tender_id == "TENDER-GENAI-2026"
+        assert len(result.requirements) == 1
+        assert result.requirements[0].category.value == "LOCAL_CONTENT_MII"
+
+
 def main():
     test_key_loading()
     asyncio.run(test_round_robin_indices())
     asyncio.run(test_fallback_on_429())
     asyncio.run(test_model_not_found_is_not_retried_across_keys())
     asyncio.run(test_services_with_groq_router())
+    asyncio.run(test_gemini_genai_sdk_invocation())
     print("\n>>> ALL TESTS PASSED SUCCESSFULLY! <<<")
 
 
