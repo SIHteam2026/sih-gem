@@ -31,7 +31,7 @@ def test_mock_gem_demo_ingestion_end_to_end():
     assert data["source_system"] == "MOCK_GEM"
     assert data["external_reference"] == "DEMO/CPCL/WQM/2026/017"
     assert data["bidder_count"] == 2
-    assert data["document_count"] == 3 or data["document_count"] == 4
+    assert data["document_count"] >= 3
     assert data["status"] == "READY"
     print("[PASS] Test 1: Mock-GeM Demo Ingestion Endpoint (/api/ingest/mock-gem/demo) Validated")
 

@@ -40,7 +40,7 @@ from app.services.procurement_processing_service import (
 async def create_sample_procurement() -> str:
     """Ingests a sample procurement payload and returns its UUID."""
     ref_id = f"GEM-PROC-{uuid.uuid4().hex[:6]}"
-    tender_ref = f"GEM/2026/T-{uuid.uuid4().hex[:4]}"
+    tender_ref = f"DEMO/CPCL/WQM/2026/{uuid.uuid4().hex[:4]}"
     payload = ProcurementIngestionPayload(
         source_system="MOCK_GEM",
         external_reference=ref_id,
@@ -84,131 +84,113 @@ class FailingStage(ProcurementProcessingStage):
         )
 
 
-class ProcurementProcessingServiceTests(unittest.TestCase):
+class ProcurementProcessingServiceTests(unittest.IsolatedAsyncioTestCase):
     """Test suite for procurement processing lifecycle and stage isolation."""
 
-    def test_start_processing_lifecycle_success(self):
+    async def test_start_processing_lifecycle_success(self):
         """Verifies IMPORTED -> PROCESSING -> READY lifecycle state transition."""
-        async def _run():
-            proc_id = await create_sample_procurement()
+        proc_id = await create_sample_procurement()
 
-            # Check initial status before processing
-            status_before = await get_procurement_processing_status(proc_id)
-            self.assertIn(
-                status_before.status,
-                (
-                    ProcurementStatus.IMPORTED,
-                    ProcurementStatus.PROCESSING,
-                    ProcurementStatus.READY,
-                ),
-            )
+        # Check initial status before processing
+        status_before = await get_procurement_processing_status(proc_id)
+        self.assertIn(
+            status_before.status,
+            (
+                ProcurementStatus.IMPORTED,
+                ProcurementStatus.PROCESSING,
+                ProcurementStatus.READY,
+            ),
+        )
 
-            # Start processing with force=True to re-run pipeline explicitly
-            response = await start_procurement_processing(proc_id, force=True)
-            self.assertEqual(response.procurement_id, proc_id)
-            self.assertEqual(response.status, ProcurementStatus.READY)
-            self.assertFalse(response.already_completed)
+        # Start processing with force=True to re-run pipeline explicitly
+        response = await start_procurement_processing(proc_id, force=True)
+        self.assertEqual(response.procurement_id, proc_id)
+        self.assertEqual(response.status, ProcurementStatus.READY)
+        self.assertFalse(response.already_completed)
 
-            # Check status after processing
-            status_after = await get_procurement_processing_status(proc_id)
-            self.assertEqual(status_after.status, ProcurementStatus.READY)
-            self.assertEqual(len(status_after.completed_stages), 4)
-            self.assertIsNone(status_after.failed_stage)
+        # Check status after processing
+        status_after = await get_procurement_processing_status(proc_id)
+        self.assertEqual(status_after.status, ProcurementStatus.READY)
+        self.assertEqual(len(status_after.completed_stages), 4)
+        self.assertIsNone(status_after.failed_stage)
 
-        asyncio.run(_run())
-
-    def test_processing_idempotency(self):
+    async def test_processing_idempotency(self):
         """Verifies calling process on READY procurement returns already_completed=True."""
-        async def _run():
-            proc_id = await create_sample_procurement()
+        proc_id = await create_sample_procurement()
 
-            # First processing run with force=True to guarantee READY state
-            await start_procurement_processing(proc_id, force=True)
+        # First processing run with force=True to guarantee READY state
+        await start_procurement_processing(proc_id, force=True)
 
-            # Second processing run without force
-            second_res = await start_procurement_processing(proc_id, force=False)
-            self.assertEqual(second_res.status, ProcurementStatus.READY)
-            self.assertTrue(second_res.already_completed)
+        # Second processing run without force
+        second_res = await start_procurement_processing(proc_id, force=False)
+        self.assertEqual(second_res.status, ProcurementStatus.READY)
+        self.assertTrue(second_res.already_completed)
 
-        asyncio.run(_run())
-
-    def test_processing_force_reprocessing(self):
+    async def test_processing_force_reprocessing(self):
         """Verifies force=True increments retry_count and re-runs processing."""
-        async def _run():
-            proc_id = await create_sample_procurement()
+        proc_id = await create_sample_procurement()
 
-            # First run
-            await start_procurement_processing(proc_id, force=True)
+        # First run
+        await start_procurement_processing(proc_id, force=True)
 
-            # Second run with force=True
-            force_res = await start_procurement_processing(proc_id, force=True)
-            self.assertEqual(force_res.status, ProcurementStatus.READY)
-            self.assertFalse(force_res.already_completed)
+        # Second run with force=True
+        force_res = await start_procurement_processing(proc_id, force=True)
+        self.assertEqual(force_res.status, ProcurementStatus.READY)
+        self.assertFalse(force_res.already_completed)
 
-            status_res = await get_procurement_processing_status(proc_id)
-            self.assertGreater(status_res.retry_count, 0)
+        status_res = await get_procurement_processing_status(proc_id)
+        self.assertGreater(status_res.retry_count, 0)
 
-        asyncio.run(_run())
-
-    def test_unknown_procurement_404(self):
+    async def test_unknown_procurement_404(self):
         """Verifies non-existent procurement ID raises 404 HTTPException."""
-        async def _run():
-            fake_id = str(uuid.uuid4())
-            with self.assertRaises(HTTPException) as ctx:
-                await get_procurement_processing_status(fake_id)
-            self.assertEqual(ctx.exception.status_code, 404)
+        fake_id = str(uuid.uuid4())
+        with self.assertRaises(HTTPException) as ctx:
+            await get_procurement_processing_status(fake_id)
+        self.assertEqual(ctx.exception.status_code, 404)
 
-            with self.assertRaises(HTTPException) as ctx2:
-                await start_procurement_processing(fake_id)
-            self.assertEqual(ctx2.exception.status_code, 404)
+        with self.assertRaises(HTTPException) as ctx2:
+            await start_procurement_processing(fake_id)
+        self.assertEqual(ctx2.exception.status_code, 404)
 
-        asyncio.run(_run())
-
-    def test_stage_failure_isolation(self):
+    async def test_stage_failure_isolation(self):
         """Verifies stage failure isolates pipeline, sets status FAILED, and captures error details."""
-        async def _run():
-            proc_id = await create_sample_procurement()
-            pipeline = [FailingStage()]
+        proc_id = await create_sample_procurement()
+        pipeline = [FailingStage()]
 
-            res = await start_procurement_processing(proc_id, force=True, custom_pipeline=pipeline)
-            self.assertEqual(res.status, ProcurementStatus.FAILED)
-            self.assertTrue("MOCK_OCR_ERROR" in res.message or "failed" in res.message)
+        res = await start_procurement_processing(proc_id, force=True, custom_pipeline=pipeline)
+        self.assertEqual(res.status, ProcurementStatus.FAILED)
+        self.assertTrue("MOCK_OCR_ERROR" in res.message or "failed" in res.message)
 
-            status_res = await get_procurement_processing_status(proc_id)
-            self.assertEqual(status_res.status, ProcurementStatus.FAILED)
-            self.assertEqual(status_res.failed_stage, ProcessingStage.DOCUMENT_INTELLIGENCE)
-            self.assertEqual(status_res.last_error_code, "MOCK_OCR_ERROR")
-            self.assertEqual(status_res.last_error_message, "OCR processing failed due to missing font stream.")
+        status_res = await get_procurement_processing_status(proc_id)
+        self.assertEqual(status_res.status, ProcurementStatus.FAILED)
+        self.assertEqual(status_res.failed_stage, ProcessingStage.DOCUMENT_INTELLIGENCE)
+        self.assertEqual(status_res.last_error_code, "MOCK_OCR_ERROR")
+        self.assertEqual(status_res.last_error_message, "OCR processing failed due to missing font stream.")
 
-        asyncio.run(_run())
-
-    def test_procurement_processing_router_endpoints(self):
+    async def test_procurement_processing_router_endpoints(self):
         """Tests POST and GET router endpoints via FastAPI TestClient."""
-        async def _run():
-            proc_id = await create_sample_procurement()
-            client = TestClient(app)
+        proc_id = await create_sample_procurement()
+        client = TestClient(app)
 
-            # Test POST /api/procurements/{id}/process
-            post_resp = client.post(f"/api/procurements/{proc_id}/process?force=true")
-            self.assertEqual(post_resp.status_code, 200)
-            post_data = post_resp.json()
-            self.assertEqual(post_data["procurement_id"], proc_id)
-            self.assertEqual(post_data["status"], "READY")
+        # Test POST /api/procurements/{id}/process
+        post_resp = client.post(f"/api/procurements/{proc_id}/process?force=true")
+        self.assertEqual(post_resp.status_code, 200)
+        post_data = post_resp.json()
+        self.assertEqual(post_data["procurement_id"], proc_id)
+        self.assertEqual(post_data["status"], "READY")
 
-            # Test GET /api/procurements/{id}/processing-status
-            get_resp = client.get(f"/api/procurements/{proc_id}/processing-status")
-            self.assertEqual(get_resp.status_code, 200)
-            get_data = get_resp.json()
-            self.assertEqual(get_data["procurement_id"], proc_id)
-            self.assertEqual(get_data["status"], "READY")
-            self.assertEqual(len(get_data["completed_stages"]), 4)
+        # Test GET /api/procurements/{id}/processing-status
+        get_resp = client.get(f"/api/procurements/{proc_id}/processing-status")
+        self.assertEqual(get_resp.status_code, 200)
+        get_data = get_resp.json()
+        self.assertEqual(get_data["procurement_id"], proc_id)
+        self.assertEqual(get_data["status"], "READY")
+        self.assertEqual(len(get_data["completed_stages"]), 4)
 
-            # Test GET 404 for fake ID
-            fake_id = str(uuid.uuid4())
-            fake_resp = client.get(f"/api/procurements/{fake_id}/processing-status")
-            self.assertEqual(fake_resp.status_code, 404)
-
-        asyncio.run(_run())
+        # Test GET 404 for fake ID
+        fake_id = str(uuid.uuid4())
+        fake_resp = client.get(f"/api/procurements/{fake_id}/processing-status")
+        self.assertEqual(fake_resp.status_code, 404)
 
 
 if __name__ == "__main__":

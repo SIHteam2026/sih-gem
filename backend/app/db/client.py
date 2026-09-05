@@ -45,6 +45,13 @@ def get_supabase_client() -> Client:
     return supabase
 
 
+def get_persistence_mode() -> str:
+    """Returns 'REAL_PERSISTENT_MODE' if Supabase client is connected, else 'OFFLINE_DEMO_MODE'."""
+    if supabase is not None:
+        return "REAL_PERSISTENT_MODE"
+    return "OFFLINE_DEMO_MODE"
+
+
 async def insert_tender_analysis(tender_id: str, analysis_data: Dict[str, Any]) -> None:
     """Inserts a tender analysis record into the Supabase tender_analyses table.
 
@@ -1083,12 +1090,14 @@ async def get_tender_requirements(tender_id_or_ref: str) -> List[Dict[str, Any]]
                         return analysis["requirements"]
             except Exception as snap_err:
                 logger.debug("tender_analyses snapshot query failed: %s", snap_err)
-
     except Exception as exc:
         logger.warning("Error fetching requirements for tender '%s': %s", tender_id_or_ref, exc)
 
-    # 4. Canonical fallback for demo CPCL tender
-    return get_canonical_cpcl_requirements(resolved_tender_id or str(tender_id_or_ref))
+    # 4. Canonical fallback ONLY for demo CPCL tender
+    ref_str = str(resolved_tender_id or tender_id_or_ref or "").upper()
+    if "CPCL" in ref_str or "WQM" in ref_str or "017" in ref_str:
+        return get_canonical_cpcl_requirements(resolved_tender_id or str(tender_id_or_ref))
+    return []
 
 
 async def list_procurements(limit: int = 50, offset: int = 0) -> Dict[str, Any]:

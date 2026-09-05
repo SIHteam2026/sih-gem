@@ -333,7 +333,7 @@ def test_provenance_and_ambiguity_radar():
     print("  [PASS] Provenance and Ambiguity Radar contracts verified.")
 
 
-async def test_async_contract_retrieval_service():
+def test_async_contract_retrieval_service():
     """Tests async retrieval helpers for full tender contracts and single requirement contracts."""
     print("Test 6: Testing Async Contract Retrieval Service...")
     reqs = create_synthetic_cpcl_requirements()

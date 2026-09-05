@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
+import pytest
 
 # Ensure paths
 _current_file = Path(__file__).resolve()
@@ -54,6 +55,7 @@ def test_key_loading():
     print("[PASS] test_key_loading passed")
 
 
+@pytest.mark.asyncio
 async def test_round_robin_indices():
     os.environ["GROQ_KEY_1"] = "k1"
     os.environ["GROQ_KEY_2"] = "k2"
@@ -74,6 +76,7 @@ async def test_round_robin_indices():
     print("[PASS] test_round_robin_indices passed")
 
 
+@pytest.mark.asyncio
 async def test_fallback_on_429():
     os.environ["GROQ_KEY_1"] = "key-A"
     os.environ["GROQ_KEY_2"] = "key-B"
@@ -111,6 +114,7 @@ async def test_fallback_on_429():
         print("[PASS] test_fallback_on_429 passed")
 
 
+@pytest.mark.asyncio
 async def test_model_not_found_is_not_retried_across_keys():
     """A retired/unavailable model is configuration failure, not key failure."""
     os.environ["GROQ_KEY_1"] = "key-A"
@@ -143,6 +147,7 @@ async def test_model_not_found_is_not_retried_across_keys():
     print("[PASS] test_model_not_found_is_not_retried_across_keys passed")
 
 
+@pytest.mark.asyncio
 async def test_services_with_groq_router():
     # Mock groq client that returns JSON appropriate for each service
     def mock_client_factory(api_key):
@@ -162,7 +167,7 @@ async def test_services_with_groq_router():
                     "source_quote": "GSTIN 27AABCU9603R1ZN Active",
                     "extraction_confidence": 0.98
                 })
-            elif "Raw Tender Document Content:" in prompt:
+            elif "Tender Document Content" in prompt or "Raw Tender Document Content:" in prompt:
                 content = json_dump({
                     "tender_id": "TENDER-MOCK-101",
                     "requirements": [
