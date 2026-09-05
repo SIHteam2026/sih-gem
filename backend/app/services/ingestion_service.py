@@ -5,6 +5,7 @@ procurement packages into OPAL canonical domain entities:
 Procurement -> Tender -> Bidder -> BidSubmission -> Documents.
 """
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -18,6 +19,7 @@ from app.db.client import (
     insert_document,
     insert_procurement,
     insert_tender,
+    update_procurement_status_db,
 )
 from app.models.procurement import (
     Bidder,
@@ -121,7 +123,7 @@ async def ingest_procurement(
         "external_reference": external_reference,
         "title": validated_payload.procurement.title,
         "organization": validated_payload.procurement.organization,
-        "status": ProcurementStatus.PROCESSING.value,
+        "status": ProcurementStatus.READY.value,
         "created_at": now_iso,
         "updated_at": now_iso,
     }
@@ -226,11 +228,7 @@ async def ingest_procurement(
 
         # 7. Finalize Procurement Status to READY
         try:
-            from app.db.client import get_supabase_client
-            db_client = get_supabase_client()
-            await asyncio.to_thread(
-                lambda: db_client.table("procurements").update({"status": ProcurementStatus.READY.value}).eq("id", proc_id).execute()
-            )
+            await update_procurement_status_db(proc_id, ProcurementStatus.READY.value)
         except Exception as st_err:
             logger.warning("Non-blocking status update error: %s", st_err)
 
@@ -260,11 +258,7 @@ async def ingest_procurement(
         logger.error("Ingestion failed for procurement %s: %s", external_reference, exc)
         # Mark procurement state as FAILED
         try:
-            from app.db.client import get_supabase_client
-            db_client = get_supabase_client()
-            await asyncio.to_thread(
-                lambda: db_client.table("procurements").update({"status": ProcurementStatus.FAILED.value}).eq("id", proc_id).execute()
-            )
+            await update_procurement_status_db(proc_id, ProcurementStatus.FAILED.value)
         except Exception:
             pass
         raise ProcurementIngestionError(f"Ingestion failed for procurement '{external_reference}': {str(exc)}")
