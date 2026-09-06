@@ -193,13 +193,22 @@ export default function OfficerReviewActionCard({
         )}
 
         {/* Recorded Timestamp Metadata */}
-        {currentDecision && (
+        {currentDecision && currentDecision.timestamp && (
           <div className="text-[10px] text-[#64748b] pt-1">
             Recorded by <strong>{currentDecision.officerName}</strong> on{" "}
-            {new Date(currentDecision.timestamp).toLocaleString("en-IN", {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}
+            {(() => {
+              try {
+                const d = new Date(currentDecision.timestamp);
+                return isNaN(d.getTime())
+                  ? currentDecision.timestamp
+                  : d.toLocaleString("en-IN", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    });
+              } catch {
+                return currentDecision.timestamp;
+              }
+            })()}
           </div>
         )}
       </div>

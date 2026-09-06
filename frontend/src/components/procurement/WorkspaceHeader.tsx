@@ -99,10 +99,19 @@ export default function WorkspaceHeader({
             <span className="text-[11px] text-[#71808b]">
               Last updated:{" "}
               <time dateTime={updatedAt}>
-                {new Date(updatedAt).toLocaleString("en-IN", {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })}
+                {(() => {
+                  try {
+                    const d = new Date(updatedAt);
+                    return isNaN(d.getTime())
+                      ? updatedAt
+                      : d.toLocaleString("en-IN", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        });
+                  } catch {
+                    return updatedAt;
+                  }
+                })()}
               </time>
             </span>
           )}

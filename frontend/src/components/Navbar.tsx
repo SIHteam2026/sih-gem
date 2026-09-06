@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { Bell, ChevronDown } from "lucide-react";
 
 export default function Navbar() {
-  const pathname = usePathname();
+  const rawPathname = usePathname();
+  const pathname = rawPathname || "";
   const [scrolled, setScrolled] = useState<boolean>(false);
 
   useEffect(() => {
