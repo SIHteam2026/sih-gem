@@ -38,7 +38,7 @@ export default function HomeShell({
   className = "",
 }: HomeShellProps) {
   return (
-    <div className={`min-h-screen bg-white text-[#111827] flex flex-col selection:bg-[#d8e6ee] ${className}`}>
+    <div className={`min-h-screen bg-white text-[#111827] flex flex-col selection:bg-[#d8e6ee] overflow-x-hidden ${className}`}>
       {/* Top Navigation */}
       {header}
 

@@ -190,11 +190,11 @@ export default function OfficerContextPanel({
 
   return (
     <aside
-      className={`flex flex-col items-end w-full max-w-[440px] select-none ${className}`}
+      className={`flex flex-col items-end w-full max-w-[440px] lg:max-w-none select-none ${className}`}
       aria-label="Officer Workspace Context"
     >
       {/* 1. Freestanding Dynamic Greeting & Officer Identity */}
-      <div className="w-full text-right mb-6 pr-2">
+      <div className="w-full text-right mb-6 pr-2 lg:pr-4">
         <p className="text-sm sm:text-base font-medium text-[#6b7280]">
           {greeting}
         </p>
@@ -203,9 +203,9 @@ export default function OfficerContextPanel({
         </h2>
       </div>
 
-      {/* 2. Edge-Emerging Context Surface Card */}
+      {/* 2. Edge-Emerging Context Surface Card (Half-emerging from right margin) */}
       <div
-        className="w-full rounded-2xl sm:rounded-3xl border border-[#e5e7eb] bg-white p-5 sm:p-6 shadow-[0_4px_24px_rgba(0,0,0,0.02)] space-y-5"
+        className="w-full lg:w-[calc(100%+3.5rem)] xl:w-[calc(100%+5rem)] lg:-mr-10 xl:-mr-14 rounded-2xl sm:rounded-3xl lg:rounded-r-none border border-[#e5e7eb] lg:border-r-0 bg-white p-5 sm:p-6 shadow-[0_4px_24px_rgba(0,0,0,0.03)] space-y-5 transition-transform"
       >
         {/* Officer Review & Verification Status Panel */}
         <div className="rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] p-4 space-y-3.5">
