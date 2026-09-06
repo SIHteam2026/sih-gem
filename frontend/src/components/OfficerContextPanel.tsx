@@ -13,13 +13,95 @@ interface OfficerContextPanelProps {
 }
 
 /**
+ * Resolves the time-based greeting for the officer based on local browser time.
+ * 
+ * Time intervals:
+ * - 05:00 – 11:59: Good Morning
+ * - 12:00 – 16:59: Good Afternoon
+ * - 17:00 – 20:59: Good Evening
+ * - 21:00 – 04:59: Good Night (handles midnight and late night)
+ */
+export function getTimeBasedGreeting(date: Date = new Date()): string {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) {
+    return "Good Morning";
+  } else if (hour >= 12 && hour < 17) {
+    return "Good Afternoon";
+  } else if (hour >= 17 && hour < 21) {
+    return "Good Evening";
+  } else {
+    return "Good Night";
+  }
+}
+
+/**
+ * Resolves a contextual formal greeting from real application state.
+ * Returns null if the default time-of-day greeting should be retained.
+ * 
+ * Work-Aware Precedence:
+ * 1. "Review in progress": Any procurement actively processing ('PROCESSING' or 'IN_PROGRESS')
+ * 2. "Review complete": A procurement recently completed review (within the last 15 minutes)
+ * 3. "Your reviews are ready": Multiple/recent reviews ready for officer sign-off (within 2 hours)
+ * 
+ * Invariant: Unresolved review findings or older cases in the database default to the time greeting.
+ */
+export function getContextualGreeting(
+  procurements: ProcurementSummaryItem[],
+  now: Date = new Date()
+): string | null {
+  if (!procurements || procurements.length === 0) {
+    return null;
+  }
+
+  // 1. Actively processing procurement takes precedence
+  const hasActiveProcessing = procurements.some((p) => {
+    const s = (p.status || "").toUpperCase();
+    return s === "PROCESSING" || s === "IN_PROGRESS" || s === "ANALYZING";
+  });
+  if (hasActiveProcessing) {
+    return "Review in progress";
+  }
+
+  // 2. Review completed within the last 15 minutes
+  const fifteenMinutesMs = 15 * 60 * 1000;
+  const justCompleted = procurements.find((p) => {
+    const s = (p.status || "").toUpperCase();
+    if (s !== "READY" && s !== "COMPLETED") return false;
+    const ts = p.updated_at || p.created_at;
+    if (!ts) return false;
+    const itemTime = new Date(ts).getTime();
+    return !isNaN(itemTime) && now.getTime() - itemTime >= 0 && now.getTime() - itemTime < fifteenMinutesMs;
+  });
+  if (justCompleted) {
+    return "Review complete";
+  }
+
+  // 3. Reviews recently ready (within the last 2 hours)
+  const twoHoursMs = 2 * 60 * 60 * 1000;
+  const recentlyReady = procurements.find((p) => {
+    const s = (p.status || "").toUpperCase();
+    if (s !== "READY") return false;
+    const ts = p.updated_at || p.created_at;
+    if (!ts) return false;
+    const itemTime = new Date(ts).getTime();
+    return !isNaN(itemTime) && now.getTime() - itemTime >= 0 && now.getTime() - itemTime < twoHoursMs;
+  });
+  if (recentlyReady) {
+    return "Your reviews are ready";
+  }
+
+  // 4. Default: Return null to keep time-of-day greeting primary for general cases
+  return null;
+}
+
+/**
  * OfficerContextPanel Component
  * 
  * Implements the right-side human context and edge-emerging surface
  * matching the OPAL reference design.
  * 
  * Hierarchy:
- * 1. Freestanding Greeting & Name (Good Morning, / Mr. Srivastav)
+ * 1. Freestanding Dynamic Greeting & Name (Good Morning / Mr. Srivastav)
  * 2. Edge-Emerging Context Surface:
  *    - Pending Approvals banner with Review action
  *    - Fiscal Allocation progress indicator
@@ -28,40 +110,52 @@ interface OfficerContextPanelProps {
  */
 export default function OfficerContextPanel({
   officerName = "Mr. Srivastav",
-  roleTitle = "Procurement Review Officer",
   className = "",
 }: OfficerContextPanelProps) {
-  const [greeting, setGreeting] = useState("Good Morning,");
+  const [greeting, setGreeting] = useState<string>("Good Evening");
   const [, setRecentCases] = useState<ProcurementSummaryItem[]>([]);
   const [pendingReviewsCount, setPendingReviewsCount] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Dynamic time-of-day greeting matching reference capitalization
-    const hour = new Date().getHours();
-    if (hour < 12) {
-      setGreeting("Good Morning,");
-    } else if (hour < 17) {
-      setGreeting("Good Afternoon,");
-    } else {
-      setGreeting("Good Evening,");
+    let isMounted = true;
+    let latestCases: ProcurementSummaryItem[] = [];
+
+    // Helper to evaluate and apply the current active greeting
+    function applyCurrentGreeting(cases = latestCases) {
+      if (!isMounted) return;
+      const now = new Date();
+      const contextual = getContextualGreeting(cases, now);
+      setGreeting(contextual || getTimeBasedGreeting(now));
     }
 
-    let isMounted = true;
+    // Initialize client-side time-based greeting asynchronously (avoiding synchronous setState in effect)
+    const mountTimer = setTimeout(() => {
+      applyCurrentGreeting();
+    }, 0);
+
+    // Minute-level timer for natural boundary updates across midnight / hour boundaries
+    const intervalId = setInterval(() => {
+      applyCurrentGreeting();
+    }, 60000);
+
     async function loadRecent() {
       setIsLoading(true);
       try {
         const res = (await fetchProcurements(50, 0)) as ProcurementListResponse;
         if (isMounted && res?.procurements) {
+          latestCases = res.procurements;
           setRecentCases(res.procurements);
           // Dynamically compute only those procurements that are completely processed (status === 'READY')
           const completelyProcessedCases = res.procurements.filter(
             (p) => (p.status || "").toUpperCase() === "READY"
           );
           setPendingReviewsCount(completelyProcessedCases.length);
+          applyCurrentGreeting(res.procurements);
         } else if (isMounted) {
           setRecentCases([]);
           setPendingReviewsCount(0);
+          applyCurrentGreeting([]);
         }
       } catch {
         if (isMounted) {
@@ -78,6 +172,8 @@ export default function OfficerContextPanel({
 
     return () => {
       isMounted = false;
+      clearTimeout(mountTimer);
+      clearInterval(intervalId);
     };
   }, []);
 

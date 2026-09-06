@@ -132,3 +132,23 @@ test('9. OfficerContextPanel: Real procurement activity integration', () => {
     'Must import and call fetchProcurements for real activity'
   );
 });
+
+test('10. OfficerContextPanel: Dynamic time-of-day and work-aware contextual greeting invariants', () => {
+  const content = fs.readFileSync(officerContextPath, 'utf-8');
+
+  // Verify full set of time-of-day greetings
+  assert.ok(content.includes('Good Morning'), 'Must support Good Morning (05:00-11:59)');
+  assert.ok(content.includes('Good Afternoon'), 'Must support Good Afternoon (12:00-16:59)');
+  assert.ok(content.includes('Good Evening'), 'Must support Good Evening (17:00-20:59)');
+  assert.ok(content.includes('Good Night'), 'Must support Good Night (21:00-04:59)');
+
+  // Verify contextual formal greetings
+  assert.ok(content.includes('Review in progress'), 'Must support contextual "Review in progress"');
+  assert.ok(content.includes('Review complete'), 'Must support contextual "Review complete"');
+  assert.ok(content.includes('Your reviews are ready'), 'Must support contextual "Your reviews are ready"');
+
+  // Verify interval updates and unmount cleanup
+  assert.ok(content.includes('setInterval'), 'Must register minute-level interval update');
+  assert.ok(content.includes('clearInterval'), 'Must clean up interval on unmount');
+});
+
