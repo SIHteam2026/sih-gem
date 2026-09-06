@@ -33,6 +33,8 @@ export default function OfficerContextPanel({
 }: OfficerContextPanelProps) {
   const [greeting, setGreeting] = useState("Good Morning,");
   const [, setRecentCases] = useState<ProcurementSummaryItem[]>([]);
+  const [pendingReviewsCount, setPendingReviewsCount] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
     // Dynamic time-of-day greeting matching reference capitalization
@@ -47,13 +49,29 @@ export default function OfficerContextPanel({
 
     let isMounted = true;
     async function loadRecent() {
+      setIsLoading(true);
       try {
-        const res = (await fetchProcurements(3, 0)) as ProcurementListResponse;
+        const res = (await fetchProcurements(50, 0)) as ProcurementListResponse;
         if (isMounted && res?.procurements) {
           setRecentCases(res.procurements);
+          // Dynamically compute only those procurements that are completely processed (status === 'READY')
+          const completelyProcessedCases = res.procurements.filter(
+            (p) => (p.status || "").toUpperCase() === "READY"
+          );
+          setPendingReviewsCount(completelyProcessedCases.length);
+        } else if (isMounted) {
+          setRecentCases([]);
+          setPendingReviewsCount(0);
         }
       } catch {
-        if (isMounted) setRecentCases([]);
+        if (isMounted) {
+          setRecentCases([]);
+          setPendingReviewsCount(0);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     }
     loadRecent();
@@ -82,7 +100,7 @@ export default function OfficerContextPanel({
       <div
         className="w-full rounded-2xl sm:rounded-3xl border border-[#e5e7eb] bg-white p-5 sm:p-6 shadow-[0_4px_24px_rgba(0,0,0,0.02)] space-y-5"
       >
-        {/* Pending Approvals Action Banner */}
+        {/* Pending Reviews Action Banner (Dynamically analyzed from processed procurement cases) */}
         <div className="rounded-xl bg-[#f9fafb] border border-[#f3f4f6] p-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="grid h-9 w-9 place-items-center rounded-lg bg-white border border-[#e5e7eb] text-[#111827]">
@@ -90,10 +108,18 @@ export default function OfficerContextPanel({
             </div>
             <div>
               <p className="text-xs font-bold text-[#111827]">
-                3 Pending Approvals
+                {isLoading ? (
+                  "Analyzing reviews…"
+                ) : (
+                  `${pendingReviewsCount ?? 0} Pending ${(pendingReviewsCount ?? 0) === 1 ? "Review" : "Reviews"}`
+                )}
               </p>
               <p className="text-[11px] text-[#6b7280]">
-                Awaiting executive signature
+                {isLoading
+                  ? "Checking processed procurement cases"
+                  : (pendingReviewsCount ?? 0) > 0
+                  ? "Completely processed & awaiting review"
+                  : "No cases awaiting review"}
               </p>
             </div>
           </div>
