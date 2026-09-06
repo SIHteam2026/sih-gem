@@ -1,4 +1,4 @@
-﻿/**
+/**
  * test_living_context.mjs
  * 
  * Unit & Contract Tests for OPAL Living Visual + Human Context Experience
@@ -113,3 +113,54 @@ test('6. LivingContextSection: Re-exports and unifies components cleanly', () =>
   assert.ok(content.includes('OfficerContextPanel'), 'Must import and render OfficerContextPanel');
   assert.ok(content.includes('export { LivingVisual, OfficerContextPanel }'), 'Must export sub-components');
 });
+
+test('7. OfficerContextPanel: Freestanding right-edge greeting composition', () => {
+  const content = fs.readFileSync(officerContextPath, 'utf-8');
+
+  assert.ok(
+    content.includes('text-right') || content.includes('items-end'),
+    'Greeting must be right-aligned toward the edge'
+  );
+  assert.ok(
+    content.includes('tracking-widest') || content.includes('tracking-wider'),
+    'Greeting must use restrained uppercase typography'
+  );
+});
+
+test('8. OfficerContextPanel: Half-emerging edge surface & entrance motion', () => {
+  const content = fs.readFileSync(officerContextPath, 'utf-8');
+
+  // Verify half-emerging edge panel styling
+  assert.ok(
+    content.includes('opal-edge-surface'),
+    'Must define opal-edge-surface element'
+  );
+  assert.ok(
+    content.includes('lg:border-r-0') || content.includes('lg:rounded-r-none'),
+    'Must open towards the right edge on desktop'
+  );
+
+  // Verify entrance animation and reduced-motion fallback
+  assert.ok(
+    content.includes('@keyframes edgeSlideIn'),
+    'Must define edgeSlideIn entrance animation'
+  );
+  assert.ok(
+    content.includes('@media (prefers-reduced-motion: reduce)'),
+    'Must support prefers-reduced-motion'
+  );
+});
+
+test('9. OfficerContextPanel: Real procurement activity integration', () => {
+  const content = fs.readFileSync(officerContextPath, 'utf-8');
+
+  assert.ok(
+    content.includes('fetchProcurements'),
+    'Must import and call fetchProcurements for real activity'
+  );
+  assert.ok(
+    content.includes('recentCases') || content.includes('ProcurementSummaryItem'),
+    'Must manage state for recent cases'
+  );
+});
+
