@@ -1,6 +1,7 @@
 import { FileText, ShieldCheck, CircleAlert } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import HomeHero from "@/components/HomeHero";
+import RecentProcurementsSection from "@/components/procurement/RecentProcurementsSection";
 
 export default function Home() {
   return (
@@ -27,6 +28,8 @@ export default function Home() {
             extra
           />
         </section>
+
+        <RecentProcurementsSection />
       </main>
     </div>
   );
@@ -53,4 +56,3 @@ function Feature({
     </div>
   );
 }
-
