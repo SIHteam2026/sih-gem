@@ -41,6 +41,7 @@ export default function HomeHero({
     setIsTypingDone(false);
 
     let descTimer: NodeJS.Timeout | null = null;
+    let pauseTimer: NodeJS.Timeout | null = null;
 
     const headingTimer = setInterval(() => {
       headingIdx += 1;
@@ -51,7 +52,7 @@ export default function HomeHero({
         setIsTypingHeading(false);
         setIsTypingDesc(true);
 
-        setTimeout(() => {
+        pauseTimer = setTimeout(() => {
           descTimer = setInterval(() => {
             descIdx += 1;
             setDisplayedDescription(FULL_DESCRIPTION.slice(0, descIdx));
@@ -61,13 +62,14 @@ export default function HomeHero({
               setIsTypingDesc(false);
               setIsTypingDone(true);
             }
-          }, 14);
-        }, 120);
+          }, 24);
+        }, 280);
       }
-    }, 28);
+    }, 55);
 
     return () => {
       clearInterval(headingTimer);
+      if (pauseTimer) clearTimeout(pauseTimer);
       if (descTimer) clearInterval(descTimer);
     };
   }, []);
