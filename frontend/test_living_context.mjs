@@ -118,10 +118,6 @@ test('8. OfficerContextPanel: Emerging edge surface card', () => {
     content.includes('Pending') && (content.includes('Review') || content.includes('Reviews') || content.includes('Approvals')),
     'Must include pending review alert item'
   );
-  assert.ok(
-    content.includes('Fiscal Q3 Allocation'),
-    'Must include fiscal allocation indicator'
-  );
 });
 
 test('9. OfficerContextPanel: Real procurement activity integration', () => {

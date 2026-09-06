@@ -269,21 +269,6 @@ export default function OfficerContextPanel({
           </div>
         </div>
 
-        {/* Fiscal Allocation Progress Bar */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-[#111827]">Fiscal Q3 Allocation</span>
-            <span className="font-mono font-bold text-[#111827]">$4.12M / $5.50M</span>
-          </div>
-          <div className="w-full h-2 rounded-full bg-[#f3f4f6] overflow-hidden">
-            <div className="h-full bg-[#111827] rounded-full" style={{ width: "74%" }} />
-          </div>
-          <div className="flex items-center justify-between text-[10px] text-[#6b7280]">
-            <span>74% committed</span>
-            <span>18 days remaining</span>
-          </div>
-        </div>
-
         {/* Compliance Recertification Notice */}
         <div className="border-t border-[#f3f4f6] pt-4 space-y-1">
           <div className="flex items-center gap-2">
