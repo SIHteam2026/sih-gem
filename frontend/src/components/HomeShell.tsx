@@ -6,13 +6,13 @@ import Navbar from "@/components/Navbar";
 export interface HomeShellProps {
   /** Optional custom header (defaults to quiet institutional Navbar) */
   header?: React.ReactNode;
-  /** Dominant left column: Large primary statement, supporting description, and primary CTA */
+  /** Dominant left column: Large primary statement, hero carousel scene */
   heroSlot?: React.ReactNode;
-  /** Narrow center column: Vertical living visual stream (Doc -> Evidence -> Review flow) */
+  /** Narrow center column: Vertical living visual stream */
   livingVisualSlot?: React.ReactNode;
-  /** Right column: Human greeting, time/session orientation, and personal officer anchors */
+  /** Right column: Human greeting, time/session orientation */
   contextSlot?: React.ReactNode;
-  /** Lower area: Recent procurement cases carousel and workspace action link */
+  /** Legacy lower slot retained for backwards compatibility if passed */
   recentProcurementSlot?: React.ReactNode;
   /** Supplementary children elements if needed */
   children?: React.ReactNode;
@@ -20,15 +20,6 @@ export interface HomeShellProps {
   className?: string;
 }
 
-/**
- * HomeShell Component
- *
- * Implements the structural composition authority for the OPAL Home workspace:
- * - One unified editorial composition: generous whitespace, subtle borders, paper-toned surfaces.
- * - Desktop: Asymmetric 3-column grid (Dominant Primary Statement -> Narrow Center Axis -> Human Context Panel).
- * - Tablet/Mobile: Intentional linear re-composition preserving hierarchy without cramping.
- * - Semantic landmarks: <header>, <main id="main-content">, <section>, accessible focus states.
- */
 export default function HomeShell({
   header = <Navbar />,
   heroSlot,
@@ -46,14 +37,14 @@ export default function HomeShell({
       {/* Main Workspace Landmark */}
       <main
         id="main-content"
-        className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-8 sm:py-16 lg:py-20"
+        className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-8 sm:py-14 lg:py-16"
       >
-        {/* Upper Composition: Hero + Living Visual + Officer Context Panel */}
+        {/* Upper Composition: Unified Hero Scene + Living Visual + Officer Context Panel */}
         <section
           aria-label="Overview and Orientation"
           className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-8 lg:items-start"
         >
-          {/* Dominant Left Column: Primary Statement (Hero Slot) */}
+          {/* Dominant Left Column: Primary Statement & Integrated Recent Procurements Hero Experience */}
           <div className="lg:col-span-7 xl:col-span-7 flex flex-col justify-start">
             {heroSlot}
           </div>
@@ -82,9 +73,9 @@ export default function HomeShell({
           )}
         </section>
 
-        {/* Lower Area: Recent Procurements Carousel & Workspace Action */}
+        {/* Legacy lower slot (rendered only if passed explicitly outside hero) */}
         {recentProcurementSlot && (
-          <section aria-label="Recent Procurements" className="mt-14 sm:mt-20">
+          <section aria-label="Recent Procurements" className="mt-10 sm:mt-14">
             {recentProcurementSlot}
           </section>
         )}

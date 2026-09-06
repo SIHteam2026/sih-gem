@@ -1,7 +1,9 @@
-﻿"use client";
+"use client";
 
+import React from "react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { History, Terminal } from "lucide-react";
+import RecentProcurementsSection from "@/components/procurement/RecentProcurementsSection";
 
 interface HomeHeroProps {
   className?: string;
@@ -12,12 +14,8 @@ interface HomeHeroProps {
  * HomeHero Component
  * 
  * Clean, left-anchored editorial hero composition for the OPAL Home workspace.
- * 
- * Design Principles:
- * - Strong left-edge anchor with deliberate negative space to the right.
- * - Restrained, human-authored editorial typography on paper background.
- * - Removed heavy multi-button landing-page chrome in favor of a quiet directional action.
- * - Natural visual alignment with the active procurement workspace below.
+ * Houses the headline narrative, supporting explanation, and the embedded
+ * Recent Procurements carousel desk composition.
  */
 export default function HomeHero({
   className = "",
@@ -45,15 +43,25 @@ export default function HomeHero({
         needs human judgment.
       </p>
 
-      {/* Quiet Directional Workspace Action */}
+      {/* Integrated Recent Procurements Hero Experience */}
+      <RecentProcurementsSection />
+
+      {/* Secondary Actions (History & Simulator) */}
       {showQuietAction && (
-        <div className="mt-7 pt-1">
+        <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[#e2e7e4] pt-4 w-full">
           <Link
-            href="/procurements"
-            className="focus-ring group inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#163a5f] transition-colors hover:text-[#235384]"
+            href="/history"
+            className="focus-ring inline-flex items-center gap-1.5 rounded border border-[#cfd5d5] bg-[#fffefa] px-3.5 py-2 text-xs font-medium text-[#263746] transition-colors hover:bg-white hover:border-[#b8c2c2]"
           >
-            <span>Open Procurement Workspace</span>
-            <ArrowRight className="h-3.5 w-3.5 text-[#163a5f] transition-transform group-hover:translate-x-1" />
+            <History className="h-3.5 w-3.5 text-[#697987]" />
+            Review history
+          </Link>
+          <Link
+            href="/mock-gem"
+            className="focus-ring inline-flex items-center gap-1.5 rounded border border-dashed border-[#cbd2d5] bg-[#fbfbf9] px-3.5 py-2 font-mono text-xs text-[#586774] transition-colors hover:bg-white hover:text-[#162333]"
+          >
+            <Terminal className="h-3.5 w-3.5 text-[#7e8e9c]" />
+            Mock-GeM Simulator
           </Link>
         </div>
       )}
