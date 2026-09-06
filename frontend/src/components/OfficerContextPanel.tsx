@@ -269,19 +269,6 @@ export default function OfficerContextPanel({
           </div>
         </div>
 
-        {/* Compliance Recertification Notice */}
-        <div className="border-t border-[#f3f4f6] pt-4 space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-[#f59e0b] shrink-0" aria-hidden="true" />
-            <p className="text-xs font-semibold text-[#111827]">
-              Compliance Recertification
-            </p>
-          </div>
-          <p className="text-[11px] text-[#6b7280] leading-relaxed pl-4">
-            HexaCorp ISO 27001 audit statement is due in 4 business days.
-          </p>
-        </div>
-
         {/* Executive Audit Log */}
         <div className="border-t border-[#f3f4f6] pt-4 space-y-3">
           <div className="flex items-center justify-between">
