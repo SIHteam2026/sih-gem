@@ -9,7 +9,7 @@ export default function Navbar() {
   const pathname = usePathname();
 
   return (
-    <header className="w-full bg-white sticky top-0 z-30 border-b border-transparent select-none">
+    <header className="w-full bg-transparent sticky top-0 z-30 border-b border-transparent select-none">
       <div className="mx-auto flex h-16 max-w-[1360px] items-center justify-between px-6 sm:px-10 lg:px-12">
         {/* Left: Brand Identity with Diamond/Gem Icon */}
         <Link href="/" className="focus-ring flex items-center gap-2.5 rounded-sm" aria-label="OPAL Home">
