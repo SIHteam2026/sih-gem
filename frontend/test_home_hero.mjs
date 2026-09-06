@@ -68,11 +68,12 @@ test('3. Copywriter Policy: Zero generic AI hype buzzwords', () => {
   }
 });
 
-test('4. Primary Action: Links to /procurements with proper label', () => {
+test('4. Primary Workspace Gateway: Embeds RecentProcurementsSection and secondary tools', () => {
   const content = fs.readFileSync(heroPath, 'utf-8');
 
-  assert.ok(content.includes('href="/procurements"'), 'Must link to /procurements');
-  assert.ok(content.includes('Open Procurement Workspace'), 'Must have button text "Open Procurement Workspace"');
+  assert.ok(content.includes('RecentProcurementsSection'), 'Must embed RecentProcurementsSection as primary gateway');
+  assert.ok(content.includes('href="/history"'), 'Must provide link to /history');
+  assert.ok(content.includes('href="/mock-gem"'), 'Must provide link to /mock-gem');
 });
 
 test('5. Responsive Typography: Uses balanced wrapping', () => {

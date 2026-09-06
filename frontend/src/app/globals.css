@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-:root { --background: #f7f6f2; --foreground: #162333; --paper: #f7f6f2; --surface: #fffefa; --ink: #162333; --muted: #66717d; --line: #d9ddd9; --navy: #163a5f; }
+:root { --background: #ffffff; --foreground: #162333; --paper: #ffffff; --surface: #ffffff; --ink: #162333; --muted: #66717d; --line: #e2e5e2; --navy: #163a5f; }
 
 @theme inline {
   --color-background: var(--background);

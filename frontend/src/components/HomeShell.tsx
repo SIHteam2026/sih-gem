@@ -30,21 +30,21 @@ export default function HomeShell({
   className = "",
 }: HomeShellProps) {
   return (
-    <div className={`min-h-screen bg-[#f7f6f2] text-[#162333] flex flex-col selection:bg-[#d8e6ee] ${className}`}>
-      {/* Header Slot */}
+    <div className={`min-h-screen bg-white text-[#162333] flex flex-col selection:bg-[#d8e6ee] ${className}`}>
+      {/* Header Slot: Transparent Navbar sitting directly over white canvas */}
       {header}
 
       {/* Main Workspace Landmark */}
       <main
         id="main-content"
-        className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-8 sm:py-14 lg:py-16"
+        className="mx-auto w-full max-w-[1400px] flex-1 px-6 sm:px-10 lg:px-14 py-4 sm:py-6 lg:py-8"
       >
         {/* Upper Composition: Unified Hero Scene + Living Visual + Officer Context Panel */}
         <section
           aria-label="Overview and Orientation"
-          className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-8 lg:items-start"
+          className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-8 xl:gap-12 lg:items-start"
         >
-          {/* Dominant Left Column: Primary Statement & Integrated Recent Procurements Hero Experience */}
+          {/* Dominant Left Column: Primary Statement (Far Left Reading Axis) & Integrated Desk */}
           <div className="lg:col-span-7 xl:col-span-7 flex flex-col justify-start">
             {heroSlot}
           </div>
@@ -52,14 +52,14 @@ export default function HomeShell({
           {/* Narrow Center Column: Vertical Living Visual Axis */}
           {livingVisualSlot && (
             <div
-              className="hidden lg:flex lg:col-span-1 justify-center items-center self-stretch pt-2"
+              className="hidden lg:flex lg:col-span-1 justify-center items-start pt-2"
               aria-hidden="true"
             >
               {livingVisualSlot}
             </div>
           )}
 
-          {/* Right Column: Human Context & Orientation */}
+          {/* Right Column: Human Context & Orientation (Positioned towards right edge) */}
           {contextSlot && (
             <div
               className={`w-full ${
@@ -75,7 +75,7 @@ export default function HomeShell({
 
         {/* Legacy lower slot (rendered only if passed explicitly outside hero) */}
         {recentProcurementSlot && (
-          <section aria-label="Recent Procurements" className="mt-10 sm:mt-14">
+          <section aria-label="Recent Procurements" className="mt-8 sm:mt-12">
             {recentProcurementSlot}
           </section>
         )}

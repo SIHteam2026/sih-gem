@@ -97,10 +97,8 @@ test('7. Home Page: Integrates HomeShell with all component slots', () => {
   assert.ok(content.includes('import HomeHero from "@/components/HomeHero"'), 'page.tsx must import HomeHero');
   assert.ok(content.includes('import LivingVisual from "@/components/LivingVisual"'), 'page.tsx must import LivingVisual');
   assert.ok(content.includes('import OfficerContextPanel from "@/components/OfficerContextPanel"'), 'page.tsx must import OfficerContextPanel');
-  assert.ok(content.includes('import RecentProcurementsSection from "@/components/procurement/RecentProcurementsSection"'), 'page.tsx must import RecentProcurementsSection');
 
   assert.ok(content.includes('heroSlot='), 'page.tsx must pass heroSlot');
   assert.ok(content.includes('livingVisualSlot='), 'page.tsx must pass livingVisualSlot');
   assert.ok(content.includes('contextSlot='), 'page.tsx must pass contextSlot');
-  assert.ok(content.includes('recentProcurementSlot='), 'page.tsx must pass recentProcurementSlot');
 });
