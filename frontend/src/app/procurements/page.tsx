@@ -73,7 +73,7 @@ export function formatLoadedDate(dateStr?: string | null): string {
       day: "numeric",
       month: "short",
       year: "numeric",
-    }).format(date);
+    });
     return `Loaded ${formatted}`;
   } catch {
     return "Loaded recently";
