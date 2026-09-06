@@ -121,12 +121,11 @@ export default function OfficerContextPanel({
     let isMounted = true;
     let latestCases: ProcurementSummaryItem[] = [];
 
-    // Helper to evaluate and apply the current active greeting
-    function applyCurrentGreeting(cases = latestCases) {
+    // Helper to evaluate and apply the current active greeting (strictly time-based)
+    function applyCurrentGreeting() {
       if (!isMounted) return;
       const now = new Date();
-      const contextual = getContextualGreeting(cases, now);
-      setGreeting(contextual || getTimeBasedGreeting(now));
+      setGreeting(getTimeBasedGreeting(now));
     }
 
     // Initialize client-side time-based greeting asynchronously (avoiding synchronous setState in effect)
@@ -151,11 +150,9 @@ export default function OfficerContextPanel({
             (p) => (p.status || "").toUpperCase() === "READY"
           );
           setPendingReviewsCount(completelyProcessedCases.length);
-          applyCurrentGreeting(res.procurements);
         } else if (isMounted) {
           setRecentCases([]);
           setPendingReviewsCount(0);
-          applyCurrentGreeting([]);
         }
       } catch {
         if (isMounted) {
@@ -182,9 +179,9 @@ export default function OfficerContextPanel({
       className={`flex flex-col items-end w-full max-w-[440px] select-none ${className}`}
       aria-label="Officer Workspace Context"
     >
-      {/* 1. Freestanding Greeting & Officer Identity */}
+      {/* 1. Freestanding Dynamic Greeting & Officer Identity */}
       <div className="w-full text-right mb-6 pr-2">
-        <p className="text-xs font-medium text-[#6b7280]">
+        <p className="text-sm sm:text-base font-medium text-[#6b7280]">
           {greeting}
         </p>
         <h2 className="text-3xl font-bold tracking-tight text-[#111827]">
