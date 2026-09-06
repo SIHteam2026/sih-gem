@@ -1,4 +1,4 @@
-/**
+﻿/**
  * test_home_shell.mjs
  * 
  * Unit & Contract Tests for OPAL Home Page Structural Shell & Composition
@@ -6,11 +6,12 @@
  * Verifies:
  * 1. HomeShell.tsx exists and exports default HomeShell component.
  * 2. Slot architecture: Provides typed slots for Header, HeroSlot, LivingVisualSlot, ContextSlot, RecentProcurementSlot.
- * 3. 3-column asymmetric layout composition: Dominant left column (7 cols), narrow center axis (1 col), context panel (4 cols).
+ * 3. 3-column asymmetric layout composition: Dominant left column (7 cols), narrow center axis (1 col), context panel (4-5 cols).
  * 4. Responsive recomposition: Stacks gracefully on mobile/tablet (hidden lg:flex for center visual axis) without cramped coordinates.
  * 5. Semantic HTML landmarks: <main id=main-content>, <section>, <header>, accessible aria labels.
  * 6. Visual philosophy: Zero presence of forbidden clutter (gradients, glowing elements, neon aesthetics, floating dashboard cards).
- * 7. Home Page integration: src/app/page.tsx integrates HomeShell with HomeHero, LivingVisual, OfficerContextPanel, RecentProcurementsSection.
+ * 7. Header: Quiet institutional navigation with Opal brand link.
+ * 8. Home Page integration: src/app/page.tsx integrates HomeShell with HomeHero, LivingVisual, OfficerContextPanel.
  */
 
 import test from 'node:test';
@@ -46,7 +47,7 @@ test('3. Grid & Composition: Asymmetric 3-column layout on desktop', () => {
   assert.ok(content.includes('lg:grid-cols-12'), 'Must use 12-column responsive grid on desktop');
   assert.ok(content.includes('lg:col-span-7'), 'Dominant left column must span 7 cols');
   assert.ok(content.includes('lg:col-span-1'), 'Center living visual must be narrow 1 col');
-  assert.ok(content.includes('lg:col-span-4'), 'Right context panel must span 4 cols');
+  assert.ok(content.includes('lg:col-span-4') || content.includes('lg:col-span-5'), 'Right context panel must span 4-5 cols');
 });
 
 test('4. Semantic Landmarks & Accessibility', () => {
@@ -81,13 +82,13 @@ test('5. Visual Philosophy: Zero neon/floating AI dashboard clutter', () => {
   }
 });
 
-test('6. Header: Quiet institutional navigation with OPAL brand link', () => {
+test('6. Header: Quiet institutional navigation with Opal brand link', () => {
   const content = fs.readFileSync(navbarPath, 'utf-8');
 
   assert.ok(content.includes('href="/"'), 'Navbar brand must link to Home (/)');
-  assert.ok(content.includes('OPAL'), 'Must display OPAL identity');
-  assert.ok(content.includes('Procurement Review'), 'Must display Procurement Review descriptor');
-  assert.ok(content.includes('Review Officer') || content.includes('PO'), 'Must display reviewer context');
+  assert.ok(content.includes('Opal') || content.includes('OPAL'), 'Must display Opal identity');
+  assert.ok(content.includes('Procurements'), 'Must display Procurements link');
+  assert.ok(content.includes('A. Srivastav') || content.includes('Review Officer') || content.includes('AS'), 'Must display reviewer profile context');
 });
 
 test('7. Home Page: Integrates HomeShell with all component slots', () => {

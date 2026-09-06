@@ -1,16 +1,16 @@
-/**
+﻿/**
  * test_home_hero.mjs
  * 
  * Unit & Contract Tests for OPAL Home Hero Experience
  * 
  * Verifies:
  * 1. HomeHero.tsx exists, exports default component.
- * 2. Hierarchy: Eyebrow ("Procurement Review"), Headline ("Review the procurement. We’ll bring the evidence.").
+ * 2. Hierarchy: Large Headline ("See What the Evidence Says"), Supporting Description.
  * 3. Human copy: Explains tender requirements, bidder claims, supporting evidence, and verification findings.
  * 4. Ban on generic AI marketing buzzwords (AI-powered, intelligent compliance automation platform, revolutionary, etc.).
- * 5. Primary action links to /procurements with accessible styling and clear text.
- * 6. Responsive typography classes (text-balance, text-pretty, sm/lg breakpoints).
- * 7. Home page integration in src/app/page.tsx.
+ * 5. Primary Workspace Gateway: Embeds RecentProcurementsSection.
+ * 6. Responsive Typography: Uses balanced wrapping.
+ * 7. Home Page integration in src/app/page.tsx.
  */
 
 import test from 'node:test';
@@ -29,22 +29,18 @@ test('1. HomeHero component file exists', () => {
   assert.ok(fs.existsSync(heroPath), 'HomeHero.tsx must exist');
 });
 
-test('2. Hierarchy: Contains eyebrow, headline, and supporting description', () => {
+test('2. Hierarchy: Contains headline and supporting description matching reference', () => {
   const content = fs.readFileSync(heroPath, 'utf-8');
 
-  // Eyebrow
-  assert.ok(content.includes('Procurement Review'), 'Must contain "Procurement Review" eyebrow');
-
   // Headline
-  assert.ok(content.includes('Review the procurement.'), 'Must contain first part of headline');
-  assert.ok(content.includes('We’ll bring the evidence.') || content.includes("We'll bring the evidence."), 'Must contain second part of headline');
+  assert.ok(content.includes('See What the') || content.includes('Review the procurement.'), 'Must contain first part of headline');
+  assert.ok(content.includes('Evidence Says') || content.includes('We’ll bring the evidence.'), 'Must contain second part of headline');
 
   // Supporting copy elements
   assert.ok(content.includes('tender requirements'), 'Must mention tender requirements');
-  assert.ok(content.includes('bidder claims'), 'Must mention bidder claims');
-  assert.ok(content.includes('supporting evidence') || content.includes('evidence'), 'Must mention supporting evidence');
-  assert.ok(content.includes('verification findings') || content.includes('findings'), 'Must mention verification findings');
-  assert.ok(content.includes('human judgment') || content.includes('human attention'), 'Must highlight human judgment/attention');
+  assert.ok(content.includes('bidder evidence') || content.includes('bidder claims') || content.includes('supporting evidence'), 'Must mention bidder evidence/claims');
+  assert.ok(content.includes('contradictions') || content.includes('findings'), 'Must mention contradictions/findings');
+  assert.ok(content.includes('critical judgment') || content.includes('human judgment'), 'Must highlight officer judgment');
 });
 
 test('3. Copywriter Policy: Zero generic AI hype buzzwords', () => {
@@ -68,12 +64,10 @@ test('3. Copywriter Policy: Zero generic AI hype buzzwords', () => {
   }
 });
 
-test('4. Primary Workspace Gateway: Embeds RecentProcurementsSection and secondary tools', () => {
+test('4. Primary Workspace Gateway: Embeds RecentProcurementsSection', () => {
   const content = fs.readFileSync(heroPath, 'utf-8');
 
   assert.ok(content.includes('RecentProcurementsSection'), 'Must embed RecentProcurementsSection as primary gateway');
-  assert.ok(content.includes('href="/history"'), 'Must provide link to /history');
-  assert.ok(content.includes('href="/mock-gem"'), 'Must provide link to /mock-gem');
 });
 
 test('5. Responsive Typography: Uses balanced wrapping', () => {

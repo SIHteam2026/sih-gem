@@ -4,15 +4,15 @@ import React from "react";
 import Navbar from "@/components/Navbar";
 
 export interface HomeShellProps {
-  /** Optional custom header (defaults to quiet institutional Navbar) */
+  /** Custom header (defaults to reference Navbar) */
   header?: React.ReactNode;
-  /** Dominant left column: Large primary statement, hero carousel scene */
+  /** Dominant left column: Headline statement, description, recent procurements cluster */
   heroSlot?: React.ReactNode;
-  /** Narrow center column: Vertical living visual stream */
+  /** Narrow center column: Vertical static living visual */
   livingVisualSlot?: React.ReactNode;
-  /** Right column: Human greeting, time/session orientation */
+  /** Right column: Greeting and edge-emerging context surface */
   contextSlot?: React.ReactNode;
-  /** Legacy lower slot retained for backwards compatibility if passed */
+  /** Optional lower slot */
   recentProcurementSlot?: React.ReactNode;
   /** Supplementary children elements if needed */
   children?: React.ReactNode;
@@ -20,6 +20,14 @@ export interface HomeShellProps {
   className?: string;
 }
 
+/**
+ * HomeShell Component
+ * 
+ * Rebuilds the unified OPAL Home editorial canvas matching the reference composition:
+ * - Pure white canvas background without heavy borders or shadows.
+ * - Asymmetric layout: Left hero narrative & cases, Center quiet vertical axis, Right greeting & emerging panel.
+ * - One coherent single-viewport opening composition on standard desktop screens.
+ */
 export default function HomeShell({
   header = <Navbar />,
   heroSlot,
@@ -30,57 +38,56 @@ export default function HomeShell({
   className = "",
 }: HomeShellProps) {
   return (
-    <div className={`min-h-screen bg-white text-[#162333] flex flex-col selection:bg-[#d8e6ee] ${className}`}>
-      {/* Header Slot: Transparent Navbar sitting directly over white canvas */}
+    <div className={`min-h-screen bg-white text-[#111827] flex flex-col selection:bg-[#d8e6ee] ${className}`}>
+      {/* Top Navigation */}
       {header}
 
-      {/* Main Workspace Landmark */}
+      {/* Main Workspace Canvas */}
       <main
         id="main-content"
-        className="mx-auto w-full max-w-[1400px] flex-1 px-6 sm:px-10 lg:px-14 py-4 sm:py-6 lg:py-8"
+        className="mx-auto w-full max-w-[1360px] flex-1 px-6 sm:px-10 lg:px-12 pt-6 sm:pt-8 lg:pt-10 pb-12"
       >
-        {/* Upper Composition: Unified Hero Scene + Living Visual + Officer Context Panel */}
+        {/* Upper Composition: Hero + Living Visual + Officer Context Panel */}
         <section
           aria-label="Overview and Orientation"
-          className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-8 xl:gap-12 lg:items-start"
+          className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-6 xl:gap-10 lg:items-start"
         >
-          {/* Dominant Left Column: Primary Statement (Far Left Reading Axis) & Integrated Desk */}
+          {/* Dominant Left Column (6-7 columns on desktop) */}
           <div className="lg:col-span-7 xl:col-span-7 flex flex-col justify-start">
             {heroSlot}
           </div>
 
-          {/* Narrow Center Column: Vertical Living Visual Axis */}
+          {/* Narrow Center Column: Vertical Architectural Spine */}
           {livingVisualSlot && (
             <div
-              className="hidden lg:flex lg:col-span-1 justify-center items-start pt-2"
+              className="hidden lg:flex lg:col-span-1 justify-center items-center self-stretch pt-6"
               aria-hidden="true"
             >
               {livingVisualSlot}
             </div>
           )}
 
-          {/* Right Column: Human Context & Orientation (Positioned towards right edge) */}
+          {/* Right Column: Greeting & Emerging Surface (4-5 columns on desktop) */}
           {contextSlot && (
             <div
               className={`w-full ${
                 livingVisualSlot
                   ? "lg:col-span-4 xl:col-span-4"
                   : "lg:col-span-5 xl:col-span-5"
-              } flex flex-col justify-start`}
+              } flex flex-col justify-start items-end`}
             >
               {contextSlot}
             </div>
           )}
         </section>
 
-        {/* Legacy lower slot (rendered only if passed explicitly outside hero) */}
+        {/* Optional Lower Content */}
         {recentProcurementSlot && (
-          <section aria-label="Recent Procurements" className="mt-8 sm:mt-12">
+          <section aria-label="Additional Cases" className="mt-8">
             {recentProcurementSlot}
           </section>
         )}
 
-        {/* Optional Supplementary Content */}
         {children}
       </main>
     </div>
