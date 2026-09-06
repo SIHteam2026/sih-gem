@@ -25,14 +25,6 @@ export default function HomeHero({
       aria-label="Procurement Review Overview"
       className={`flex flex-col items-start text-left max-w-[560px] select-none ${className}`}
     >
-      {/* Top Small Geometric Accent Dot */}
-      <div className="mb-4">
-        <span
-          className="inline-block h-1.5 w-1.5 rounded-full bg-[#111827]"
-          aria-hidden="true"
-        />
-      </div>
-
       {/* Large Primary Statement Headline matching Reference */}
       <h1 className="text-4xl sm:text-5xl lg:text-[3.75rem] font-bold tracking-tight text-[#111827] leading-[1.08] text-balance">
         See What the

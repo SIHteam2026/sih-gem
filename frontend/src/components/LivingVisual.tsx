@@ -40,13 +40,10 @@ export default function LivingVisual({ className = "" }: LivingVisualProps) {
 
       {/* Middle Station: Small Precision Circular Evidence Node */}
       <div className="relative z-10 flex flex-col items-center">
-        <div className="relative flex items-center justify-center">
-          <div className="h-1.5 w-1.5 rounded-full bg-[#111827]" />
-          <div
-            className="absolute -inset-1 rounded-full border border-[#d1d5db]"
-            aria-hidden="true"
-          />
-        </div>
+        <div
+          className="h-2.5 w-2.5 rounded-full border border-[#9ca3af] bg-white"
+          title="Evidence node"
+        />
         <span className="sr-only">Evidence stage</span>
       </div>
 
