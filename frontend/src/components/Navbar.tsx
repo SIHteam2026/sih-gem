@@ -1,15 +1,38 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, ChevronDown } from "lucide-react";
 
 export default function Navbar() {
   const pathname = usePathname();
+  const [scrolled, setScrolled] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 10) {
+        setScrolled(true);
+      } else {
+        setScrolled(false);
+      }
+    };
+
+    // Initialize state on mount
+    handleScroll();
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
-    <header className="w-full bg-transparent sticky top-0 z-30 border-b border-transparent select-none">
+    <header
+      className={`w-full sticky top-0 z-30 transition-all duration-300 select-none ${
+        scrolled
+          ? "bg-[#f7f6f2]/75 backdrop-blur-md shadow-xs border-b border-[#e5e8e5]/50"
+          : "bg-transparent border-none"
+      }`}
+    >
       <div className="mx-auto flex h-16 max-w-[1360px] items-center justify-between px-6 sm:px-10 lg:px-12">
         {/* Left: Brand Identity with Diamond/Gem Icon */}
         <Link href="/" className="focus-ring flex items-center gap-2.5 rounded-sm" aria-label="OPAL Home">
@@ -35,7 +58,11 @@ export default function Navbar() {
 
         {/* Center: Quiet Floating Navigation Pill */}
         <nav
-          className="hidden md:flex items-center gap-1 rounded-full bg-[#f3f4f6] px-3.5 py-1.5 border border-[#e5e7eb]/60"
+          className={`hidden md:flex items-center gap-1 rounded-full px-3.5 py-1.5 transition-all duration-300 ${
+            scrolled
+              ? "bg-[#eaecea]/80 border border-[#daddda]/70"
+              : "bg-[#f3f4f6] border border-[#e5e7eb]/60"
+          }`}
           aria-label="Main navigation"
         >
           <Link
