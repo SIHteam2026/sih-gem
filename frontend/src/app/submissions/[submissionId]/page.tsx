@@ -39,6 +39,7 @@ import EvaluationSummary from "@/components/procurement/EvaluationSummary";
 import ReviewRequiredBanner from "@/components/procurement/ReviewRequiredBanner";
 import RequirementFindingCard from "@/components/procurement/RequirementFindingCard";
 import DocumentDrawer from "@/components/procurement/DocumentDrawer";
+import OfficerReviewActionCard from "@/components/procurement/OfficerReviewActionCard";
 import { LoadingState, ErrorState, EmptyState } from "@/components/procurement/States";
 
 export default function SubmissionWorkspacePage() {
@@ -514,6 +515,13 @@ export default function SubmissionWorkspacePage() {
                       ))}
                     </div>
                   )}
+
+                  {/* Officer Determination Action Controls */}
+                  <OfficerReviewActionCard
+                    targetId={submission.id}
+                    targetTitle={submission.bidder?.legal_name || submission.external_submission_reference || "Bid Submission"}
+                    targetReference={submission.external_submission_reference || undefined}
+                  />
                 </div>
               )}
             </section>

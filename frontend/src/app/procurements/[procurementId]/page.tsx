@@ -36,6 +36,7 @@ import {
 import WorkspaceHeader from "@/components/procurement/WorkspaceHeader";
 import StatusBadge from "@/components/procurement/StatusBadge";
 import DocumentTable from "@/components/procurement/DocumentTable";
+import OfficerReviewActionCard from "@/components/procurement/OfficerReviewActionCard";
 import { LoadingState, ErrorState, EmptyState } from "@/components/procurement/States";
 
 const PIPELINE_STAGES: Array<{ id: ProcessingStage; label: string; description: string }> = [
@@ -327,6 +328,15 @@ export default function ProcurementWorkspacePage() {
                 <strong>Decision Support Architecture:</strong> Pipeline execution extracts requirements and evidence to power deterministic compliance verification. The system never autonomously awards or disqualifies bidders; all conclusions remain recommendations for human officer review.
               </div>
             </section>
+
+            {/* Officer Review & Verification Determination Card */}
+            {procurement.status === "READY" && (
+              <OfficerReviewActionCard
+                targetId={procurement.id}
+                targetTitle={procurement.title}
+                targetReference={procurement.external_reference}
+              />
+            )}
 
             {/* Visual Hierarchy: Procurement -> Tenders */}
             <section aria-labelledby="tenders-heading" className="space-y-4">

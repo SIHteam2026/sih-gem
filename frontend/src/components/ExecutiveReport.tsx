@@ -15,6 +15,7 @@ import {
   UserCheck,
   Stamp,
 } from "lucide-react";
+import OfficerReviewActionCard from "@/components/procurement/OfficerReviewActionCard";
 
 export interface ExecutiveReportData {
   executive_summary?: string;
@@ -260,6 +261,15 @@ export default function ExecutiveReport({
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Officer Determination Action Controls */}
+      <div className="p-6 bg-white border-t border-amber-200 print:hidden font-sans">
+        <OfficerReviewActionCard
+          targetId={reportData.id || targetTender || "exec-report"}
+          targetTitle={`Executive Determination: ${targetBidder}`}
+          targetReference={targetTender}
+        />
       </div>
 
       {/* Bottom CPO Summary Card Action Footer */}

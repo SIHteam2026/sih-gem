@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { FileText } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { fetchProcurements } from "@/services/api";
 import { ProcurementSummaryItem, ProcurementListResponse } from "@/types/procurement";
+import { computeReviewStats, subscribeToReviewDecisions } from "@/services/reviewDecisions";
 
 interface OfficerContextPanelProps {
   officerName?: string;
@@ -103,7 +104,7 @@ export function getContextualGreeting(
  * Hierarchy:
  * 1. Freestanding Dynamic Greeting & Name (Good Morning / Mr. Srivastav)
  * 2. Edge-Emerging Context Surface:
- *    - Pending Approvals banner with Review action
+ *    - Dynamic Procurement Verification Status breakdown (Pending, Further Analysis, Confirmed)
  *    - Fiscal Allocation progress indicator
  *    - Compliance Recertification alert
  *    - Executive Audit Log stream
@@ -113,9 +114,18 @@ export default function OfficerContextPanel({
   className = "",
 }: OfficerContextPanelProps) {
   const [greeting, setGreeting] = useState<string>("Good Evening");
-  const [, setRecentCases] = useState<ProcurementSummaryItem[]>([]);
-  const [pendingReviewsCount, setPendingReviewsCount] = useState<number | null>(null);
+  const [stats, setStats] = useState({
+    totalProcessed: 0,
+    pendingCount: 0,
+    furtherReviewCount: 0,
+    confirmedCount: 0,
+  });
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const updateStats = useCallback((cases: ProcurementSummaryItem[]) => {
+    const computed = computeReviewStats(cases);
+    setStats(computed);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -128,7 +138,7 @@ export default function OfficerContextPanel({
       setGreeting(getTimeBasedGreeting(now));
     }
 
-    // Initialize client-side time-based greeting asynchronously (avoiding synchronous setState in effect)
+    // Initialize client-side time-based greeting asynchronously
     const mountTimer = setTimeout(() => {
       applyCurrentGreeting();
     }, 0);
@@ -138,26 +148,22 @@ export default function OfficerContextPanel({
       applyCurrentGreeting();
     }, 60000);
 
-    async function loadRecent() {
+    async function loadData() {
       setIsLoading(true);
       try {
         const res = (await fetchProcurements(50, 0)) as ProcurementListResponse;
         if (isMounted && res?.procurements) {
           latestCases = res.procurements;
-          setRecentCases(res.procurements);
-          // Dynamically compute only those procurements that are completely processed (status === 'READY')
-          const completelyProcessedCases = res.procurements.filter(
-            (p) => (p.status || "").toUpperCase() === "READY"
-          );
-          setPendingReviewsCount(completelyProcessedCases.length);
+          updateStats(res.procurements);
         } else if (isMounted) {
-          setRecentCases([]);
-          setPendingReviewsCount(0);
+          latestCases = [];
+          updateStats([]);
         }
       } catch {
         if (isMounted) {
-          setRecentCases([]);
-          setPendingReviewsCount(0);
+          latestCases = [];
+          updateStats([]);
+          applyCurrentGreeting([]);
         }
       } finally {
         if (isMounted) {
@@ -165,14 +171,22 @@ export default function OfficerContextPanel({
         }
       }
     }
-    loadRecent();
+    loadData();
+
+    // Subscribe to live review decision updates across tabs/components
+    const unsubscribe = subscribeToReviewDecisions(() => {
+      if (isMounted) {
+        updateStats(latestCases);
+      }
+    });
 
     return () => {
       isMounted = false;
       clearTimeout(mountTimer);
       clearInterval(intervalId);
+      unsubscribe();
     };
-  }, []);
+  }, [updateStats]);
 
   return (
     <aside
@@ -193,35 +207,66 @@ export default function OfficerContextPanel({
       <div
         className="w-full rounded-2xl sm:rounded-3xl border border-[#e5e7eb] bg-white p-5 sm:p-6 shadow-[0_4px_24px_rgba(0,0,0,0.02)] space-y-5"
       >
-        {/* Pending Reviews Action Banner (Dynamically analyzed from processed procurement cases) */}
-        <div className="rounded-xl bg-[#f9fafb] border border-[#f3f4f6] p-3.5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center rounded-lg bg-white border border-[#e5e7eb] text-[#111827]">
-              <FileText className="h-4 w-4" />
+        {/* Officer Review & Verification Status Panel */}
+        <div className="rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] p-4 space-y-3.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-[#163a5f]" />
+              <span className="text-xs font-bold text-[#0f172a]">
+                Procurement Verification Status
+              </span>
             </div>
-            <div>
-              <p className="text-xs font-bold text-[#111827]">
-                {isLoading ? (
-                  "Analyzing reviews…"
-                ) : (
-                  `${pendingReviewsCount ?? 0} Pending ${(pendingReviewsCount ?? 0) === 1 ? "Review" : "Reviews"}`
-                )}
-              </p>
-              <p className="text-[11px] text-[#6b7280]">
-                {isLoading
-                  ? "Checking processed procurement cases"
-                  : (pendingReviewsCount ?? 0) > 0
-                  ? "Completely processed & awaiting review"
-                  : "No cases awaiting review"}
-              </p>
+            <Link
+              href="/procurements"
+              className="focus-ring shrink-0 bg-[#163a5f] hover:bg-[#204b76] text-white text-[11px] font-semibold px-3 py-1 rounded-full transition-colors inline-flex items-center gap-1"
+            >
+              Review Queue
+            </Link>
+          </div>
+
+          {/* 3 Metric Counts Breakdown */}
+          <div className="grid grid-cols-3 gap-2">
+            {/* 1. Pending Reviews */}
+            <div className="rounded-xl bg-white border border-[#e2e8f0] p-2.5 text-center">
+              <div className="text-lg font-bold font-mono text-[#0f172a]">
+                {isLoading ? "…" : stats.pendingCount}
+              </div>
+              <div className="text-[10px] font-medium text-[#64748b] mt-0.5">
+                Pending Reviews
+              </div>
+            </div>
+
+            {/* 2. Need Further Review */}
+            <div className="rounded-xl bg-amber-50/80 border border-amber-200/90 p-2.5 text-center">
+              <div className="text-lg font-bold font-mono text-amber-900">
+                {isLoading ? "…" : stats.furtherReviewCount}
+              </div>
+              <div className="text-[10px] font-semibold text-amber-800 mt-0.5">
+                Further Analysis
+              </div>
+            </div>
+
+            {/* 3. Confirmed Verifications */}
+            <div className="rounded-xl bg-emerald-50/80 border border-emerald-200/90 p-2.5 text-center">
+              <div className="text-lg font-bold font-mono text-emerald-900">
+                {isLoading ? "…" : stats.confirmedCount}
+              </div>
+              <div className="text-[10px] font-semibold text-emerald-800 mt-0.5">
+                Confirmed
+              </div>
             </div>
           </div>
-          <Link
-            href="/procurements"
-            className="focus-ring shrink-0 bg-[#111827] hover:bg-[#1f2937] text-white text-xs font-medium px-3.5 py-1.5 rounded-full transition-colors"
-          >
-            Review
-          </Link>
+
+          <div className="text-[11px] text-[#64748b] flex items-center justify-between border-t border-[#edf2f7] pt-2">
+            <span>
+              {isLoading
+                ? "Checking processed procurement cases…"
+                : `${stats.totalProcessed} completely processed case${stats.totalProcessed === 1 ? "" : "s"}`}
+            </span>
+            <span className="font-mono text-[10px] font-semibold text-[#163a5f]">
+              {stats.pendingCount > 0 ? "Action Required" : "Up to Date"}
+            </span>
+          </div>
         </div>
 
         {/* Fiscal Allocation Progress Bar */}
