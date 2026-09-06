@@ -19,7 +19,7 @@ export default function RecentProcurementsSection({ className = "" }: RecentProc
     setLoading(true);
     setError(null);
     try {
-      const response = (await fetchProcurements(10, 0)) as ProcurementListResponse;
+      const response = (await fetchProcurements(5, 0)) as ProcurementListResponse;
       setProcurements(response?.procurements || []);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unable to load recent procurements.";

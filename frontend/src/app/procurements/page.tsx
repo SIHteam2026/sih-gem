@@ -91,7 +91,7 @@ export default function WorkspaceShelfPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = (await fetchProcurements(50, 0)) as ProcurementListResponse;
+      const data = (await fetchProcurements(5, 0)) as ProcurementListResponse;
       setProcurements(data?.procurements || []);
       setDecisions(getOfficerDecisions());
     } catch {
@@ -105,7 +105,7 @@ export default function WorkspaceShelfPage() {
     let isMounted = true;
     async function loadInitial() {
       try {
-        const data = (await fetchProcurements(50, 0)) as ProcurementListResponse;
+        const data = (await fetchProcurements(5, 0)) as ProcurementListResponse;
         if (isMounted) {
           setProcurements(data?.procurements || []);
           setDecisions(getOfficerDecisions());
@@ -131,9 +131,14 @@ export default function WorkspaceShelfPage() {
       <main id="main-content" className="flex-1 w-full max-w-5xl mx-auto px-6 sm:px-10 py-10 sm:py-14">
         {/* Large Clean Page Title */}
         <div className="mb-8 sm:mb-10 flex items-center justify-between">
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#111827]">
-            Opal Workspace
-          </h1>
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#111827]">
+              Opal Workspace
+            </h1>
+            <p className="mt-1 text-xs text-[#64748b]">
+              Showing the latest 5 active procurement workspaces.
+            </p>
+          </div>
 
           <button
             type="button"

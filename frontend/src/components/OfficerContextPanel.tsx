@@ -151,7 +151,7 @@ export default function OfficerContextPanel({
     async function loadData() {
       setIsLoading(true);
       try {
-        const res = (await fetchProcurements(50, 0)) as ProcurementListResponse;
+        const res = (await fetchProcurements(5, 0)) as ProcurementListResponse;
         if (isMounted && res?.procurements) {
           latestCases = res.procurements;
           updateStats(res.procurements);
@@ -261,7 +261,7 @@ export default function OfficerContextPanel({
             <span>
               {isLoading
                 ? "Checking processed procurement cases…"
-                : `${stats.totalProcessed} completely processed case${stats.totalProcessed === 1 ? "" : "s"}`}
+                : `${stats.totalProcessed} processed case${stats.totalProcessed === 1 ? "" : "s"} tracked (latest 5)`}
             </span>
             <span className="font-mono text-[10px] font-semibold text-[#163a5f]">
               {stats.pendingCount > 0 ? "Action Required" : "Up to Date"}
