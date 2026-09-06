@@ -43,6 +43,7 @@ test('2. OfficerReviewActionCard contains Confirm Verifications & Need Further R
   assert.ok(content.includes('Confirm Verifications'), 'Must have "Confirm Verifications" button text');
   assert.ok(content.includes('Need Further Review'), 'Must have "Need Further Review" button text');
   assert.ok(content.includes('saveOfficerDecision'), 'Must call saveOfficerDecision');
+  assert.ok(content.includes('subscribeToReviewDecisions'), 'Must import and use subscribeToReviewDecisions');
 });
 
 test('3. OfficerContextPanel renders dynamic review status breakdown', () => {
