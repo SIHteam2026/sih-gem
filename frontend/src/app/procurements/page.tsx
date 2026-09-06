@@ -1,210 +1,238 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  FolderKanban,
-  FileSpreadsheet,
-  Users,
-  FileText,
-  ArrowUpRight,
-  RefreshCw,
-  ExternalLink,
-  ShieldCheck,
-} from "lucide-react";
+import { ArrowUpRight, RefreshCw } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { fetchProcurements } from "@/services/api";
 import { ProcurementSummaryItem, ProcurementListResponse } from "@/types/procurement";
-import StatusBadge from "@/components/procurement/StatusBadge";
-import SourceBadge from "@/components/procurement/SourceBadge";
-import { LoadingState, EmptyState, ErrorState } from "@/components/procurement/States";
+import { getOfficerDecisions, OfficerDecision } from "@/services/reviewDecisions";
+import ProjectCard from "@/components/procurement/ProjectCard";
 
-export default function ProcurementsPage() {
+/**
+ * Deterministic derivation of the working-state tag from real application signals:
+ * 
+ * Canonical Signals:
+ * 1. `procurement.status`: ('IMPORTED', 'PROCESSING', 'READY', 'FAILED')
+ * 2. `officerDecision`: Retrieved via `getOfficerDecisions()` ('CONFIRMED', 'NEEDS_FURTHER_REVIEW', notes)
+ * 3. `procurement.updated_at` vs `procurement.created_at`: Progress updates indicating pipeline modifications
+ * 
+ * Rules:
+ * - 'DRAFT': The project has review/progress activity (e.g. status is 'PROCESSING',
+ *    or an officer review decision / notes are recorded, or post-ingestion progress activity exists),
+ *    but final review is in draft / not complete.
+ * - 'NEW': The project has been loaded/ingested into the workspace (e.g. status is 'IMPORTED',
+ *    or newly ingested 'READY' case awaiting initial officer review activity).
+ */
+export function deriveProjectState(
+  procurement: ProcurementSummaryItem,
+  officerDecision?: OfficerDecision | null
+): "NEW" | "DRAFT" {
+  // If officer review activity is recorded (decision or notes present)
+  if (officerDecision && (officerDecision.decision || officerDecision.notes)) {
+    return "DRAFT";
+  }
+
+  const status = (procurement.status || "").toUpperCase();
+
+  // Active pipeline processing represents in-flight review activity
+  if (status === "PROCESSING" || status === "IN_PROGRESS" || status === "ANALYZING") {
+    return "DRAFT";
+  }
+
+  // If status is IMPORTED, it has been loaded but not yet processed/reviewed
+  if (status === "IMPORTED") {
+    return "NEW";
+  }
+
+  // For READY status: if updated_at is distinctly after created_at (> 2 minutes),
+  // indicating progress/evaluation processing activity occurred
+  if (procurement.created_at && procurement.updated_at) {
+    const created = new Date(procurement.created_at).getTime();
+    const updated = new Date(procurement.updated_at).getTime();
+    if (!isNaN(created) && !isNaN(updated) && updated - created > 120000) {
+      return "DRAFT";
+    }
+  }
+
+  // Default: newly loaded procurement awaiting initial review
+  return "NEW";
+}
+
+/**
+ * Format canonical ISO timestamp into clean human-readable date.
+ * Example visual language: "Loaded 6 Sep 2026"
+ */
+export function formatLoadedDate(dateStr?: string | null): string {
+  if (!dateStr) return "Loaded recently";
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return "Loaded recently";
+    const formatted = new Intl.DateTimeFormat("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(date);
+    return `Loaded ${formatted}`;
+  } catch {
+    return "Loaded recently";
+  }
+}
+
+export default function WorkspaceShelfPage() {
+  const router = useRouter();
   const [procurements, setProcurements] = useState<ProcurementSummaryItem[]>([]);
-  const [total, setTotal] = useState<number>(0);
+  const [decisions, setDecisions] = useState<Record<string, OfficerDecision>>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadProcurements = useCallback(async () => {
+  const handleRefresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data = (await fetchProcurements(50, 0)) as ProcurementListResponse;
       setProcurements(data?.procurements || []);
-      setTotal(data?.total || 0);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to load procurement list from server.";
-      setError(msg);
+      setDecisions(getOfficerDecisions());
+    } catch {
+      setError("Unable to load workspace projects at this time. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadProcurements();
-  }, [loadProcurements]);
+    let isMounted = true;
+    async function loadInitial() {
+      try {
+        const data = (await fetchProcurements(50, 0)) as ProcurementListResponse;
+        if (isMounted) {
+          setProcurements(data?.procurements || []);
+          setDecisions(getOfficerDecisions());
+          setLoading(false);
+        }
+      } catch {
+        if (isMounted) {
+          setError("Unable to load workspace projects at this time. Please check your connection and try again.");
+          setLoading(false);
+        }
+      }
+    }
+    loadInitial();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#f7f6f2] text-[#162333] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#f7f6f2] text-[#162333] flex flex-col font-sans selection:bg-[#d8e6ee]">
       <Navbar />
 
-      <main className="flex-1 max-w-6xl w-full mx-auto px-5 py-10 sm:px-8 sm:py-14">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 border-b border-[#d9ddd9] pb-8">
-          <div>
-            <p className="eyebrow">Officer Workspace</p>
-            <h1 className="mt-2 text-3xl sm:text-4xl font-medium tracking-tight text-[#162333]">
-              Procurements
-            </h1>
-            <p className="mt-2.5 max-w-xl text-sm leading-relaxed text-[#616e7a]">
-              Active procurement workspaces ingested from authorized sources. Select a procurement to inspect its tenders, requirements, and bidder evidence.
-            </p>
-          </div>
+      <main id="main-content" className="flex-1 w-full max-w-5xl mx-auto px-6 sm:px-10 py-10 sm:py-14">
+        {/* Large Clean Page Title */}
+        <div className="mb-8 sm:mb-10 flex items-center justify-between">
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#111827]">
+            Opal Workspace
+          </h1>
 
-          <div className="flex items-center gap-3 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={loading}
+            className="focus-ring inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#64748b] hover:text-[#111827] rounded-md transition-colors disabled:opacity-50 cursor-pointer"
+            aria-label="Refresh workspace"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+        </div>
+
+        {/* Loading State: Simple, quiet placeholders without flashy skeleton animation */}
+        {loading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8" aria-busy="true">
+            <div className="h-48 rounded-2xl border border-dashed border-[#e2e8f0] bg-white/50 p-6 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="h-3 w-28 bg-[#e2e8f0] rounded" />
+                <div className="h-5 w-3/4 bg-[#e2e8f0] rounded" />
+              </div>
+              <div className="h-3 w-32 bg-[#e2e8f0] rounded" />
+            </div>
+            <div className="h-48 rounded-2xl border border-dashed border-[#e2e8f0] bg-white/50 p-6 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="h-3 w-28 bg-[#e2e8f0] rounded" />
+                <div className="h-5 w-3/4 bg-[#e2e8f0] rounded" />
+              </div>
+              <div className="h-3 w-32 bg-[#e2e8f0] rounded" />
+            </div>
+          </div>
+        )}
+
+        {/* Error State: Human-readable error message with retry */}
+        {!loading && error && (
+          <div className="rounded-2xl border border-[#fee2e2] bg-[#fff5f5] p-8 text-center max-w-lg mx-auto">
+            <p className="text-sm font-semibold text-[#991b1b]">
+              Workspace unavailable
+            </p>
+            <p className="mt-1 text-xs text-[#7f1d1d] leading-relaxed">
+              {error}
+            </p>
             <button
               type="button"
-              onClick={loadProcurements}
-              disabled={loading}
-              className="focus-ring inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium border border-[#cfd5d5] bg-[#fffefa] hover:bg-white text-[#2c3f4e] rounded transition-colors disabled:opacity-50 cursor-pointer"
+              onClick={handleRefresh}
+              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-[#991b1b] hover:bg-[#7f1d1d] rounded-full transition-colors cursor-pointer"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
-              Refresh
+              Retry
             </button>
-
-            <Link
-              href="/mock-gem"
-              className="focus-ring inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#4a5b69] border border-dashed border-[#ccd3d7] bg-[#fbfbf9] hover:bg-white rounded transition-colors"
-              title="Open the development simulator to ingest sample procurement packages"
-            >
-              <ExternalLink className="w-3.5 h-3.5 text-[#73828f]" aria-hidden="true" />
-              Mock-GeM (Dev)
-            </Link>
           </div>
-        </div>
+        )}
 
-        {/* Status / Content Section */}
-        <div className="mt-8">
-          {error && (
-            <ErrorState
-              title="Procurement service unavailable"
-              message={error}
-              onRetry={loadProcurements}
-              className="mb-6"
-            />
-          )}
-
-          {loading ? (
-            <LoadingState message="Fetching active procurement workspaces…" />
-          ) : procurements.length === 0 ? (
-            <EmptyState
-              title="No procurements available"
-              description="No active procurement cases are currently registered. Procurements arrive automatically when ingested from external sources. You can use the Mock-GeM simulator during development to ingest a sample procurement."
-              action={
-                <Link
-                  href="/mock-gem"
-                  className="focus-ring inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-[#163a5f] hover:bg-[#214c77] rounded transition-colors"
-                >
-                  Open Mock-GeM Simulator <ArrowUpRight className="w-3.5 h-3.5" />
-                </Link>
-              }
-            />
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between text-xs text-[#6e7d89] px-1">
-                <span>
-                  Showing <strong>{procurements.length}</strong> of <strong>{total}</strong> procurements
-                </span>
-                <span className="hidden sm:inline">Click any case to open workspace</span>
-              </div>
-
-              {/* Restrained Enterprise Procurement Table */}
-              <div className="overflow-x-auto border border-[#d9ddd9] rounded bg-[#fffefa]">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-[#d9ddd9] bg-[#f5f6f4] text-[#4f5e6a] font-semibold">
-                      <th scope="col" className="py-3.5 px-4">Procurement & Reference</th>
-                      <th scope="col" className="py-3.5 px-4">Organization</th>
-                      <th scope="col" className="py-3.5 px-4">Source</th>
-                      <th scope="col" className="py-3.5 px-4 text-center">Tenders</th>
-                      <th scope="col" className="py-3.5 px-4 text-center">Bidders</th>
-                      <th scope="col" className="py-3.5 px-4 text-center">Status</th>
-                      <th scope="col" className="py-3.5 px-4 text-right">Last Updated</th>
-                      <th scope="col" className="py-3.5 px-2 text-center sr-only">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#e4e7e4]">
-                    {procurements.map((item) => {
-                      const procurementId = item.id || item.procurement_id;
-                      return (
-                        <tr
-                          key={procurementId}
-                          className="group hover:bg-[#f8faf8] transition-colors"
-                        >
-                          <td className="py-4 px-4">
-                            <Link
-                              href={`/procurements/${procurementId}`}
-                              className="focus-ring block"
-                            >
-                              <p className="font-semibold text-sm text-[#162333] group-hover:text-[#163a5f] transition-colors">
-                                {item.title}
-                              </p>
-                              <p className="font-mono text-[11px] text-[#6d7c88] mt-0.5">
-                                {item.external_reference}
-                              </p>
-                            </Link>
-                          </td>
-                          <td className="py-4 px-4 text-[#334657]">
-                            {item.organization}
-                          </td>
-                          <td className="py-4 px-4">
-                            <SourceBadge source={item.source_system} />
-                          </td>
-                          <td className="py-4 px-4 text-center font-medium text-[#2d3e4e]">
-                            <span className="inline-flex items-center gap-1 font-mono">
-                              <FileSpreadsheet className="w-3.5 h-3.5 text-[#5e7080]" aria-hidden="true" />
-                              {item.tender_count ?? 0}
-                            </span>
-                          </td>
-                          <td className="py-4 px-4 text-center font-medium text-[#2d3e4e]">
-                            <span className="inline-flex items-center gap-1 font-mono">
-                              <Users className="w-3.5 h-3.5 text-[#5e7080]" aria-hidden="true" />
-                              {item.bidder_count ?? 0}
-                            </span>
-                          </td>
-                          <td className="py-4 px-4 text-center">
-                            <StatusBadge status={item.status} size="sm" />
-                          </td>
-                          <td className="py-4 px-4 text-right text-[#707f8c] whitespace-nowrap">
-                            {item.updated_at || item.created_at
-                              ? new Date(item.updated_at || item.created_at!).toLocaleDateString(
-                                  "en-IN",
-                                  {
-                                    day: "2-digit",
-                                    month: "short",
-                                    year: "numeric",
-                                  }
-                                )
-                              : "—"}
-                          </td>
-                          <td className="py-4 px-2 text-center">
-                            <Link
-                              href={`/procurements/${procurementId}`}
-                              aria-label={`Open workspace for ${item.title}`}
-                              className="focus-ring inline-flex p-1 rounded text-[#93a1ab] group-hover:text-[#163a5f] group-hover:translate-x-0.5 transition-all"
-                            >
-                              <ArrowUpRight className="w-4 h-4" />
-                            </Link>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+        {/* Empty State: Calm message and appropriate existing action */}
+        {!loading && !error && procurements.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-[#d1d5db] bg-white/60 p-12 text-center max-w-md mx-auto">
+            <p className="text-base font-semibold text-[#111827]">
+              Your workspace is empty.
+            </p>
+            <p className="mt-1 text-xs text-[#64748b] leading-relaxed">
+              No procurement projects are currently registered in your workspace shelf.
+            </p>
+            <div className="mt-6">
+              <Link
+                href="/mock-gem"
+                className="focus-ring inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#111827] hover:bg-[#1f2937] rounded-full transition-colors"
+              >
+                <span>Load sample in Mock-GeM</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Desktop 2-Column Grid / Tablet & Mobile Responsive Cards */}
+        {!loading && !error && procurements.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+            {procurements.map((item) => {
+              const id = item.id || item.procurement_id || item.external_reference;
+              const decision = id ? decisions[id] : null;
+              const cardState = deriveProjectState(item, decision);
+              const loadedDate = formatLoadedDate(item.created_at || item.updated_at);
+              const department = item.organization || item.source_system || "Government Organization";
+              const title = item.title || item.external_reference || "Procurement Project";
+
+              return (
+                <ProjectCard
+                  key={id}
+                  id={id}
+                  title={title}
+                  department={department}
+                  loadedDate={loadedDate}
+                  state={cardState}
+                  reference={item.external_reference}
+                  onOpen={() => router.push(`/procurements/${encodeURIComponent(id)}`)}
+                />
+              );
+            })}
+          </div>
+        )}
       </main>
     </div>
   );
