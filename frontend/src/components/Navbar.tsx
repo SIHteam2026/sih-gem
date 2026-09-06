@@ -15,7 +15,7 @@ export default function Navbar() {
   return (
     <header className="border-b border-[#d9ddd9] bg-[#fffefa]/95 backdrop-blur-sm sticky top-0 z-30">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8">
-        <Link href="/procurements" className="focus-ring flex items-center gap-3 rounded-sm">
+        <Link href="/" className="focus-ring flex items-center gap-3 rounded-sm">
           <span className="grid h-8 w-8 place-items-center border border-[#163a5f] bg-[#163a5f] text-xs font-bold tracking-tight text-white rounded">
             OP
           </span>
