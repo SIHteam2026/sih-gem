@@ -654,6 +654,43 @@ def get_canonical_cpcl_requirements(tender_id: str = "DEMO/CPCL/WQM/2026/017") -
     ]
 
 
+def _prune_old_procurements(max_items: int = 10) -> None:
+    """Retains only the latest `max_items` procurements (by created_at) and deletes older ones automatically."""
+    global _IN_MEMORY_PROCUREMENTS, _IN_MEMORY_TENDERS, _IN_MEMORY_SUBMISSIONS, _IN_MEMORY_DOCUMENTS, _IN_MEMORY_REQUIREMENTS
+    if len(_IN_MEMORY_PROCUREMENTS) <= max_items:
+        return
+
+    sorted_procs = sorted(
+        _IN_MEMORY_PROCUREMENTS.values(),
+        key=lambda x: x.get("created_at") or "",
+        reverse=True,
+    )
+    keep_procs = sorted_procs[:max_items]
+    keep_proc_ids = {p["id"] for p in keep_procs if p.get("id")}
+
+    _IN_MEMORY_PROCUREMENTS = {p["id"]: p for p in keep_procs if p.get("id")}
+
+    # Prune associated tenders, submissions, documents that belonged to removed procurements
+    keep_tender_ids = set()
+    _IN_MEMORY_TENDERS = {
+        t_id: t for t_id, t in _IN_MEMORY_TENDERS.items()
+        if t.get("procurement_id") in keep_proc_ids or not t.get("procurement_id")
+    }
+    for t_id, t in _IN_MEMORY_TENDERS.items():
+        keep_tender_ids.add(t_id)
+        if t.get("external_reference"):
+            keep_tender_ids.add(t["external_reference"])
+
+    _IN_MEMORY_SUBMISSIONS = {
+        s_id: s for s_id, s in _IN_MEMORY_SUBMISSIONS.items()
+        if s.get("procurement_id") in keep_proc_ids or s.get("tender_id") in keep_tender_ids
+    }
+    _IN_MEMORY_DOCUMENTS = {
+        d_id: d for d_id, d in _IN_MEMORY_DOCUMENTS.items()
+        if d.get("procurement_id") in keep_proc_ids or d.get("tender_id") in keep_tender_ids
+    }
+
+
 def _load_local_store() -> None:
     """Loads fallback in-memory records from local disk store if present."""
     if not _LOCAL_STORE_PATH.exists():
@@ -667,6 +704,7 @@ def _load_local_store() -> None:
             _IN_MEMORY_SUBMISSIONS.update(data.get("submissions", {}))
             _IN_MEMORY_DOCUMENTS.update(data.get("documents", {}))
             _IN_MEMORY_REQUIREMENTS.update(data.get("requirements", {}))
+        _prune_old_procurements(10)
     except Exception as e:
         logger.warning("Failed to load local procurement store: %s", e)
 
@@ -674,6 +712,7 @@ def _load_local_store() -> None:
 def _save_local_store() -> None:
     """Persists fallback in-memory records to local disk store."""
     try:
+        _prune_old_procurements(10)
         _DATA_DIR.mkdir(parents=True, exist_ok=True)
         payload = {
             "procurements": _IN_MEMORY_PROCUREMENTS,
