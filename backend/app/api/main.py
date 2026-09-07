@@ -834,7 +834,7 @@ async def evaluate_complete_endpoint(payload: MasterEvaluationRequest):
             details={
                 "requires_human_review": entity_res.requires_human_review,
                 "debarment_status": "CLEAR",
-                "pan_verified": bool(detected_gstin),
+                "pan_verified": False,
             },
         )
 
