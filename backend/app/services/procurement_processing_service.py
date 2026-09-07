@@ -305,6 +305,11 @@ class ComplianceEvaluationStage(ProcurementProcessingStage):
             from app.services.master_pipeline import evaluate_canonical_submission_by_id
             from app.db.client import get_procurement_hierarchy, insert_bid_evaluation
             from app.models.evaluation import ComplianceState
+            from app.models.verification import VerificationContext
+            from app.rules.verification_engine import canonical_verification_engine
+            from app.models.procurement import Document
+            from app.services.tender_contract_service import get_tender_evaluation_contract
+            from app.services.claim_extraction_service import process_document_evidence
             
             procurement_id = context.procurement_id
             proc_full = await get_procurement_hierarchy(procurement_id)
@@ -317,9 +322,51 @@ class ComplianceEvaluationStage(ProcurementProcessingStage):
             for t in tenders:
                 submissions.extend(t.get("submissions", []))
             
-            if not submissions:
-                logger.warning("No submissions found for evaluation.")
-                
+            bidders = proc_full.get("bidders", [])
+            for sub in submissions:
+                if sub.get("bidder") and isinstance(sub["bidder"], dict):
+                    b_dict = dict(sub["bidder"])
+                    if not any(str(b.get("id")) == str(b_dict.get("id")) for b in bidders):
+                        bidders.append(b_dict)
+
+            # Gather all documents, claims, and observations for case-level verification
+            all_case_docs = []
+            all_case_claims = []
+            all_case_obs = []
+            try:
+                tender_contract_pkg = await get_tender_evaluation_contract(tender_id)
+                req_contracts = tender_contract_pkg.requirements
+            except Exception:
+                req_contracts = []
+
+            for sub in submissions:
+                sub_docs = sub.get("documents", [])
+                tender_ctx = {
+                    "bidder_id": sub.get("bidder_id"),
+                    "bid_submission_id": sub.get("id"),
+                    "requirements": req_contracts
+                }
+                for d in sub_docs:
+                    doc_obj = Document(**d) if isinstance(d, dict) else d
+                    all_case_docs.append(doc_obj)
+                    extracted_facts = process_document_evidence(doc_obj, tender_ctx)
+                    all_case_claims.extend(extracted_facts.get("claims", []))
+                    all_case_obs.extend(extracted_facts.get("observations", []))
+
+            # Run Canonical 7-Layer Verification Engine at Procurement Case Level
+            case_v_context = VerificationContext(
+                procurement_id=procurement_id,
+                tender_id=tender_id,
+                tender_metadata=tender,
+                requirements=req_contracts,
+                bidders=bidders,
+                submissions=submissions,
+                documents=all_case_docs,
+                claims=all_case_claims,
+                observations=all_case_obs,
+            )
+            case_engine_report = await canonical_verification_engine.run_verification(case_v_context)
+            
             subs_evaluated = 0
             pass_count = 0
             fail_count = 0
@@ -351,6 +398,9 @@ class ComplianceEvaluationStage(ProcurementProcessingStage):
                     elif status == "UNVERIFIED": unverified_count += 1
                     elif status == "NOT_APPLICABLE": na_count += 1
                 
+                # Attach case-level verification findings relevant to this submission
+                eval_result_dict["case_verification_report"] = case_engine_report.model_dump()
+                
                 # Save bid evaluation
                 await insert_bid_evaluation(tender_id, eval_result_dict)
                 subs_evaluated += 1
@@ -366,7 +416,9 @@ class ComplianceEvaluationStage(ProcurementProcessingStage):
                     "FAIL": fail_count,
                     "REVIEW": review_count,
                     "UNVERIFIED": unverified_count,
-                    "NOT_APPLICABLE": na_count
+                    "NOT_APPLICABLE": na_count,
+                    "total_layer_findings": case_engine_report.total_findings,
+                    "collusion_findings_count": len(case_engine_report.collusion_findings),
                 },
             )
         except Exception as exc:

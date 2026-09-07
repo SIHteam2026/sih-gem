@@ -52,9 +52,14 @@ from .procurement import (
     TenderWorkspaceDetailResponse,
 )
 from .report import FinalAuditReport
-from .shortfall import ShortfallRequest
-from .tender import RequirementCategory, TenderAnalysisResult, TenderRequirement
-from .translation import TranslationResult
+from .verification import (
+    FindingSeverity,
+    IdentityVerificationStatus,
+    VerificationContext,
+    VerificationEngineReport,
+    VerificationFinding,
+    VerificationLayer,
+)
 
 __all__ = [
     "Bidder",
@@ -75,7 +80,9 @@ __all__ = [
     "ExtractedEvidence",
     "FinancialEvaluationResult",
     "FinalAuditReport",
+    "FindingSeverity",
     "FraudAnalysisResult",
+    "IdentityVerificationStatus",
     "IngestionBidderInfo",
     "IngestionBidderPackageInput",
     "IngestionDocumentInput",
@@ -112,6 +119,10 @@ __all__ = [
     "TenderAnalysisResult",
     "TenderWorkspaceDetailResponse",
     "TranslationResult",
+    "VerificationContext",
+    "VerificationEngineReport",
+    "VerificationFinding",
+    "VerificationLayer",
 ]
 
 

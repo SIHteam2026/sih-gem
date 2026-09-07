@@ -64,6 +64,7 @@ async def test_round_robin_indices():
         os.environ.pop(f"GROQ_KEY_{i}", None)
 
     router = AIRouter()
+    router.get_api_keys = lambda: ["k1", "k2", "k3"]
     idx1 = await router._get_next_key_indices()
     idx2 = await router._get_next_key_indices()
     idx3 = await router._get_next_key_indices()

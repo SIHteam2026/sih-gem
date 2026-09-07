@@ -34,6 +34,14 @@ try:
     from app.models.evaluation import ComplianceState, RequirementEvaluationResult
     from app.models.evidence import BidderClaim, EvidenceObservation
     from app.models.tender_contract import RequirementEvaluationContract
+    from app.models.verification import (
+        FindingSeverity,
+        VerificationContext,
+        VerificationEngineReport,
+        VerificationFinding,
+        VerificationLayer,
+    )
+    from app.rules.verification_engine import canonical_verification_engine
     from app.services.requirement_mapping_service import map_evidence_to_requirements
 except ImportError:
     try:
@@ -41,12 +49,28 @@ except ImportError:
         from app.models.evaluation import ComplianceState, RequirementEvaluationResult
         from app.models.evidence import BidderClaim, EvidenceObservation
         from app.models.tender_contract import RequirementEvaluationContract
+        from app.models.verification import (
+            FindingSeverity,
+            VerificationContext,
+            VerificationEngineReport,
+            VerificationFinding,
+            VerificationLayer,
+        )
+        from app.rules.verification_engine import canonical_verification_engine
         from app.services.requirement_mapping_service import map_evidence_to_requirements
     except ImportError:
         from services.evaluation_service import evaluate_requirements
         from models.evaluation import ComplianceState, RequirementEvaluationResult
         from models.evidence import BidderClaim, EvidenceObservation
         from models.tender_contract import RequirementEvaluationContract
+        from models.verification import (
+            FindingSeverity,
+            VerificationContext,
+            VerificationEngineReport,
+            VerificationFinding,
+            VerificationLayer,
+        )
+        from rules.verification_engine import canonical_verification_engine
         from services.requirement_mapping_service import map_evidence_to_requirements
 
 logger = logging.getLogger(__name__)
@@ -72,6 +96,11 @@ def _load_legacy_dependencies():
             run_deterministic_checks, extract_text_from_pdf, retrieve_relevant_clauses)
 
 
+async def run_layered_verification(context: VerificationContext) -> VerificationEngineReport:
+    """Executes the canonical 7-layer verification engine against a verification context."""
+    return await canonical_verification_engine.run_verification(context)
+
+
 def evaluate_canonical_submission(
     tender_id: str,
     bidder_id: Optional[str],
@@ -86,8 +115,8 @@ def evaluate_canonical_submission(
 
     Inputs are already requirement-linked by the ingestion/document layer; this
     function deliberately neither reparses tender PDFs nor concatenates bidder
-    documents.  It only groups canonical facts and delegates every requirement
-    to the tiered evaluator.
+    documents. It executes canonical requirement evaluation and the 7-layer
+    verification engine.
     """
     claims = map_evidence_to_requirements(claims, requirement_contracts)
     observations = map_evidence_to_requirements(observations, requirement_contracts)
@@ -107,22 +136,64 @@ def evaluate_canonical_submission(
         verifications_by_req=external_verifications or {},
         context=req_context,
     )
+
+    # Execute Canonical 7-Layer Verification Engine synchronously
+    v_context = VerificationContext(
+        procurement_id=req_context.get("procurement_id"),
+        tender_id=tender_id,
+        tender_metadata=req_context.get("tender_metadata", {}),
+        requirements=requirement_contracts,
+        bidders=[req_context.get("bidder_profile", {"id": bidder_id, "legal_name": req_context.get("bidder_name", "Bidder")})] if (req_context.get("bidder_profile") or bidder_id) else [],
+        submissions=[{"id": submission_id, "bidder_id": bidder_id}] if submission_id else [],
+        documents=req_context.get("documents", []),
+        claims=claims,
+        observations=observations,
+        external_verifications=external_verifications or {},
+        extra_context=req_context,
+    )
+
+    import asyncio
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # In an active event loop, run tasks synchronously using future or direct coro execution
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                engine_report = pool.submit(asyncio.run, canonical_verification_engine.run_verification(v_context)).result()
+        else:
+            engine_report = loop.run_until_complete(canonical_verification_engine.run_verification(v_context))
+    except Exception as exc:
+        try:
+            engine_report = asyncio.run(canonical_verification_engine.run_verification(v_context))
+        except Exception:
+            logger.warning("Verification engine executed with fallback: %s", exc)
+            engine_report = VerificationEngineReport(
+                procurement_id=req_context.get("procurement_id"),
+                tender_id=tender_id,
+                total_findings=0,
+                review_required=False,
+            )
+
     state_counts = {state.value: 0 for state in (ComplianceState.PASS, ComplianceState.FAIL, ComplianceState.REVIEW, ComplianceState.UNVERIFIED, ComplianceState.NOT_APPLICABLE)}
     for result in results:
         state_counts[result.state.value] = state_counts.get(result.state.value, 0) + 1
     contradictions = sum(len(result.contradiction_findings) for result in results)
     review_count = sum(1 for result in results if result.review_required)
+    
+    total_review_required = bool(review_count) or (engine_report.review_required if engine_report else False)
+
     return {
         "tender_id": tender_id,
         "bidder_id": bidder_id,
         "submission_id": submission_id,
         "requirement_results": results,
         "machine_review_summary": state_counts,
-        "review_required": bool(review_count),
+        "review_required": total_review_required,
         "review_required_count": review_count,
         "unresolved_contradiction_count": contradictions,
         "unverified_count": state_counts.get(ComplianceState.UNVERIFIED.value, 0),
         "unmapped_facts": [],
+        "verification_engine_report": engine_report,
         "evaluation_metadata": {"executed_at": datetime.now(timezone.utc).isoformat(), "decision_authority": "HUMAN_PROCUREMENT_OFFICER"},
     }
 

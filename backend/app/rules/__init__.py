@@ -14,6 +14,18 @@ from .engine import (
 from .gst_rules import evaluate_gst
 from .validators import run_deterministic_checks, verify_past_performance
 
+from .verification_engine import CanonicalVerificationEngine, canonical_verification_engine
+from .layers import (
+    BaseVerifier,
+    DocumentIntegrityVerifier,
+    AdministrativeIdentityVerifier,
+    CorporateRiskVerifier,
+    AntiCollusionVerifier,
+    AdversarialTechnicalVerifier,
+    PastPerformanceCapacityVerifier,
+    FinancialCommercialVerifier,
+)
+
 __all__ = [
     "evaluate_requirement",
     "evaluate_numeric_threshold",
@@ -27,5 +39,15 @@ __all__ = [
     "is_entity_blacklisted",
     "run_deterministic_checks",
     "verify_past_performance",
+    "CanonicalVerificationEngine",
+    "canonical_verification_engine",
+    "BaseVerifier",
+    "DocumentIntegrityVerifier",
+    "AdministrativeIdentityVerifier",
+    "CorporateRiskVerifier",
+    "AntiCollusionVerifier",
+    "AdversarialTechnicalVerifier",
+    "PastPerformanceCapacityVerifier",
+    "FinancialCommercialVerifier",
 ]
 
