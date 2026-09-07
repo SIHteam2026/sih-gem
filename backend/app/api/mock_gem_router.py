@@ -65,8 +65,9 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
     Title: Supply and commissioning of industrial water quality monitoring units
     Source System: MOCK_GEM
     Bidders:
-      1. HydroTech Analytics: Fully compliant bidder with valid GST, 27.5% Local Content, ₹14.5 Cr Turnover, and OEM MAF.
-      2. AquaPure Systems: Non-compliant / contradictory bidder with 14% Local Content (fails 20% rule) and ₹6.5 Cr Turnover (fails ₹10 Cr rule).
+      1. HydroTech Analytics: Technically eligible, Cover 2 Commercial quote ₹4.529 Cr (L2).
+      2. AquaPure Systems: Non-compliant / contradictory (14% Local Content vs 20%, ₹6.5 Cr turnover vs threshold), excluded at Cover 2 Gate.
+      3. CleanFlow Technologies: Technically eligible, Cover 2 Commercial quote ₹4.106 Cr (L1 Winner).
     """
     return ProcurementIngestionPayload(
         source_system="MOCK_GEM",
@@ -138,6 +139,14 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
                         storage_path="mock_storage/submissions/HTA_OEM.pdf",
                         content_text="Manufacturer Authorization Form (MAF)\nTo: Chennai Petroleum Corporation Limited (CPCL)\nWe, Global Sensors GmbH (OEM), hereby authorize M/s HydroTech Analytics India Pvt Ltd as our authorized distributor and service partner for Model WQ-900 water quality monitoring analyzers with full warranty support.",
                     ),
+                    IngestionDocumentInput(
+                        filename="HydroTech_Commercial_BOQ_Bid.pdf",
+                        document_type=DocumentType.FINANCIAL_BOQ,
+                        mime_type="application/pdf",
+                        file_size=480000,
+                        storage_path="mock_storage/submissions/HTA_BOQ.pdf",
+                        content_text="COMMERCIAL BID & SCHEDULE OF RATES (BOQ)\nTender Reference: CPCL/WQM/2026/RFP-017\nBidder: HydroTech Analytics India Pvt Ltd\n\nItem 1: Online Multichannel Water Quality Analyzer Units (Model WQ-900), Qty: 5 units, Unit Rate: INR 48,00,000, Total: INR 2,40,00,000\nItem 2: Submersible Sensor Probes & Telemetry Modules, Qty: 5 sets, Unit Rate: INR 15,00,000, Total: INR 75,00,000\nItem 3: Installation, Testing, Calibration & Commissioning, Qty: 1 lot, Unit Rate: INR 25,00,000, Total: INR 25,00,000\nItem 4: 2-Year Comprehensive Annual Maintenance & Warranty, Qty: 1 lot, Unit Rate: INR 40,00,000, Total: INR 40,00,000\n\nSubtotal: INR 3,80,00,000\nTaxes (GST @ 18%): INR 68,40,000\nFreight & Transit Insurance: INR 4,50,000\nDiscount: INR 0\nTotal Evaluated Commercial Bid Price: INR 4,52,90,000",
+                    ),
                 ],
             ),
             IngestionBidderPackageInput(
@@ -184,6 +193,69 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
                         file_size=1560000,
                         storage_path="mock_storage/submissions/APS_Turnover.pdf",
                         content_text="CA Certified Turnover Certificate:\nThe average annual turnover of AquaPure Monitoring Systems over the past 3 financial years is INR 6.50 Crores (INR 65000000).",
+                    ),
+                    IngestionDocumentInput(
+                        filename="AquaPure_Commercial_BOQ_Bid.pdf",
+                        document_type=DocumentType.FINANCIAL_BOQ,
+                        mime_type="application/pdf",
+                        file_size=410000,
+                        storage_path="mock_storage/submissions/APS_BOQ.pdf",
+                        content_text="COMMERCIAL BID & SCHEDULE OF RATES (BOQ)\nTender Reference: CPCL/WQM/2026/RFP-017\nBidder: AquaPure Monitoring Systems & Instrumentation Ltd\n\nItem 1: Online Multichannel Water Quality Analyzer Units, Qty: 5 units, Unit Rate: INR 42,00,000, Total: INR 2,10,00,000\nItem 2: Submersible Sensor Probes & Telemetry Modules, Qty: 5 sets, Unit Rate: INR 14,00,000, Total: INR 70,00,000\nItem 3: Installation, Testing, Calibration & Commissioning, Qty: 1 lot, Unit Rate: INR 20,00,000, Total: INR 20,00,000\nItem 4: 2-Year Comprehensive Annual Maintenance & Warranty, Qty: 1 lot, Unit Rate: INR 35,00,000, Total: INR 35,00,000\n\nSubtotal: INR 3,35,00,000\nTaxes (GST @ 18%): INR 60,30,000\nFreight & Transit Insurance: INR 3,00,000\nDiscount: INR 3,30,000\nTotal Evaluated Commercial Bid Price: INR 3,95,00,000",
+                    ),
+                ],
+            ),
+            IngestionBidderPackageInput(
+                bidder=IngestionBidderInfo(
+                    legal_name="CleanFlow Environmental Technologies Pvt Ltd",
+                    gstin="33AABCC5544R1Z2",
+                    pan="AABCC5544R",
+                    email="tenders@cleanflow.co.in",
+                ),
+                submission=IngestionSubmissionInfo(
+                    external_submission_reference="GEM-SUB-CFT-2026-017",
+                    submitted_at=datetime(2026, 9, 1, 10, 45, tzinfo=timezone.utc),
+                    status="SUBMITTED",
+                ),
+                documents=[
+                    IngestionDocumentInput(
+                        filename="CleanFlow_GST_Registration.pdf",
+                        document_type=DocumentType.GST_CERTIFICATE,
+                        mime_type="application/pdf",
+                        file_size=430000,
+                        storage_path="mock_storage/submissions/CFT_GST.pdf",
+                        content_text="Government of India - GST Registration Certificate (Form GST REG-06)\nGSTIN: 33AABCC5544R1Z2\nLegal Name: CleanFlow Environmental Technologies Pvt Ltd\nTrade Name: CleanFlow Technologies\nStatus: ACTIVE\nPrincipal Place of Business: Tidel Park, Chennai, Tamil Nadu - 600113",
+                    ),
+                    IngestionDocumentInput(
+                        filename="CleanFlow_MII_Declaration.pdf",
+                        document_type=DocumentType.LOCAL_CONTENT_CERTIFICATE,
+                        mime_type="application/pdf",
+                        file_size=510000,
+                        storage_path="mock_storage/submissions/CFT_MII.pdf",
+                        content_text="Make in India (MII) Local Content Undertaking:\nUnder Public Procurement (Preference to Make in India) Order 2017\nWe hereby confirm that the local content for our offered water quality monitoring units is 32.0%.\nLocation of value addition: Ambattur Industrial Estate, Chennai.",
+                    ),
+                    IngestionDocumentInput(
+                        filename="CleanFlow_CA_Turnover_Certificate.pdf",
+                        document_type=DocumentType.TURNOVER_CERTIFICATE,
+                        mime_type="application/pdf",
+                        file_size=670000,
+                        storage_path="mock_storage/submissions/CFT_Turnover.pdf",
+                        content_text="Statutory Auditor Turnover Certificate\nUDIN: 24098765BBBBBB2002\nThis is to certify that average annual turnover of M/s CleanFlow Environmental Technologies Pvt Ltd for the preceding 3 financial years is INR 12.80 Crores (INR 128000000).",
+                    ),
+                    IngestionDocumentInput(
+                        filename="CleanFlow_OEM_Authorization.pdf",
+                        document_type=DocumentType.OEM_AUTHORIZATION,
+                        mime_type="application/pdf",
+                        file_size=860000,
+                        storage_path="mock_storage/submissions/CFT_OEM.pdf",
+                        content_text="Manufacturer Authorization Form (MAF)\nTo: Chennai Petroleum Corporation Limited (CPCL)\nWe, HydroSensor Corp (OEM), confirm that CleanFlow Environmental Technologies Pvt Ltd is our certified and authorized distributor for online water quality analyzers.",
+                    ),
+                    IngestionDocumentInput(
+                        filename="CleanFlow_Commercial_BOQ_Bid.pdf",
+                        document_type=DocumentType.FINANCIAL_BOQ,
+                        mime_type="application/pdf",
+                        file_size=490000,
+                        storage_path="mock_storage/submissions/CFT_BOQ.pdf",
+                        content_text="COMMERCIAL BID & SCHEDULE OF RATES (BOQ)\nTender Reference: CPCL/WQM/2026/RFP-017\nBidder: CleanFlow Environmental Technologies Pvt Ltd\n\nItem 1: Online Multichannel Water Quality Analyzer Units, Qty: 5 units, Unit Rate: INR 44,00,000, Total: INR 2,20,00,000\nItem 2: Submersible Sensor Probes & Telemetry Modules, Qty: 5 sets, Unit Rate: INR 13,50,000, Total: INR 67,50,000\nItem 3: Installation, Testing, Calibration & Commissioning, Qty: 1 lot, Unit Rate: INR 22,50,000, Total: INR 22,50,000\nItem 4: 2-Year Comprehensive Annual Maintenance & Warranty, Qty: 1 lot, Unit Rate: INR 35,00,000, Total: INR 35,00,000\n\nSubtotal: INR 3,45,00,000\nTaxes (GST @ 18%): INR 62,10,000\nFreight & Transit Insurance: INR 3,50,000\nDiscount: INR 0\nTotal Evaluated Commercial Bid Price: INR 4,10,60,000",
                     ),
                 ],
             ),

@@ -287,6 +287,7 @@ _IN_MEMORY_BIDDERS: Dict[str, Dict[str, Any]] = {}
 _IN_MEMORY_SUBMISSIONS: Dict[str, Dict[str, Any]] = {}
 _IN_MEMORY_DOCUMENTS: Dict[str, Dict[str, Any]] = {}
 _IN_MEMORY_REQUIREMENTS: Dict[str, List[Dict[str, Any]]] = {}
+_IN_MEMORY_FINANCIAL_EVALUATIONS: Dict[str, Dict[str, Any]] = {}
 
 
 def get_canonical_cpcl_requirements(tender_id: str = "DEMO/CPCL/WQM/2026/017") -> List[Dict[str, Any]]:
@@ -704,6 +705,7 @@ def _load_local_store() -> None:
             _IN_MEMORY_SUBMISSIONS.update(data.get("submissions", {}))
             _IN_MEMORY_DOCUMENTS.update(data.get("documents", {}))
             _IN_MEMORY_REQUIREMENTS.update(data.get("requirements", {}))
+            _IN_MEMORY_FINANCIAL_EVALUATIONS.update(data.get("financial_evaluations", {}))
         _prune_old_procurements(10)
     except Exception as e:
         logger.warning("Failed to load local procurement store: %s", e)
@@ -721,6 +723,7 @@ def _save_local_store() -> None:
             "submissions": _IN_MEMORY_SUBMISSIONS,
             "documents": _IN_MEMORY_DOCUMENTS,
             "requirements": _IN_MEMORY_REQUIREMENTS,
+            "financial_evaluations": _IN_MEMORY_FINANCIAL_EVALUATIONS,
         }
         with open(_LOCAL_STORE_PATH, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, default=str)
@@ -1565,5 +1568,58 @@ async def get_procurement_processing_metadata_db(procurement_id: str) -> Optiona
         logger.warning("Failed to get processing metadata for procurement '%s': %s", procurement_id, exc)
 
     return _IN_MEMORY_PROCUREMENTS.get(procurement_id)
+
+
+async def save_procurement_financial_evaluation(procurement_id: str, data: Dict[str, Any]) -> None:
+    """Persists Cover 2 financial evaluation for a procurement workspace."""
+    from fastapi.encoders import jsonable_encoder
+    _IN_MEMORY_FINANCIAL_EVALUATIONS[procurement_id] = jsonable_encoder(data)
+    _save_local_store()
+    try:
+        db_client = get_supabase_client()
+        record = {
+            "procurement_id": procurement_id,
+            "data": jsonable_encoder(data),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await asyncio.to_thread(
+            lambda: db_client.table("procurement_financial_evaluations").upsert(record).execute()
+        )
+    except Exception as exc:
+        logger.debug("Non-blocking DB insert for financial evaluation (%s): %s", procurement_id, exc)
+
+
+async def get_procurement_financial_evaluation(procurement_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves Cover 2 financial evaluation for a procurement workspace."""
+    if procurement_id in _IN_MEMORY_FINANCIAL_EVALUATIONS:
+        return _IN_MEMORY_FINANCIAL_EVALUATIONS[procurement_id]
+    try:
+        db_client = get_supabase_client()
+        res = await asyncio.to_thread(
+            lambda: db_client.table("procurement_financial_evaluations").select("*").eq("procurement_id", procurement_id).execute()
+        )
+        if res and hasattr(res, "data") and res.data:
+            return res.data[0].get("data") or res.data[0]
+    except Exception as exc:
+        logger.debug("Non-blocking DB fetch for financial evaluation (%s): %s", procurement_id, exc)
+    return _IN_MEMORY_FINANCIAL_EVALUATIONS.get(procurement_id)
+
+
+async def delete_procurement(procurement_id: str) -> None:
+    """Removes a procurement and its associated entities from store."""
+    _IN_MEMORY_PROCUREMENTS.pop(procurement_id, None)
+    t_ids = {t_id for t_id, t in _IN_MEMORY_TENDERS.items() if t.get("procurement_id") == procurement_id}
+    for t_id in t_ids:
+        _IN_MEMORY_TENDERS.pop(t_id, None)
+    s_ids = {s_id for s_id, s in _IN_MEMORY_SUBMISSIONS.items() if s.get("procurement_id") == procurement_id or s.get("tender_id") in t_ids}
+    for s_id in s_ids:
+        _IN_MEMORY_SUBMISSIONS.pop(s_id, None)
+    d_ids = {d_id for d_id, d in _IN_MEMORY_DOCUMENTS.items() if d.get("procurement_id") == procurement_id or d.get("tender_id") in t_ids or d.get("bid_submission_id") in s_ids}
+    for d_id in d_ids:
+        _IN_MEMORY_DOCUMENTS.pop(d_id, None)
+    _IN_MEMORY_FINANCIAL_EVALUATIONS.pop(procurement_id, None)
+    _save_local_store()
+
+
 
 

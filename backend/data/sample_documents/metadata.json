@@ -51,6 +51,11 @@
           "filename": "HydroTech_OEM_Authorization_WQM.pdf",
           "document_type": "OEM_AUTHORIZATION",
           "mime_type": "application/pdf"
+        },
+        {
+          "filename": "HydroTech_Commercial_BOQ_Bid.pdf",
+          "document_type": "FINANCIAL_BOQ",
+          "mime_type": "application/pdf"
         }
       ]
     },
@@ -79,6 +84,50 @@
         {
           "filename": "AquaPure_Financial_Turnover_Audited.pdf",
           "document_type": "TURNOVER_CERTIFICATE",
+          "mime_type": "application/pdf"
+        },
+        {
+          "filename": "AquaPure_Commercial_BOQ_Bid.pdf",
+          "document_type": "FINANCIAL_BOQ",
+          "mime_type": "application/pdf"
+        }
+      ]
+    },
+    {
+      "bidder": {
+        "legal_name": "CleanFlow Environmental Technologies Pvt Ltd",
+        "gstin": "33AABCC5544R1Z2",
+        "pan": "AABCC5544R",
+        "email": "tenders@cleanflow.co.in"
+      },
+      "submission": {
+        "external_submission_reference": "GEM-SUB-CFT-2026-017",
+        "status": "SUBMITTED"
+      },
+      "documents": [
+        {
+          "filename": "CleanFlow_GST_Registration.pdf",
+          "document_type": "GST_CERTIFICATE",
+          "mime_type": "application/pdf"
+        },
+        {
+          "filename": "CleanFlow_MII_Declaration.pdf",
+          "document_type": "LOCAL_CONTENT_CERTIFICATE",
+          "mime_type": "application/pdf"
+        },
+        {
+          "filename": "CleanFlow_CA_Turnover_Certificate.pdf",
+          "document_type": "TURNOVER_CERTIFICATE",
+          "mime_type": "application/pdf"
+        },
+        {
+          "filename": "CleanFlow_OEM_Authorization.pdf",
+          "document_type": "OEM_AUTHORIZATION",
+          "mime_type": "application/pdf"
+        },
+        {
+          "filename": "CleanFlow_Commercial_BOQ_Bid.pdf",
+          "document_type": "FINANCIAL_BOQ",
           "mime_type": "application/pdf"
         }
       ]

@@ -19,6 +19,7 @@ try:
         SubmissionSummaryResponse,
         TenderWorkspaceDetailResponse,
     )
+    from app.models.financial import ProcurementFinancialEvaluationResponse
     from app.services import procurement_processing_service, procurement_read_service
 except ImportError:
     from app.models.procurement import (
@@ -30,6 +31,7 @@ except ImportError:
         SubmissionSummaryResponse,
         TenderWorkspaceDetailResponse,
     )
+    from app.models.financial import ProcurementFinancialEvaluationResponse
     from app.services import procurement_processing_service, procurement_read_service
 
 logger = logging.getLogger(__name__)
@@ -212,4 +214,45 @@ async def get_procurement_processing_status_endpoint(
     except Exception as exc:
         logger.error("Failed to get processing status for procurement '%s': %s", procurement_id, exc)
         raise HTTPException(status_code=500, detail="Internal error retrieving procurement processing status.")
+
+
+@router.post(
+    "/procurements/{procurement_id}/financial-evaluation",
+    response_model=ProcurementFinancialEvaluationResponse,
+    summary="Execute Cover 2 Financial / Commercial Evaluation",
+    description="Gates technically eligible bidders, unlocks Cover 2, extracts BOQ and commercial quotes, checks parity, normalizes prices in INR, computes L1 ranking, detects anomaly signals, and persists the results.",
+)
+async def evaluate_procurement_financial_endpoint(
+    procurement_id: str,
+) -> ProcurementFinancialEvaluationResponse:
+    """Executes canonical Cover 2 Financial Evaluation for a procurement."""
+    try:
+        from app.services.financial_evaluation_service import execute_cover2_financial_evaluation
+        return await execute_cover2_financial_evaluation(procurement_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed Cover 2 financial evaluation for '%s': %s", procurement_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error executing financial evaluation: {str(exc)}")
+
+
+@router.get(
+    "/procurements/{procurement_id}/financial-evaluation",
+    response_model=ProcurementFinancialEvaluationResponse,
+    summary="Get Cover 2 Financial / Commercial Evaluation",
+    description="Retrieves the stored Cover 2 financial evaluation, L1 ranking, BOQ items, findings, and anomaly signals for a procurement.",
+)
+async def get_procurement_financial_endpoint(
+    procurement_id: str,
+) -> ProcurementFinancialEvaluationResponse:
+    """Gets stored Cover 2 financial evaluation for a procurement."""
+    try:
+        from app.services.financial_evaluation_service import get_procurement_financial_evaluation_service
+        return await get_procurement_financial_evaluation_service(procurement_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to fetch Cover 2 financial evaluation for '%s': %s", procurement_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error retrieving financial evaluation: {str(exc)}")
+
 

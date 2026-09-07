@@ -118,12 +118,6 @@ async def ingest_procurement(
     existing_proc = await get_procurement_by_source_and_ref(source_system, external_reference)
     if existing_proc:
         proc_id = existing_proc["id"]
-        logger.info(
-            "Idempotency match: Procurement (%s, %s) already exists with ID %s.",
-            source_system,
-            external_reference,
-            proc_id,
-        )
         try:
             hierarchy_dict = await get_procurement_hierarchy(proc_id)
             hierarchy = ProcurementHierarchy.model_validate(hierarchy_dict)
@@ -136,19 +130,36 @@ async def ingest_procurement(
             b_count = 0
             d_count = 0
 
-        return ProcurementIngestionResult(
-            procurement_id=proc_id,
-            source_system=source_system,
-            external_reference=external_reference,
-            tender_id=tender_id,
-            bidder_count=b_count,
-            submission_count=b_count,
-            document_count=d_count,
-            status=ProcurementStatus(existing_proc.get("status", "READY")),
-            was_created=False,
-            message=f"Procurement package already exists (Idempotent match for {external_reference}).",
-            hierarchy=hierarchy,
-        )
+        total_incoming_docs = len(validated_payload.tender.documents) + sum(len(b.documents) for b in validated_payload.bidders)
+        if b_count >= len(validated_payload.bidders) and d_count >= total_incoming_docs:
+            logger.info(
+                "Idempotency match: Procurement (%s, %s) already exists with ID %s (bidders: %d, docs: %d).",
+                source_system,
+                external_reference,
+                proc_id,
+                b_count,
+                d_count,
+            )
+            return ProcurementIngestionResult(
+                procurement_id=proc_id,
+                source_system=source_system,
+                external_reference=external_reference,
+                tender_id=tender_id,
+                bidder_count=b_count,
+                submission_count=b_count,
+                document_count=d_count,
+                status=ProcurementStatus(existing_proc.get("status", "READY")),
+                was_created=False,
+                message=f"Procurement package already exists (Idempotent match for {external_reference}).",
+                hierarchy=hierarchy,
+            )
+        else:
+            logger.info(
+                "Existing procurement %s is outdated (stored: %d bidders, %d docs vs incoming: %d bidders, %d docs). Refreshing package.",
+                proc_id, b_count, d_count, len(validated_payload.bidders), total_incoming_docs,
+            )
+            from app.db.client import delete_procurement
+            await delete_procurement(proc_id)
 
     # 3. Create Procurement Workspace (Staged Processing)
     proc_id = str(uuid.uuid4())

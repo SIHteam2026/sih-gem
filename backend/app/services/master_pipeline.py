@@ -75,6 +75,14 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+try:
+    from app.services.financial_evaluation_service import execute_cover2_financial_evaluation
+except ImportError:
+    try:
+        from services.financial_evaluation_service import execute_cover2_financial_evaluation
+    except ImportError:
+        execute_cover2_financial_evaluation = None
+
 
 def _load_legacy_dependencies():
     """Import raw-PDF/LLM compatibility dependencies only for the legacy path."""
