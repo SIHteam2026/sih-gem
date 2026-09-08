@@ -5,7 +5,7 @@ and bidder profiles. Thin route handlers delegate business logic to procurement_
 """
 
 import logging
-from typing import List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -18,11 +18,25 @@ try:
         StartProcessingResponse,
         SubmissionSummaryResponse,
         TenderWorkspaceDetailResponse,
+        TechnicalFreezeStatus,
+    )
+    from app.models.clarification import (
+        ClarificationCreate,
+        ClarificationListResponse,
+        ClarificationRecord,
+        ClarificationResponseInput,
+        ClarificationStatus,
+        TechnicalFreezeRequest,
+        TechnicalFreezeResponse,
     )
     from app.models.financial import ProcurementFinancialEvaluationResponse
-    from app.services import procurement_processing_service, procurement_read_service
+    from app.services import (
+        clarification_service,
+        procurement_processing_service,
+        procurement_read_service,
+    )
 except ImportError:
-    from app.models.procurement import (
+    from models.procurement import (
         BidderSummaryResponse,
         ProcurementDetailResponse,
         ProcurementListResponse,
@@ -30,9 +44,23 @@ except ImportError:
         StartProcessingResponse,
         SubmissionSummaryResponse,
         TenderWorkspaceDetailResponse,
+        TechnicalFreezeStatus,
     )
-    from app.models.financial import ProcurementFinancialEvaluationResponse
-    from app.services import procurement_processing_service, procurement_read_service
+    from models.clarification import (
+        ClarificationCreate,
+        ClarificationListResponse,
+        ClarificationRecord,
+        ClarificationResponseInput,
+        ClarificationStatus,
+        TechnicalFreezeRequest,
+        TechnicalFreezeResponse,
+    )
+    from models.financial import ProcurementFinancialEvaluationResponse
+    from services import (
+        clarification_service,
+        procurement_processing_service,
+        procurement_read_service,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -254,5 +282,234 @@ async def get_procurement_financial_endpoint(
     except Exception as exc:
         logger.error("Failed to fetch Cover 2 financial evaluation for '%s': %s", procurement_id, exc)
         raise HTTPException(status_code=500, detail=f"Internal error retrieving financial evaluation: {str(exc)}")
+
+
+# ---------------------------------------------------------------------------
+# Technical Freeze Endpoints
+# ---------------------------------------------------------------------------
+@router.post(
+    "/procurements/{procurement_id}/submissions/{submission_id}/freeze",
+    response_model=TechnicalFreezeResponse,
+    summary="Freeze / Lock Technical Bid Submission (Cover 1)",
+    description="Applies a formal technical freeze on a submission. Distinguishes NOT_FROZEN, FROZEN, TECHNICAL_REVIEW_REQUIRED, TECHNICALLY_QUALIFIED, TECHNICALLY_DISQUALIFIED.",
+)
+@router.post(
+    "/submissions/{submission_id}/freeze",
+    response_model=TechnicalFreezeResponse,
+    summary="Freeze / Lock Bid Submission",
+)
+async def freeze_submission_endpoint(
+    submission_id: str,
+    payload: TechnicalFreezeRequest = TechnicalFreezeRequest(freeze=True),
+    procurement_id: Optional[str] = None,
+) -> TechnicalFreezeResponse:
+    """Applies or unfreezes technical freeze lock on a submission."""
+    try:
+        return await clarification_service.freeze_submission_service(
+            submission_id=submission_id,
+            freeze_request=payload,
+            procurement_id=procurement_id,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to freeze submission '%s': %s", submission_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error applying technical freeze: {str(exc)}")
+
+
+@router.post(
+    "/procurements/{procurement_id}/submissions/{submission_id}/unfreeze",
+    response_model=TechnicalFreezeResponse,
+    summary="Unlock Technical Freeze on Submission",
+)
+@router.post(
+    "/submissions/{submission_id}/unfreeze",
+    response_model=TechnicalFreezeResponse,
+    summary="Unlock Technical Freeze on Submission",
+)
+async def unfreeze_submission_endpoint(
+    submission_id: str,
+    payload: Optional[TechnicalFreezeRequest] = None,
+    procurement_id: Optional[str] = None,
+) -> TechnicalFreezeResponse:
+    """Unlocks technical freeze on a submission."""
+    try:
+        req = payload or TechnicalFreezeRequest(freeze=False, freeze_reason="Officer manual unlock.")
+        req.freeze = False
+        return await clarification_service.freeze_submission_service(
+            submission_id=submission_id,
+            freeze_request=req,
+            procurement_id=procurement_id,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to unfreeze submission '%s': %s", submission_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error unlocking technical freeze: {str(exc)}")
+
+
+@router.get(
+    "/procurements/{procurement_id}/submissions/{submission_id}/freeze",
+    response_model=TechnicalFreezeResponse,
+    summary="Get Technical Freeze Status for Submission",
+)
+@router.get(
+    "/submissions/{submission_id}/freeze",
+    response_model=TechnicalFreezeResponse,
+    summary="Get Technical Freeze Status for Submission",
+)
+async def get_submission_freeze_endpoint(
+    submission_id: str,
+    procurement_id: Optional[str] = None,
+) -> TechnicalFreezeResponse:
+    """Gets current technical freeze status for a submission."""
+    try:
+        return await clarification_service.get_submission_freeze_status_service(submission_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to get freeze status for submission '%s': %s", submission_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error retrieving freeze status: {str(exc)}")
+
+
+# ---------------------------------------------------------------------------
+# Clarification Lifecycle Endpoints
+# ---------------------------------------------------------------------------
+@router.post(
+    "/procurements/{procurement_id}/clarifications",
+    response_model=ClarificationRecord,
+    summary="Create Clarification / Shortfall Request",
+    description="Initiates a formal clarification request linked to a specific requirement and originating finding.",
+)
+@router.post(
+    "/clarifications",
+    response_model=ClarificationRecord,
+    summary="Create Clarification Request",
+)
+async def create_clarification_endpoint(
+    payload: ClarificationCreate,
+    procurement_id: Optional[str] = None,
+) -> ClarificationRecord:
+    """Creates a formal clarification / shortfall request."""
+    try:
+        return await clarification_service.create_clarification_service(
+            payload=payload,
+            procurement_id=procurement_id,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to create clarification: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Internal error creating clarification: {str(exc)}")
+
+
+@router.get(
+    "/procurements/{procurement_id}/clarifications",
+    response_model=ClarificationListResponse,
+    summary="List Clarifications for Procurement",
+)
+@router.get(
+    "/clarifications",
+    response_model=ClarificationListResponse,
+    summary="List Clarifications",
+)
+async def list_clarifications_endpoint(
+    procurement_id: Optional[str] = None,
+    submission_id: Optional[str] = Query(None, description="Filter by submission UUID."),
+    bidder_id: Optional[str] = Query(None, description="Filter by bidder UUID."),
+    status: Optional[str] = Query(None, description="Filter by status (OPEN, RESPONDED, RESOLVED, etc.)."),
+) -> ClarificationListResponse:
+    """Lists clarification records with optional filtering."""
+    try:
+        return await clarification_service.list_clarifications_service(
+            procurement_id=procurement_id,
+            submission_id=submission_id,
+            bidder_id=bidder_id,
+            status_filter=status,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to list clarifications: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Internal error listing clarifications: {str(exc)}")
+
+
+@router.get(
+    "/procurements/{procurement_id}/clarifications/{clarification_id}",
+    response_model=ClarificationRecord,
+    summary="Get Clarification Detail",
+)
+@router.get(
+    "/clarifications/{clarification_id}",
+    response_model=ClarificationRecord,
+    summary="Get Clarification Detail",
+)
+async def get_clarification_detail_endpoint(
+    clarification_id: str,
+    procurement_id: Optional[str] = None,
+) -> ClarificationRecord:
+    """Gets single clarification record by UUID."""
+    try:
+        return await clarification_service.get_clarification_detail_service(clarification_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to get clarification detail '%s': %s", clarification_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error retrieving clarification: {str(exc)}")
+
+
+@router.post(
+    "/procurements/{procurement_id}/clarifications/{clarification_id}/respond",
+    response_model=ClarificationRecord,
+    summary="Submit Bidder Clarification Response & Evidence",
+    description="Records bidder response text and ingests attached clarification proof documents.",
+)
+@router.post(
+    "/clarifications/{clarification_id}/respond",
+    response_model=ClarificationRecord,
+    summary="Submit Bidder Clarification Response",
+)
+async def respond_clarification_endpoint(
+    clarification_id: str,
+    payload: ClarificationResponseInput,
+    procurement_id: Optional[str] = None,
+) -> ClarificationRecord:
+    """Submits bidder response and attached evidence for an open clarification."""
+    try:
+        return await clarification_service.respond_to_clarification_service(
+            clarification_id=clarification_id,
+            response_payload=payload,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to respond to clarification '%s': %s", clarification_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error responding to clarification: {str(exc)}")
+
+
+@router.post(
+    "/procurements/{procurement_id}/clarifications/{clarification_id}/re-evaluate",
+    response_model=ClarificationRecord,
+    summary="Execute Targeted Re-Evaluation Post-Clarification",
+    description="Re-evaluates the single requirement targeted by the clarification response using newly ingested evidence, updates finding, and preserves audit trail.",
+)
+@router.post(
+    "/clarifications/{clarification_id}/re-evaluate",
+    response_model=ClarificationRecord,
+    summary="Execute Targeted Re-Evaluation Post-Clarification",
+)
+async def re_evaluate_clarification_endpoint(
+    clarification_id: str,
+    procurement_id: Optional[str] = None,
+) -> ClarificationRecord:
+    """Re-evaluates the single target requirement affected by the clarification response."""
+    try:
+        return await clarification_service.re_evaluate_clarification_service(clarification_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to re-evaluate clarification '%s': %s", clarification_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error executing targeted re-evaluation: {str(exc)}")
+
 
 

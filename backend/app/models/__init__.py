@@ -1,5 +1,14 @@
 """Models package initialization."""
 
+from .clarification import (
+    ClarificationCreate,
+    ClarificationListResponse,
+    ClarificationRecord,
+    ClarificationResponseInput,
+    ClarificationStatus,
+    TechnicalFreezeRequest,
+    TechnicalFreezeResponse,
+)
 from .contract import LetterOfAward
 from .document import DocumentCategory, DocumentClassificationResult
 from .evaluation import ComplianceFinding, ComplianceState
@@ -55,6 +64,7 @@ from .procurement import (
     ProcurementProcessingStatusResponse,
     StartProcessingResponse,
     SubmissionSummaryResponse,
+    TechnicalFreezeStatus,
     Tender,
     TenderCreate,
     TenderSummaryResponse,
@@ -80,6 +90,11 @@ __all__ = [
     "BidSubmissionCreate",
     "BidSubmissionWithDetails",
     "BOQItemEvaluation",
+    "ClarificationCreate",
+    "ClarificationListResponse",
+    "ClarificationRecord",
+    "ClarificationResponseInput",
+    "ClarificationStatus",
     "CommercialEvaluationStatus",
     "CommercialFinding",
     "ComplianceFinding",
@@ -129,6 +144,9 @@ __all__ = [
     "StartProcessingResponse",
     "SubmissionSummaryResponse",
     "TechnicalEligibilityState",
+    "TechnicalFreezeRequest",
+    "TechnicalFreezeResponse",
+    "TechnicalFreezeStatus",
     "Tender",
     "TenderCreate",
     "TenderSummaryResponse",

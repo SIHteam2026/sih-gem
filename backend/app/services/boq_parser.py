@@ -15,8 +15,8 @@ except Exception:
 logger = logging.getLogger(__name__)
 
 
-async def extract_financial_tables(file_bytes: bytes) -> List[Dict[str, Any]]:
-    """Extracts structured financial tables and BoQ schedules from a PDF.
+def extract_financial_tables_sync(file_bytes: bytes) -> List[Dict[str, Any]]:
+    """Synchronously extracts structured financial tables and BoQ schedules from a PDF.
 
     Opens the PDF bytes in-memory, iterates through all pages, extracts table grids,
     and converts each table into a list of dictionaries where the first row serves
@@ -87,3 +87,8 @@ async def extract_financial_tables(file_bytes: bytes) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error("Failed to extract financial tables from PDF bytes: %s", e)
         return []
+
+
+async def extract_financial_tables(file_bytes: bytes) -> List[Dict[str, Any]]:
+    """Extracts structured financial tables and BoQ schedules from a PDF (async wrapper)."""
+    return extract_financial_tables_sync(file_bytes)

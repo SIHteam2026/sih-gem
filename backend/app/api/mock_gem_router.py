@@ -58,6 +58,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ingest/mock-gem", tags=["Mock-GeM Ingestion"])
 
+_SAMPLE_DOCS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "sample_documents"
+
+
+def _get_sample_path(filename: str, fallback: str) -> str:
+    candidate = _SAMPLE_DOCS_DIR / filename
+    if candidate.exists():
+        return str(candidate.resolve())
+    return fallback
+
 
 def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
     """Constructs the canonical synthetic demo procurement package for CPCL:
@@ -144,7 +153,7 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
                         document_type=DocumentType.FINANCIAL_BOQ,
                         mime_type="application/pdf",
                         file_size=480000,
-                        storage_path="mock_storage/submissions/HTA_BOQ.pdf",
+                        storage_path=_get_sample_path("HydroTech_Commercial_BOQ_Bid.pdf", "mock_storage/submissions/HTA_BOQ.pdf"),
                         content_text="COMMERCIAL BID & SCHEDULE OF RATES (BOQ)\nTender Reference: CPCL/WQM/2026/RFP-017\nBidder: HydroTech Analytics India Pvt Ltd\n\nItem 1: Online Multichannel Water Quality Analyzer Units (Model WQ-900), Qty: 5 units, Unit Rate: INR 48,00,000, Total: INR 2,40,00,000\nItem 2: Submersible Sensor Probes & Telemetry Modules, Qty: 5 sets, Unit Rate: INR 15,00,000, Total: INR 75,00,000\nItem 3: Installation, Testing, Calibration & Commissioning, Qty: 1 lot, Unit Rate: INR 25,00,000, Total: INR 25,00,000\nItem 4: 2-Year Comprehensive Annual Maintenance & Warranty, Qty: 1 lot, Unit Rate: INR 40,00,000, Total: INR 40,00,000\n\nSubtotal: INR 3,80,00,000\nTaxes (GST @ 18%): INR 68,40,000\nFreight & Transit Insurance: INR 4,50,000\nDiscount: INR 0\nTotal Evaluated Commercial Bid Price: INR 4,52,90,000",
                     ),
                 ],
@@ -199,7 +208,7 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
                         document_type=DocumentType.FINANCIAL_BOQ,
                         mime_type="application/pdf",
                         file_size=410000,
-                        storage_path="mock_storage/submissions/APS_BOQ.pdf",
+                        storage_path=_get_sample_path("AquaPure_Commercial_BOQ_Bid.pdf", "mock_storage/submissions/APS_BOQ.pdf"),
                         content_text="COMMERCIAL BID & SCHEDULE OF RATES (BOQ)\nTender Reference: CPCL/WQM/2026/RFP-017\nBidder: AquaPure Monitoring Systems & Instrumentation Ltd\n\nItem 1: Online Multichannel Water Quality Analyzer Units, Qty: 5 units, Unit Rate: INR 42,00,000, Total: INR 2,10,00,000\nItem 2: Submersible Sensor Probes & Telemetry Modules, Qty: 5 sets, Unit Rate: INR 14,00,000, Total: INR 70,00,000\nItem 3: Installation, Testing, Calibration & Commissioning, Qty: 1 lot, Unit Rate: INR 20,00,000, Total: INR 20,00,000\nItem 4: 2-Year Comprehensive Annual Maintenance & Warranty, Qty: 1 lot, Unit Rate: INR 35,00,000, Total: INR 35,00,000\n\nSubtotal: INR 3,35,00,000\nTaxes (GST @ 18%): INR 60,30,000\nFreight & Transit Insurance: INR 3,00,000\nDiscount: INR 3,30,000\nTotal Evaluated Commercial Bid Price: INR 3,95,00,000",
                     ),
                 ],
@@ -254,7 +263,7 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
                         document_type=DocumentType.FINANCIAL_BOQ,
                         mime_type="application/pdf",
                         file_size=490000,
-                        storage_path="mock_storage/submissions/CFT_BOQ.pdf",
+                        storage_path=_get_sample_path("CleanFlow_Commercial_BOQ_Bid.pdf", "mock_storage/submissions/CFT_BOQ.pdf"),
                         content_text="COMMERCIAL BID & SCHEDULE OF RATES (BOQ)\nTender Reference: CPCL/WQM/2026/RFP-017\nBidder: CleanFlow Environmental Technologies Pvt Ltd\n\nItem 1: Online Multichannel Water Quality Analyzer Units, Qty: 5 units, Unit Rate: INR 44,00,000, Total: INR 2,20,00,000\nItem 2: Submersible Sensor Probes & Telemetry Modules, Qty: 5 sets, Unit Rate: INR 13,50,000, Total: INR 67,50,000\nItem 3: Installation, Testing, Calibration & Commissioning, Qty: 1 lot, Unit Rate: INR 22,50,000, Total: INR 22,50,000\nItem 4: 2-Year Comprehensive Annual Maintenance & Warranty, Qty: 1 lot, Unit Rate: INR 35,00,000, Total: INR 35,00,000\n\nSubtotal: INR 3,45,00,000\nTaxes (GST @ 18%): INR 62,10,000\nFreight & Transit Insurance: INR 3,50,000\nDiscount: INR 0\nTotal Evaluated Commercial Bid Price: INR 4,10,60,000",
                     ),
                 ],

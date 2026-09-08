@@ -49,7 +49,7 @@ class BOQItemEvaluation(BaseModel):
 
 class CommercialFinding(BaseModel):
     """Commercial compliance finding or discrepancy."""
-    finding_type: str = Field(..., description="Category: ARITHMETIC_ERROR, BOQ_MISMATCH, MISSING_ITEM, QUANTITY_MISMATCH, TAX_DISCREPANCY, NORMALIZATION_FAILURE.")
+    finding_type: str = Field(..., description="Category: MISSING_ITEM, EXTRA_ITEM, QUANTITY_MISMATCH, UNIT_MISMATCH, LINE_TOTAL_MISMATCH, SUBTOTAL_MISMATCH, GRAND_TOTAL_MISMATCH, NORMALIZATION_FAILURE, ARITHMETIC_ERROR.")
     severity: str = Field(default="WARNING", description="Severity: CRITICAL, WARNING, INFO.")
     message: str = Field(..., description="Audit explanation of the finding.")
     expected: Optional[Any] = Field(default=None, description="Expected value or structure from RFP.")

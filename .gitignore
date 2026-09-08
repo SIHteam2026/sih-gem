@@ -8,3 +8,4 @@ node_modules/
 .next/
 chroma_db/
 backend/chroma_db/
+backend/data/procurement_store.json
