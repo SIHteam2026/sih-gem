@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { List } from "lucide-react";
 import { fetchProcurements } from "@/services/api";
 import { ProcurementSummaryItem, ProcurementListResponse } from "@/types/procurement";
@@ -79,12 +80,13 @@ export default function LivingContextSection({
             const badgeText = statusStr === "READY" ? "Technical Bid Complete" : statusStr;
             
             return (
-              <div 
-                key={project.id} 
-                className="bg-white p-[24px] rounded-3xl shadow-[-12px_-12px_24px_-4px_rgba(0,0,0,0.04)] flex flex-col justify-between min-h-[200px]"
+              <Link
+                key={project.id}
+                href={`/workspace/${project.id}`}
+                className="group block bg-white p-[24px] rounded-3xl shadow-[-12px_-12px_24px_-4px_rgba(0,0,0,0.04)] flex flex-col justify-between min-h-[200px] hover:shadow-[-12px_-12px_32px_-2px_rgba(0,0,0,0.07)] transition-shadow"
               >
                 <div>
-                  <h3 className="font-manrope text-[#111827] font-bold text-[19px] tracking-tight leading-[1.3] line-clamp-3 pb-2">
+                  <h3 className="font-manrope text-[#111827] font-bold text-[19px] tracking-tight leading-[1.3] line-clamp-3 pb-2 group-hover:text-[#163a5f] transition-colors">
                     {project.title}
                   </h3>
                   <div className="flex items-center -mt-1">
@@ -101,7 +103,7 @@ export default function LivingContextSection({
                     Tender date: {new Date(project.created_at || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '.')}
                   </p>
                 </div>
-              </div>
+              </Link>
             );
           })
         )}
