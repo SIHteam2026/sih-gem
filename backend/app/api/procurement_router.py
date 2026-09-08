@@ -44,6 +44,7 @@ try:
         procurement_processing_service,
         procurement_read_service,
     )
+    from app.db import client as db_client
 except ImportError:
     from models.procurement import (
         BidderSummaryResponse,
@@ -79,6 +80,7 @@ except ImportError:
         procurement_processing_service,
         procurement_read_service,
     )
+    from db import client as db_client
 
 logger = logging.getLogger(__name__)
 
@@ -761,6 +763,29 @@ async def get_financial_review_endpoint(
     except Exception as exc:
         logger.error("Failed retrieving financial evaluation for '%s': %s", procurement_id, exc)
         raise HTTPException(status_code=500, detail=f"Internal error retrieving financial evaluation: {str(exc)}")
+
+
+@router.delete(
+    "/procurements/logs",
+    summary="Clear Audit Trail Logs",
+    description="Clears all historical audit logs and prunes older procurements beyond the 2 active officer cases.",
+)
+@router.post(
+    "/procurements/clear-logs",
+    summary="Clear Audit Trail Logs (POST Alias)",
+    description="Clears all historical audit logs and prunes older procurements beyond the 2 active officer cases.",
+)
+async def clear_procurement_logs_endpoint(
+    keep_active_count: int = Query(2, ge=0, le=10, description="Number of latest active procurements to keep for the officer.")
+) -> Dict[str, Any]:
+    """Clears all logs from memory, disk storage, and database."""
+    try:
+        result = await db_client.clear_procurement_logs_db(keep_active_count=keep_active_count)
+        return result
+    except Exception as exc:
+        logger.error("Failed clearing procurement logs: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed clearing procurement logs: {str(exc)}")
+
 
 
 

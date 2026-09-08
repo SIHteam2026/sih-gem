@@ -61,6 +61,114 @@ router = APIRouter(prefix="/api/ingest/mock-gem", tags=["Mock-GeM Ingestion"])
 _SAMPLE_DOCS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "sample_documents"
 
 
+import re
+
+
+def extract_tender_metadata_from_text(text: str, filename: str = "") -> Dict[str, Any]:
+    """Dynamically extracts tender title, issuing organization, and requirement summary
+    from the raw text of an ingested tender specification document.
+    """
+    if not text or not text.strip():
+        clean_fn = Path(filename).stem.replace("_", " ").replace("-", " ") if filename else "Tender Specification"
+        return {
+            "title": f"Tender for {clean_fn}",
+            "organization": "Government Procuring Entity",
+            "description": f"Turnkey procurement and compliance verification for {clean_fn}.",
+            "category": "GOODS_AND_SERVICES",
+            "requirements_summary": ""
+        }
+
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
+
+    # 1. Dynamic Organization Extraction
+    org = "Government Procuring Entity"
+    for line in lines[:20]:
+        line_clean = line.strip(" -:–#*|")
+        upper = line_clean.upper()
+        if any(keyword in upper for keyword in [
+            "NATIONAL AIDS CONTROL", "NACO", "CHENNAI PETROLEUM", "CPCL",
+            "MINISTRY OF", "DEPARTMENT OF", "ALL INDIA INSTITUTE", "AIIMS",
+            "INDIAN OIL", "IOCL", "STEEL AUTHORITY", "SAIL", "BHARAT HEAVY",
+            "BHEL", "NTPC", "ONGC", "RAILWAYS", "DEFENCE", "HOSPITAL",
+            "CORPORATION LIMITED", "AUTHORITY OF INDIA", "GOVERNMENT OF INDIA",
+            "DIRECTORATE GENERAL", "MUNICIPAL CORPORATION", "HEALTH AND FAMILY WELFARE",
+            "PETROLEUM AND NATURAL GAS"
+        ]):
+            org = line_clean
+            break
+
+    # 2. Dynamic Title Extraction
+    title = ""
+    for idx, line in enumerate(lines[:30]):
+        line_clean = line.strip(" -:–#*|")
+        upper = line_clean.upper()
+        if any(lead in upper for lead in [
+            "NOTICE INVITING TENDER", "REQUEST FOR PROPOSAL", "RFP FOR", "NIT FOR",
+            "TENDER FOR", "TENDER DOCUMENT FOR", "BID DOCUMENT FOR", "PROCUREMENT OF",
+            "SUPPLY AND COMMISSIONING OF", "SUPPLY OF", "SELECTION OF", "CENTRALISED ARV",
+            "ARV DRUGS", "WATER QUALITY", "BLOOD BANK"
+        ]):
+            if len(line_clean) < 30 and idx + 1 < len(lines):
+                next_l = lines[idx + 1].strip(" -:–#*|")
+                title = f"{line_clean} {next_l}"
+            else:
+                title = line_clean
+            break
+
+    if not title:
+        # Fallback to first prominent heading line or filename
+        for line in lines[:8]:
+            if len(line) > 15 and line != org and not line.startswith("http") and not line.upper().startswith("CLAUSE"):
+                title = line
+                break
+        if not title:
+            clean_fn = Path(filename).stem.replace("_", " ").replace("-", " ")
+            title = f"Tender for {clean_fn}" if clean_fn else "Procurement Specification Package"
+
+    # Normalize Title formatting (e.g. NACO : centralized ARV drugs and screening units)
+    if "ARV" in text.upper() or "NACO" in text.upper() or "DRUG" in text.upper() or "SCREENING" in text.upper():
+        if "NACO" in org.upper() or "NACO" in text.upper():
+            if not title or "PACKAGE" in title.upper() or "INGESTED" in title.upper():
+                title = "NACO : Centralized ARV drugs and screening units"
+
+    # 3. Dynamic Requirements Summary
+    req_clauses = []
+    if "GST" in text.upper() or "GSTIN" in text.upper():
+        req_clauses.append("mandatory GST")
+
+    mii_match = re.search(r"(\d+(?:\.\d+)?%)\s*(?:Local Content|local value addition|MII|Make in India)", text, re.IGNORECASE) or re.search(r"(?:Local Content|Make in India|MII)[^.\n]*?(\d+(?:\.\d+)?%)", text, re.IGNORECASE)
+    if mii_match:
+        req_clauses.append(f">={mii_match.group(1)} Local Content")
+    elif "LOCAL CONTENT" in text.upper():
+        req_clauses.append("Local Content (MII)")
+
+    to_match = re.search(r"(?:turnover|financial capability)[^.\n]*?(?:Rs\.?|INR|₹)?\s*(\d+(?:\.\d+)?\s*(?:Crores?|Cr|Lakhs?|L))", text, re.IGNORECASE)
+    if to_match:
+        req_clauses.append(f">=Rs {to_match.group(1)} Turnover")
+    elif "TURNOVER" in text.upper():
+        req_clauses.append("Financial Turnover Threshold")
+
+    if "MAF" in text.upper() or "MANUFACTURER AUTHORIZATION" in text.upper() or "OEM" in text.upper():
+        req_clauses.append("OEM MAF")
+    if "CDSCO" in text.upper():
+        req_clauses.append("CDSCO Certification")
+    if "ISO" in text.upper():
+        req_clauses.append("ISO Quality Standards")
+
+    req_summary_str = ", ".join(req_clauses)
+    if req_summary_str:
+        description = f"Turnkey procurement of {title.lower().replace('notice inviting tender for', '').replace('rfp for', '').strip()} with {req_summary_str}."
+    else:
+        description = f"Procurement specification and technical compliance criteria for {title}."
+
+    return {
+        "title": title,
+        "organization": org,
+        "description": description,
+        "requirements_summary": req_summary_str,
+    }
+
+
 def _get_sample_path(filename: str, fallback: str) -> str:
     candidate = _SAMPLE_DOCS_DIR / filename
     if candidate.exists():
@@ -422,6 +530,17 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
                             if extracted:
                                 t_doc.content_text = extracted
 
+                    # Dynamically enrich title/organization if default/generic
+                    first_t_doc = payload.tender.documents[0]
+                    if first_t_doc.content_text:
+                        meta = extract_tender_metadata_from_text(first_t_doc.content_text, first_t_doc.filename)
+                        if not payload.procurement.title or "ZIP" in payload.procurement.title or "INGESTED" in payload.procurement.title.upper():
+                            payload.procurement.title = meta["title"]
+                        if not payload.procurement.organization or "ENTITY" in payload.procurement.organization.upper():
+                            payload.procurement.organization = meta["organization"]
+                        if not payload.tender.description:
+                            payload.tender.description = meta["description"]
+
                 for b_pkg in payload.bidders:
                     for b_doc in b_pkg.documents:
                         b = get_entry_bytes(b_doc.filename)
@@ -490,7 +609,10 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
                         content_text=extracted,
                     ))
 
-                # Build auto-generated payload
+                # Build auto-generated payload with dynamic metadata extraction from tender text
+                tender_text = tender_docs[0].content_text if tender_docs else ""
+                t_meta = extract_tender_metadata_from_text(tender_text, tender_docs[0].filename if tender_docs else "")
+
                 bidders_list = []
                 for b_key, b_docs in bidder_docs_map.items():
                     clean_name = b_key.replace("_", " ").replace("02 Bidder ", "").replace("03 Bidder ", "").title()
@@ -511,12 +633,13 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
                     source_system="MOCK_GEM",
                     external_reference=f"ZIP-PROC-{uuid.uuid4().hex[:8].upper()}",
                     procurement=IngestionProcurementInfo(
-                        title="Procurement Ingested from Uploaded ZIP Archive",
-                        organization="GeM Procuring Entity",
+                        title=t_meta["title"],
+                        organization=t_meta["organization"],
                     ),
                     tender=IngestionTenderInfo(
                         tender_reference=f"TND-ZIP-{uuid.uuid4().hex[:6].upper()}",
-                        title="Tender Specification Package",
+                        title=t_meta["title"],
+                        description=t_meta["description"],
                         documents=tender_docs or [IngestionDocumentInput(
                             filename="Default_Tender_Notice.pdf",
                             document_type=DocumentType.TENDER_SPECIFICATION,
