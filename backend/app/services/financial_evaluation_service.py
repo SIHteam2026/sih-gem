@@ -39,6 +39,15 @@ from app.db.client import (
 
 logger = logging.getLogger(__name__)
 
+# Level 7 Financial Anomaly Detection Parameters
+ALB_ESTIMATE_VARIANCE_THRESHOLD = 0.15  # 15% below engineer estimate screening threshold
+CORRELATION_THRESHOLD = 0.995           # Pearson correlation threshold for pricing pattern
+FIXED_ITEM_KEYWORDS = {
+    "statutory", "fixed", "provisional sum", "contingency",
+    "departmental charges", "fixed rate", "labour cess", "mandatory fee",
+    "tax", "gst", "cess",
+}
+
 # Expected canonical BOQ for CPCL Water Quality Monitoring tender (DEMO/CPCL/WQM/2026/017)
 CPCL_EXPECTED_BOQ = [
     {
@@ -571,15 +580,226 @@ def normalize_commercial_bid(
     return subtotal, tax_amount, freight_amount, discount_amount, final_evaluated, findings
 
 
-def calculate_anomaly_signals(
+def detect_pricing_pattern_anomalies(
+    evaluations: List[BidderFinancialEvaluation],
+    expected_boq: Optional[List[Dict[str, Any]]] = None,
+) -> List[FinancialAnomalySignal]:
+    """Detects multi-item cross-bidder pricing patterns across eligible bids.
+
+    Forensic Checks:
+    1. Uniform Pricing Multiplier (k != 1.0): Cross-bidder line-item rates scaled by a constant factor.
+    2. Identical Line-Item Rates (k == 1.0): Identical unit pricing across competitive items.
+    3. High Vector Correlation: Pearson correlation rho > 0.995 across line items.
+    4. Shared Rounding Anomaly: Identical non-standard decimal fractions across items.
+    5. Tender-fixed Item Exclusion: Statutory, fixed-rate, or provisional items are excluded from pattern analysis.
+    """
+    signals: List[FinancialAnomalySignal] = []
+
+    # Only inspect eligible, unlocked bidders with line items
+    eligible_bids = [
+        b for b in evaluations
+        if b.is_cover2_unlocked and b.evaluated_amount is not None and b.evaluated_amount > 0 and b.line_items
+    ]
+
+    if len(eligible_bids) < 2:
+        return signals
+
+    # Identify tender-fixed item numbers from expected_boq if flagged
+    fixed_item_numbers = set()
+    if expected_boq:
+        for exp in expected_boq:
+            desc_l = (exp.get("description") or "").lower()
+            if any(kw in desc_l for kw in FIXED_ITEM_KEYWORDS) or exp.get("is_fixed"):
+                fixed_item_numbers.add(str(exp.get("item_number")))
+
+    for i in range(len(eligible_bids)):
+        for j in range(i + 1, len(eligible_bids)):
+            b1 = eligible_bids[i]
+            b2 = eligible_bids[j]
+
+            # Match items between b1 and b2 by item_number or matching description
+            items1 = b1.line_items
+            items2 = b2.line_items
+
+            matched_rates: List[Tuple[float, float, str]] = []
+
+            # Map by item_number first
+            map2 = {str(it.item_number): it for it in items2}
+            for it1 in items1:
+                key = str(it1.item_number)
+                desc1_l = it1.description.lower()
+
+                # Check fixed item exclusion
+                if key in fixed_item_numbers or any(kw in desc1_l for kw in FIXED_ITEM_KEYWORDS):
+                    continue
+
+                if key in map2:
+                    it2 = map2[key]
+                    desc2_l = it2.description.lower()
+                    if any(kw in desc2_l for kw in FIXED_ITEM_KEYWORDS):
+                        continue
+                    if it1.unit_rate > 0 and it2.unit_rate > 0:
+                        matched_rates.append((it1.unit_rate, it2.unit_rate, it1.description))
+
+            # Need at least 2 competitive items (prefer 3+) to assess patterns
+            n_items = len(matched_rates)
+            if n_items < 2:
+                continue
+
+            r1_list = [r[0] for r in matched_rates]
+            r2_list = [r[1] for r in matched_rates]
+
+            # 1. Identical Pricing Pattern (k == 1.0)
+            identical_count = sum(1 for r1, r2, _ in matched_rates if math.isclose(r1, r2, rel_tol=1e-3, abs_tol=0.01))
+            if identical_count == n_items:
+                sig = FinancialAnomalySignal(
+                    signal_type="IDENTICAL_PRICING_PATTERN",
+                    severity="WARNING",
+                    description=(
+                        f"Identical line-item unit rates detected between '{b1.bidder_name}' and '{b2.bidder_name}' "
+                        f"across all {n_items} competitive BOQ line items (k = 1.0000). Potential cover bidding or bid-rigging arrangement."
+                    ),
+                    metric_name="identical_line_items_count",
+                    metric_value=float(identical_count),
+                    threshold=float(n_items),
+                    requires_officer_review=True,
+                    bidders_involved=[b1.bidder_name, b2.bidder_name],
+                    details={
+                        "matched_items_count": n_items,
+                        "identical_rates": r1_list,
+                        "bidders": [b1.bidder_name, b2.bidder_name],
+                    },
+                    calculation_basis=f"All {n_items} competitive line item unit rates identical (rel_tol=1e-3)",
+                    decision_authority="HUMAN_PROCUREMENT_OFFICER",
+                )
+                signals.append(sig)
+                b1.anomalies.append(sig)
+                b2.anomalies.append(sig)
+            else:
+                # 2. Constant Multiplier Pattern (k != 1.0)
+                ratios = [r1 / r2 for r1, r2, _ in matched_rates]
+                mean_ratio = sum(ratios) / n_items
+                var_ratio = sum((r - mean_ratio) ** 2 for r in ratios) / n_items
+                std_ratio = math.sqrt(var_ratio)
+                cv_ratio = (std_ratio / mean_ratio) if mean_ratio > 0 else 0.0
+
+                # Check if mean_ratio != 1.0 and variance of ratios is near zero (CV < 0.02)
+                if abs(mean_ratio - 1.0) >= 0.02 and cv_ratio < 0.02:
+                    sig = FinancialAnomalySignal(
+                        signal_type="PRICING_MULTIPLIER_DETECTED",
+                        severity="WARNING",
+                        description=(
+                            f"Uniform pricing multiplier detected between '{b1.bidder_name}' and '{b2.bidder_name}' "
+                            f"across {n_items} BOQ items (ratio k = {mean_ratio:.4f}, CV = {cv_ratio:.4f} < 0.02). "
+                            f"Consistent line-item scaling indicates potential coordinated bid preparation."
+                        ),
+                        metric_name="pricing_multiplier_k",
+                        metric_value=round(mean_ratio, 4),
+                        threshold=0.02,
+                        requires_officer_review=True,
+                        bidders_involved=[b1.bidder_name, b2.bidder_name],
+                        details={
+                            "matched_items_count": n_items,
+                            "multiplier_k": round(mean_ratio, 4),
+                            "ratio_coefficient_of_variation": round(cv_ratio, 4),
+                            "ratios": [round(r, 4) for r in ratios],
+                            "bidders": [b1.bidder_name, b2.bidder_name],
+                        },
+                        calculation_basis=f"Coefficient of variation of item unit rate ratios = {cv_ratio:.4f} < 0.02 across {n_items} items",
+                        decision_authority="HUMAN_PROCUREMENT_OFFICER",
+                    )
+                    signals.append(sig)
+                    b1.anomalies.append(sig)
+                    b2.anomalies.append(sig)
+
+            # 3. High Vector Correlation (Pearson rho > 0.995)
+            if n_items >= 3:
+                mean1 = sum(r1_list) / n_items
+                mean2 = sum(r2_list) / n_items
+                var1 = sum((x - mean1) ** 2 for x in r1_list)
+                var2 = sum((y - mean2) ** 2 for y in r2_list)
+                if var1 > 0 and var2 > 0:
+                    cov = sum((r1_list[k] - mean1) * (r2_list[k] - mean2) for k in range(n_items))
+                    rho = cov / math.sqrt(var1 * var2)
+                    if rho > CORRELATION_THRESHOLD:
+                        sig = FinancialAnomalySignal(
+                            signal_type="HIGH_VECTOR_CORRELATION",
+                            severity="WARNING",
+                            description=(
+                                f"Extremely high line-item price vector correlation (Pearson r = {rho:.5f} > {CORRELATION_THRESHOLD}) "
+                                f"between '{b1.bidder_name}' and '{b2.bidder_name}' across {n_items} competitive BOQ items."
+                            ),
+                            metric_name="pearson_correlation_coefficient",
+                            metric_value=round(rho, 5),
+                            threshold=CORRELATION_THRESHOLD,
+                            requires_officer_review=True,
+                            bidders_involved=[b1.bidder_name, b2.bidder_name],
+                            details={
+                                "matched_items_count": n_items,
+                                "pearson_r": round(rho, 5),
+                                "bidders": [b1.bidder_name, b2.bidder_name],
+                            },
+                            calculation_basis=f"Pearson r = {rho:.5f} across {n_items} matched line items",
+                            decision_authority="HUMAN_PROCUREMENT_OFFICER",
+                        )
+                        signals.append(sig)
+                        b1.anomalies.append(sig)
+                        b2.anomalies.append(sig)
+
+            # 4. Shared Rounding Anomaly
+            # Detect identical non-zero decimal fractions across >= 2 line items
+            shared_fractions = []
+            for r1, r2, desc in matched_rates:
+                f1 = round(r1 - math.floor(r1), 3)
+                f2 = round(r2 - math.floor(r2), 3)
+                if f1 > 0.001 and math.isclose(f1, f2, abs_tol=1e-3):
+                    shared_fractions.append((desc, f1))
+
+            if len(shared_fractions) >= 2:
+                sig = FinancialAnomalySignal(
+                    signal_type="SHARED_ROUNDING_ANOMALY",
+                    severity="INFO",
+                    description=(
+                        f"Shared non-standard decimal rounding pattern detected between '{b1.bidder_name}' and '{b2.bidder_name}' "
+                        f"across {len(shared_fractions)} line items. Possible common source estimation tool or spreadsheet."
+                    ),
+                    metric_name="shared_fractional_count",
+                    metric_value=float(len(shared_fractions)),
+                    threshold=2.0,
+                    requires_officer_review=True,
+                    bidders_involved=[b1.bidder_name, b2.bidder_name],
+                    details={
+                        "shared_instances": len(shared_fractions),
+                        "fractional_matches": [f"{d}: fraction {f}" for d, f in shared_fractions],
+                        "bidders": [b1.bidder_name, b2.bidder_name],
+                    },
+                    calculation_basis=f"{len(shared_fractions)} line items share identical non-zero decimal fractions",
+                    decision_authority="HUMAN_PROCUREMENT_OFFICER",
+                )
+                signals.append(sig)
+                b1.anomalies.append(sig)
+                b2.anomalies.append(sig)
+
+    return signals
+
+
+def detect_abnormally_low_bid_signals(
     evaluations: List[BidderFinancialEvaluation],
     estimated_value: Optional[float] = None,
+    raw_material_floor: Optional[float] = None,
+    estimate_variance_threshold: float = ALB_ESTIMATE_VARIANCE_THRESHOLD,
 ) -> List[FinancialAnomalySignal]:
-    """Computes comparative anomaly signals across participating commercial bids.
+    """Detects Abnormally Low Bid (ALB) risk and peer-group pricing anomalies.
 
-    Safety: Comparative pricing metrics serve strictly as screening indicators
-    for procurement officer review and do not claim definitive statistical proof,
-    especially on small sample sizes.
+    Components:
+    1. Engineer Estimate Variance: 1.0 - (bid / estimate), threshold = 0.15 (15% below).
+       Screening heuristic for officer review; missing estimate emits ENGINEER_ESTIMATE_UNAVAILABLE.
+    2. Peer-Group Anomaly:
+       - Sample size n >= 4: computes z-score and flags z < -1.5.
+       - Sample size n < 4: withholds z-score and reports median distance with small-sample disclaimer.
+    3. Bid Clustering: < 1.0% separation between bids.
+    4. Raw Material Floor Check: Compares bid to authoritative raw material floor if provided;
+       if unavailable, emits RAW_MATERIAL_BASELINE_UNAVAILABLE without fabricating data.
     """
     signals: List[FinancialAnomalySignal] = []
 
@@ -591,28 +811,63 @@ def calculate_anomaly_signals(
     if not valid_bids:
         return signals
 
+    n = len(valid_bids)
     amounts = [b.evaluated_amount for b in valid_bids if b.evaluated_amount is not None]
     sorted_amounts = sorted(amounts)
-    n = len(sorted_amounts)
     median_amount = (
         sorted_amounts[n // 2]
         if n % 2 != 0
         else (sorted_amounts[n // 2 - 1] + sorted_amounts[n // 2]) / 2.0
     )
 
-    # 1. Variance against benchmark estimate
-    if estimated_value and estimated_value > 0:
+    # 1. Engineer Estimate Analysis
+    if estimated_value is None or estimated_value <= 0:
+        sig = FinancialAnomalySignal(
+            signal_type="ENGINEER_ESTIMATE_UNAVAILABLE",
+            severity="INFO",
+            description="Official engineer estimate benchmark is unavailable in tender specifications. Variance against engineer estimate could not be evaluated.",
+            metric_name="engineer_estimate_available",
+            metric_value=0.0,
+            threshold=None,
+            requires_officer_review=False,
+            bidders_involved=[],
+            details={"tender_estimated_value": None},
+            calculation_basis="Tender estimated_value is None or <= 0",
+            decision_authority="HUMAN_PROCUREMENT_OFFICER",
+        )
+        signals.append(sig)
+    else:
+        threshold_pct = estimate_variance_threshold * 100.0
         for b in valid_bids:
+            if b.evaluated_amount is None:
+                continue
+            variance_below = (estimated_value - b.evaluated_amount) / estimated_value
             diff_pct = ((b.evaluated_amount - estimated_value) / estimated_value) * 100.0
-            if diff_pct < -25.0:
+
+            if variance_below >= estimate_variance_threshold:
                 sig = FinancialAnomalySignal(
                     signal_type="UNUSUALLY_LOW_BID",
                     severity="WARNING",
-                    description=f"Bidder '{b.bidder_name}' quoted INR {b.evaluated_amount:,.2f} ({abs(diff_pct):.1f}% below estimated tender benchmark of INR {estimated_value:,.2f}). Potential Abnormally Low Bid (ALB) under GFR Rule 149 (Screening indicator for officer review, sample size n={n}).",
+                    description=(
+                        f"Bidder '{b.bidder_name}' quoted INR {b.evaluated_amount:,.2f} "
+                        f"({variance_below * 100.0:.1f}% below estimated tender benchmark of INR {estimated_value:,.2f}, "
+                        f"exceeding screening threshold of {threshold_pct:.0f}%). Potential Abnormally Low Bid (ALB) "
+                        f"under GFR Rule 149 (Screening indicator for officer review, sample size n={n})."
+                    ),
                     metric_name="benchmark_variance_pct",
                     metric_value=round(diff_pct, 2),
-                    threshold=-25.0,
+                    threshold=-round(threshold_pct, 1),
                     requires_officer_review=True,
+                    bidders_involved=[b.bidder_name],
+                    details={
+                        "bidder_name": b.bidder_name,
+                        "evaluated_amount": b.evaluated_amount,
+                        "estimated_value": estimated_value,
+                        "variance_fraction": round(variance_below, 4),
+                        "sample_size": n,
+                    },
+                    calculation_basis=f"1.0 - ({b.evaluated_amount} / {estimated_value}) = {variance_below:.4f} >= {estimate_variance_threshold}",
+                    decision_authority="HUMAN_PROCUREMENT_OFFICER",
                 )
                 signals.append(sig)
                 b.anomalies.append(sig)
@@ -620,36 +875,90 @@ def calculate_anomaly_signals(
                 sig = FinancialAnomalySignal(
                     signal_type="UNUSUALLY_HIGH_BID",
                     severity="INFO",
-                    description=f"Bidder '{b.bidder_name}' quoted INR {b.evaluated_amount:,.2f} ({diff_pct:.1f}% above estimated tender benchmark of INR {estimated_value:,.2f}, sample size n={n}).",
+                    description=(
+                        f"Bidder '{b.bidder_name}' quoted INR {b.evaluated_amount:,.2f} "
+                        f"({diff_pct:.1f}% above estimated tender benchmark of INR {estimated_value:,.2f}, sample size n={n})."
+                    ),
                     metric_name="benchmark_variance_pct",
                     metric_value=round(diff_pct, 2),
                     threshold=20.0,
                     requires_officer_review=False,
+                    bidders_involved=[b.bidder_name],
+                    details={"bidder_name": b.bidder_name, "evaluated_amount": b.evaluated_amount, "sample_size": n},
+                    calculation_basis=f"(({b.evaluated_amount} - {estimated_value}) / {estimated_value}) * 100 = {diff_pct:.2f}%",
+                    decision_authority="HUMAN_PROCUREMENT_OFFICER",
                 )
                 signals.append(sig)
                 b.anomalies.append(sig)
 
-    # 2. Distance from peer median (if at least 2 bids)
-    if len(valid_bids) >= 2:
+    # 2. Peer Group Analysis
+    if n >= 4:
+        mean_amt = sum(amounts) / n
+        var_amt = sum((x - mean_amt) ** 2 for x in amounts) / n
+        std_amt = math.sqrt(var_amt)
         for b in valid_bids:
+            if b.evaluated_amount is None:
+                continue
+            z = (b.evaluated_amount - mean_amt) / std_amt if std_amt > 0 else 0.0
+            if z < -1.5:
+                sig = FinancialAnomalySignal(
+                    signal_type="PEER_GROUP_VARIANCE",
+                    severity="WARNING",
+                    description=(
+                        f"Bidder '{b.bidder_name}' exhibits significant negative peer deviation "
+                        f"(z-score = {z:.2f}, below peer mean INR {mean_amt:,.2f}, n={n}). "
+                        f"Screening indicator for officer review."
+                    ),
+                    metric_name="peer_z_score",
+                    metric_value=round(z, 2),
+                    threshold=-1.5,
+                    requires_officer_review=True,
+                    bidders_involved=[b.bidder_name],
+                    details={
+                        "z_score": round(z, 2),
+                        "sample_size": n,
+                        "peer_mean": round(mean_amt, 2),
+                        "peer_std": round(std_amt, 2),
+                    },
+                    calculation_basis=f"z = ({b.evaluated_amount} - {mean_amt:.2f}) / {std_amt:.2f} = {z:.2f} (n={n} >= 4)",
+                    decision_authority="HUMAN_PROCUREMENT_OFFICER",
+                )
+                signals.append(sig)
+                b.anomalies.append(sig)
+    elif n >= 2:
+        for b in valid_bids:
+            if b.evaluated_amount is None:
+                continue
             peer_diff_pct = ((b.evaluated_amount - median_amount) / median_amount) * 100.0
             if peer_diff_pct < -20.0:
                 sig = FinancialAnomalySignal(
                     signal_type="DISTANCE_FROM_MEDIAN",
                     severity="WARNING",
-                    description=f"Bidder '{b.bidder_name}' is {abs(peer_diff_pct):.1f}% below peer bid median INR {median_amount:,.2f} (Screening indicator for officer review, sample size n={n}).",
+                    description=(
+                        f"Bidder '{b.bidder_name}' is {abs(peer_diff_pct):.1f}% below peer bid median INR {median_amount:,.2f} "
+                        f"(z-score withheld due to small sample size n={n} < 4; screening indicator for officer review)."
+                    ),
                     metric_name="peer_median_distance_pct",
                     metric_value=round(peer_diff_pct, 2),
                     threshold=-20.0,
                     requires_officer_review=True,
+                    bidders_involved=[b.bidder_name],
+                    details={
+                        "median": median_amount,
+                        "sample_size": n,
+                        "z_score_withheld": True,
+                        "reason": "Sample size n < 4 insufficient for statistical z-score",
+                    },
+                    calculation_basis=f"(({b.evaluated_amount} - {median_amount}) / {median_amount}) * 100 = {peer_diff_pct:.2f}%",
+                    decision_authority="HUMAN_PROCUREMENT_OFFICER",
                 )
                 signals.append(sig)
                 b.anomalies.append(sig)
 
-    # 3. Bid clustering detection (< 1.0% separation)
-    if len(valid_bids) >= 2:
-        for i in range(len(valid_bids)):
-            for j in range(i + 1, len(valid_bids)):
+    # 3. Bid Clustering (< 1.0% separation)
+    if n >= 2:
+        for i in range(n):
+            for j in range(i + 1, n):
                 b1 = valid_bids[i]
                 b2 = valid_bids[j]
                 if b1.evaluated_amount and b2.evaluated_amount:
@@ -660,15 +969,105 @@ def calculate_anomaly_signals(
                         sig = FinancialAnomalySignal(
                             signal_type="BID_CLUSTERING",
                             severity="WARNING",
-                            description=f"Bids from '{b1.bidder_name}' (INR {b1.evaluated_amount:,.2f}) and '{b2.bidder_name}' (INR {b2.evaluated_amount:,.2f}) cluster suspiciously close ({cluster_pct:.2f}% variance). Potential coordinated pricing (Screening indicator for officer review, sample size n={n}).",
+                            description=(
+                                f"Bids from '{b1.bidder_name}' (INR {b1.evaluated_amount:,.2f}) and '{b2.bidder_name}' "
+                                f"(INR {b2.evaluated_amount:,.2f}) cluster suspiciously close ({cluster_pct:.2f}% variance). "
+                                f"Potential coordinated pricing (Screening indicator for officer review, sample size n={n})."
+                            ),
                             metric_name="bid_clustering_variance_pct",
                             metric_value=round(cluster_pct, 3),
                             threshold=1.0,
                             requires_officer_review=True,
+                            bidders_involved=[b1.bidder_name, b2.bidder_name],
+                            details={
+                                "bidder_1": b1.bidder_name,
+                                "bidder_2": b2.bidder_name,
+                                "amount_1": b1.evaluated_amount,
+                                "amount_2": b2.evaluated_amount,
+                                "variance_pct": round(cluster_pct, 3),
+                                "sample_size": n,
+                            },
+                            calculation_basis=f"abs({b1.evaluated_amount} - {b2.evaluated_amount}) / avg = {cluster_pct:.3f}% < 1.0%",
+                            decision_authority="HUMAN_PROCUREMENT_OFFICER",
                         )
                         signals.append(sig)
                         b1.anomalies.append(sig)
                         b2.anomalies.append(sig)
+
+    # 4. Raw Material Floor Check
+    if raw_material_floor is not None and raw_material_floor > 0:
+        for b in valid_bids:
+            if b.evaluated_amount is not None and b.evaluated_amount < raw_material_floor:
+                deficit = raw_material_floor - b.evaluated_amount
+                sig = FinancialAnomalySignal(
+                    signal_type="RAW_MATERIAL_FLOOR_BREACH",
+                    severity="CRITICAL",
+                    description=(
+                        f"Bidder '{b.bidder_name}' quoted INR {b.evaluated_amount:,.2f}, which is below the "
+                        f"authoritative raw material cost floor of INR {raw_material_floor:,.2f} (deficit: INR {deficit:,.2f}). "
+                        f"High risk of contractual non-performance or sub-standard materials."
+                    ),
+                    metric_name="raw_material_floor_deficit",
+                    metric_value=round(deficit, 2),
+                    threshold=raw_material_floor,
+                    requires_officer_review=True,
+                    bidders_involved=[b.bidder_name],
+                    details={
+                        "raw_material_floor": raw_material_floor,
+                        "bid_amount": b.evaluated_amount,
+                        "deficit": round(deficit, 2),
+                    },
+                    calculation_basis=f"Evaluated bid INR {b.evaluated_amount:,.2f} < Raw material floor INR {raw_material_floor:,.2f}",
+                    decision_authority="HUMAN_PROCUREMENT_OFFICER",
+                )
+                signals.append(sig)
+                b.anomalies.append(sig)
+    else:
+        sig = FinancialAnomalySignal(
+            signal_type="RAW_MATERIAL_BASELINE_UNAVAILABLE",
+            severity="INFO",
+            description="Authoritative raw material cost baseline not specified in tender documents. Floor check withheld without synthetic baseline fabrication.",
+            metric_name="raw_material_baseline_available",
+            metric_value=0.0,
+            threshold=None,
+            requires_officer_review=False,
+            bidders_involved=[],
+            details={"raw_material_floor": None},
+            calculation_basis="Tender raw_material_floor is None or <= 0",
+            decision_authority="HUMAN_PROCUREMENT_OFFICER",
+        )
+        signals.append(sig)
+
+    return signals
+
+
+def calculate_anomaly_signals(
+    evaluations: List[BidderFinancialEvaluation],
+    estimated_value: Optional[float] = None,
+    raw_material_floor: Optional[float] = None,
+    expected_boq: Optional[List[Dict[str, Any]]] = None,
+    estimate_variance_threshold: float = ALB_ESTIMATE_VARIANCE_THRESHOLD,
+) -> List[FinancialAnomalySignal]:
+    """Computes comparative anomaly signals across participating commercial bids.
+
+    Safety: Comparative pricing metrics serve strictly as screening indicators
+    for human procurement officer review and do not claim definitive statistical proof,
+    especially on small sample sizes. Final determination remains with the procurement officer.
+    """
+    signals: List[FinancialAnomalySignal] = []
+
+    # 1. Pricing Pattern Anomalies (multi-item multiplier, identical, correlation, rounding)
+    pattern_signals = detect_pricing_pattern_anomalies(evaluations, expected_boq=expected_boq)
+    signals.extend(pattern_signals)
+
+    # 2. ALB & Peer-Group Anomalies (engineer estimate variance, peer median/z-score, clustering, raw material floor)
+    alb_signals = detect_abnormally_low_bid_signals(
+        evaluations=evaluations,
+        estimated_value=estimated_value,
+        raw_material_floor=raw_material_floor,
+        estimate_variance_threshold=estimate_variance_threshold,
+    )
+    signals.extend(alb_signals)
 
     return signals
 
@@ -702,6 +1101,7 @@ async def execute_cover2_financial_evaluation(
     tender_ref = tender.get("tender_reference")
     tender_id = tender_ref or tender_uuid or procurement_id
     estimated_value = tender.get("estimated_value")
+    raw_material_floor = tender.get("raw_material_floor") or tender.get("minimum_cost_baseline") or proc_full.get("raw_material_floor")
 
     submissions = proc_full.get("submissions", [])
     for t in tenders:
@@ -911,6 +1311,8 @@ async def execute_cover2_financial_evaluation(
     anomaly_signals = calculate_anomaly_signals(
         evaluations=bidder_evaluations,
         estimated_value=estimated_value,
+        raw_material_floor=raw_material_floor,
+        expected_boq=CPCL_EXPECTED_BOQ,
     )
 
     if anomaly_signals:

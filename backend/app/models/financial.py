@@ -58,14 +58,20 @@ class CommercialFinding(BaseModel):
 
 
 class FinancialAnomalySignal(BaseModel):
-    """Lightweight comparative pricing anomaly signal across peer bids."""
-    signal_type: str = Field(..., description="Signal code: UNUSUALLY_LOW_BID, UNUSUALLY_HIGH_BID, BID_CLUSTERING, BENCHMARK_VARIANCE.")
+    """Comparative pricing anomaly signal across peer bids."""
+    signal_type: str = Field(..., description="Signal code: UNUSUALLY_LOW_BID, UNUSUALLY_HIGH_BID, BID_CLUSTERING, BENCHMARK_VARIANCE, PRICING_MULTIPLIER_DETECTED, IDENTICAL_PRICING_PATTERN, HIGH_VECTOR_CORRELATION, SHARED_ROUNDING_ANOMALY, ENGINEER_ESTIMATE_UNAVAILABLE, RAW_MATERIAL_FLOOR_BREACH, RAW_MATERIAL_BASELINE_UNAVAILABLE, PEER_GROUP_VARIANCE.")
     severity: str = Field(default="INFO", description="Severity level: INFO, WARNING, CRITICAL.")
     description: str = Field(..., description="Human-readable audit explanation.")
     metric_name: str = Field(..., description="Statistical metric calculated.")
     metric_value: float = Field(..., description="Calculated value.")
     threshold: Optional[float] = Field(default=None, description="Reference threshold triggering the signal.")
     requires_officer_review: bool = Field(default=True, description="Indicates flag requires officer determination.")
+    bidders_involved: List[str] = Field(default_factory=list, description="Names or IDs of bidders involved in the anomaly.")
+    details: Dict[str, Any] = Field(default_factory=dict, description="Detailed forensic metrics, line item indices, multipliers, correlations.")
+    source_documents: List[str] = Field(default_factory=list, description="Source documents or BOQs referenced.")
+    calculation_basis: Optional[str] = Field(default=None, description="Detailed explanation of the calculation/formula used.")
+    decision_authority: str = Field(default="HUMAN_PROCUREMENT_OFFICER", description="Authority responsible for final determination.")
+    generated_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc), description="Signal timestamp.")
 
 
 class BidderFinancialEvaluation(BaseModel):

@@ -223,4 +223,62 @@ class FinancialCommercialVerifier(BaseVerifier):
                             )
                         )
 
+        # Process commercial anomalies and comparative pricing signals if provided in extra_context
+        commercial_signals = (
+            context.extra_context.get("commercial_signals")
+            or context.extra_context.get("commercial_anomalies")
+            or context.extra_context.get("comparative_signals")
+            or []
+        )
+        if commercial_signals:
+            comm_req = next((r for r in fin_reqs if r.evaluation_field == CanonicalEvaluationField.COMMERCIAL_PRICE or "COMMERCIAL" in r.description.upper() or "BOQ" in r.description.upper()), None)
+            comm_req_id = comm_req.requirement_id if comm_req else "REQ-COMMERCIAL-ANOMALY"
+
+            for sig in commercial_signals:
+                sig_type = getattr(sig, "signal_type", None) or (sig.get("signal_type") if isinstance(sig, dict) else "")
+                sig_sev = getattr(sig, "severity", None) or (sig.get("severity") if isinstance(sig, dict) else "INFO")
+                sig_desc = getattr(sig, "description", None) or (sig.get("description") if isinstance(sig, dict) else "")
+                sig_bidders = getattr(sig, "bidders_involved", None) or (sig.get("bidders_involved") if isinstance(sig, dict) else [])
+                sig_details = getattr(sig, "details", None) or (sig.get("details") if isinstance(sig, dict) else {})
+                sig_val = getattr(sig, "metric_value", None) or (sig.get("metric_value") if isinstance(sig, dict) else 0.0)
+                sig_metric = getattr(sig, "metric_name", None) or (sig.get("metric_name") if isinstance(sig, dict) else "")
+                sig_authority = getattr(sig, "decision_authority", None) or (sig.get("decision_authority") if isinstance(sig, dict) else "HUMAN_PROCUREMENT_OFFICER")
+
+                if str(sig_sev).upper() in ("WARNING", "CRITICAL"):
+                    finding_sev = FindingSeverity.CRITICAL if str(sig_sev).upper() == "CRITICAL" else FindingSeverity.HIGH
+                    # Target specific bidders if identified, otherwise all context bidders
+                    target_bidders = [
+                        b for b in bidders
+                        if (b.get("legal_name") in sig_bidders or b.get("id") in sig_bidders or any(s in str(b.get("legal_name")) for s in sig_bidders))
+                    ] if sig_bidders else bidders
+
+                    if not target_bidders:
+                        target_bidders = bidders or [{"id": None, "legal_name": "Bidder"}]
+
+                    for b in target_bidders:
+                        b_id = b.get("id") or b.get("bidder_id")
+                        findings.append(
+                            VerificationFinding(
+                                verifier=self.verifier_id,
+                                verification_layer=self.layer,
+                                requirement_id=comm_req_id,
+                                bidder_id=b_id,
+                                status=ComplianceState.REVIEW,
+                                severity=finding_sev,
+                                claim={"signal_type": str(sig_type)},
+                                observation=sig_desc,
+                                reason=f"Commercial Pricing Anomaly Flagged: {sig_desc}",
+                                evidence=[],
+                                confidence=0.95,
+                                machine_readable_flags=[str(sig_type), "COMMERCIAL_ANOMALY_FLAG", "OFFICER_REVIEW_REQUIRED"],
+                                metadata={
+                                    "signal_type": str(sig_type),
+                                    "metric_name": sig_metric,
+                                    "metric_value": sig_val,
+                                    "decision_authority": sig_authority,
+                                    "details": sig_details,
+                                },
+                            )
+                        )
+
         return findings
