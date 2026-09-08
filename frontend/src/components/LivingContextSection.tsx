@@ -7,7 +7,7 @@ import { ProcurementSummaryItem, ProcurementListResponse } from "@/types/procure
 
 // Dynamic insights logic based on Supabase procurements
 function getDynamicInsights(procurements: ProcurementSummaryItem[]): string {
-  if (!procurements || procurements.length === 0) return No active projects at the moment.;
+  if (!procurements || procurements.length === 0) return "No active projects at the moment.";
   
   const newCount = procurements.filter(p => {
     const s = (p.status || ").toUpperCase();
