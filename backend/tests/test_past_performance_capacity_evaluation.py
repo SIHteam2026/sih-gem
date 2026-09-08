@@ -1,4 +1,4 @@
-﻿"""Comprehensive Unit & Integration Tests for Layer 6: Past Performance and Capacity (SIH26100)."""
+"""Comprehensive Unit & Integration Tests for Layer 6: Past Performance and Capacity (SIH26100)."""
 
 import unittest
 from datetime import datetime, timezone, timedelta
@@ -241,6 +241,91 @@ class TestPastPerformanceCapacityEvaluation(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(findings_msme[0].status, ComplianceState.NOT_APPLICABLE)
         self.assertIn("STATUTORY_EXPERIENCE_EXEMPTION_APPLIED", findings_msme[0].machine_readable_flags)
 
+    def test_09_percentage_of_bid_calculation(self):
+        # 50% threshold on INR 10 Crore tender reference
+        passes_50, pct_50, expl_50 = calculate_past_performance_ratio(
+            past_value=60000000.0, reference_value=100000000.0, operator=">=", required_pct=50.0
+        )
+        self.assertTrue(passes_50)
+        self.assertEqual(pct_50, 60.0)
+
+        fails_50, pct_fail, expl_fail = calculate_past_performance_ratio(
+            past_value=40000000.0, reference_value=100000000.0, operator=">=", required_pct=50.0
+        )
+        self.assertFalse(fails_50)
+        self.assertEqual(pct_fail, 40.0)
+
+    async def test_10_multiple_qualifying_contracts_aggregation(self):
+        reqs = [
+            make_contract(
+                "REQ-EXP-CUM",
+                RequirementCategory.EXPERIENCE,
+                "Cumulative past experience must be at least INR 5 Crore across completed works.",
+                threshold_value=50000000.0,
+                threshold_unit="INR",
+                evaluation_field=CanonicalEvaluationField.GENERAL_EXPERIENCE,
+            )
+        ]
+
+        # 3 contracts of 2 Cr, 1.5 Cr, 2 Cr = 5.5 Cr -> PASS
+        ctx_multi = VerificationContext(
+            requirements=reqs,
+            bidders=[{"id": "b-multi", "legal_name": "Aggregated Works Ltd"}],
+            observations=[
+                EvidenceObservation(evidence_id="e1", bidder_id="b-multi", requirement_id="REQ-EXP-CUM", observed_value="INR 2.00 Crore", source_document="wo1.pdf"),
+                EvidenceObservation(evidence_id="e2", bidder_id="b-multi", requirement_id="REQ-EXP-CUM", observed_value="INR 1.50 Crore", source_document="wo2.pdf"),
+                EvidenceObservation(evidence_id="e3", bidder_id="b-multi", requirement_id="REQ-EXP-CUM", observed_value="INR 2.00 Crore", source_document="wo3.pdf"),
+            ],
+        )
+        findings = await self.verifier.verify(ctx_multi)
+        self.assertEqual(findings[0].status, ComplianceState.PASS)
+        self.assertIn("MONETARY_THRESHOLD_SATISFIED", findings[0].machine_readable_flags)
+        self.assertEqual(findings[0].metadata["contracts_count"], 3)
+
+    def test_11_recency_boundary_and_timezone_aware_dates(self):
+        now_utc = datetime.now(timezone.utc)
+        exact_3yr = (now_utc - timedelta(days=1095)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        expired_3yr_plus = (now_utc - timedelta(days=1096)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        tz_offset_date = "2025-06-15T14:30:00+05:30"
+
+        self.assertTrue(is_recent(exact_3yr, recency_days=1095))
+        self.assertFalse(is_recent(expired_3yr_plus, recency_days=1095))
+        self.assertTrue(is_recent(tz_offset_date, recency_days=1095))
+
+    def test_12_capacity_exact_100_percent_vs_overcommitted(self):
+        # Exact 100% capacity saturation
+        res_100 = evaluate_capacity_saturation(total_capacity=500, committed_capacity=500, required_capacity=0)
+        self.assertEqual(res_100["saturation_percentage"], 100.0)
+        self.assertFalse(res_100["is_overcommitted"])
+        self.assertTrue(res_100["is_sufficient"])
+
+        # Overcommitted (>100%) -> is_overcommitted = True
+        res_over = evaluate_capacity_saturation(total_capacity=500, committed_capacity=600, required_capacity=50)
+        self.assertEqual(res_over["saturation_percentage"], 120.0)
+        self.assertTrue(res_over["is_overcommitted"])
+
+    async def test_13_missing_capacity_commitment_evidence(self):
+        reqs = [
+            make_contract(
+                "REQ-CAP-MISSING",
+                RequirementCategory.TECHNICAL_SPECIFICATION,
+                "Mandatory factory production capacity of 500 units per month.",
+                threshold_value=500.0,
+                threshold_unit="UNITS/MONTH",
+                evaluation_field=CanonicalEvaluationField.DELIVERY_TIMELINE_DAYS,
+            )
+        ]
+        ctx_empty = VerificationContext(
+            requirements=reqs,
+            bidders=[{"id": "b-no-cap", "legal_name": "No Audit Submitter"}],
+            observations=[],
+            claims=[],
+        )
+        findings = await self.verifier.verify(ctx_empty)
+        self.assertEqual(findings[0].status, ComplianceState.UNVERIFIED)
+        self.assertIn("PAST_PERFORMANCE_UNVERIFIED", findings[0].machine_readable_flags)
+
 
 if __name__ == "__main__":
     unittest.main()
+
