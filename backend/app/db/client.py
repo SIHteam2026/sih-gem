@@ -1,10 +1,11 @@
 import asyncio
 import json
-from datetime import datetime, timezone
 import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+import uuid
+from datetime import datetime, timezone
 from dotenv import find_dotenv, load_dotenv
 try:
     from supabase import Client, create_client
@@ -288,6 +289,8 @@ _IN_MEMORY_SUBMISSIONS: Dict[str, Dict[str, Any]] = {}
 _IN_MEMORY_DOCUMENTS: Dict[str, Dict[str, Any]] = {}
 _IN_MEMORY_REQUIREMENTS: Dict[str, List[Dict[str, Any]]] = {}
 _IN_MEMORY_FINANCIAL_EVALUATIONS: Dict[str, Dict[str, Any]] = {}
+_IN_MEMORY_CLARIFICATIONS: Dict[str, Dict[str, Any]] = {}
+_IN_MEMORY_AUDIT_LOGS: List[Dict[str, Any]] = []
 
 
 def get_canonical_cpcl_requirements(tender_id: str = "DEMO/CPCL/WQM/2026/017") -> List[Dict[str, Any]]:
@@ -706,6 +709,8 @@ def _load_local_store() -> None:
             _IN_MEMORY_DOCUMENTS.update(data.get("documents", {}))
             _IN_MEMORY_REQUIREMENTS.update(data.get("requirements", {}))
             _IN_MEMORY_FINANCIAL_EVALUATIONS.update(data.get("financial_evaluations", {}))
+            _IN_MEMORY_CLARIFICATIONS.update(data.get("clarifications", {}))
+            _IN_MEMORY_AUDIT_LOGS.extend(data.get("audit_logs", []))
         _prune_old_procurements(10)
     except Exception as e:
         logger.warning("Failed to load local procurement store: %s", e)
@@ -724,6 +729,8 @@ def _save_local_store() -> None:
             "documents": _IN_MEMORY_DOCUMENTS,
             "requirements": _IN_MEMORY_REQUIREMENTS,
             "financial_evaluations": _IN_MEMORY_FINANCIAL_EVALUATIONS,
+            "clarifications": _IN_MEMORY_CLARIFICATIONS,
+            "audit_logs": _IN_MEMORY_AUDIT_LOGS[-500:],
         }
         with open(_LOCAL_STORE_PATH, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, default=str)
@@ -840,22 +847,45 @@ async def insert_bid_submission(submission_data: Dict[str, Any]) -> Dict[str, An
 
 
 async def insert_document(document_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Inserts a document record into public.documents."""
+    """Inserts a document record into public.documents with technical freeze mutation checks."""
+    from fastapi import HTTPException, status
+    s_id = document_data.get("bid_submission_id")
+    if s_id and not document_data.get("allow_locked", False):
+        sub = _IN_MEMORY_SUBMISSIONS.get(s_id)
+        if sub and (sub.get("is_locked") or sub.get("technical_freeze_status") == "FROZEN"):
+            # Record audit event for blocked mutation
+            await insert_audit_log_db({
+                "event_type": "TECHNICAL_FREEZE_BLOCKED_MUTATION",
+                "submission_id": s_id,
+                "procurement_id": document_data.get("procurement_id"),
+                "actor": "SYSTEM_GUARD",
+                "details": {
+                    "attempted_action": "INSERT_DOCUMENT",
+                    "filename": document_data.get("filename"),
+                    "reason": "Bid submission is locked under Technical Freeze.",
+                },
+            })
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Bid submission '{s_id}' is technically frozen and cannot be modified.",
+            )
+
     d_id = document_data.get("id")
+    clean_data = {k: v for k, v in document_data.items() if k != "allow_locked"}
     if d_id:
-        _IN_MEMORY_DOCUMENTS[d_id] = dict(document_data)
+        _IN_MEMORY_DOCUMENTS[d_id] = dict(clean_data)
         _save_local_store()
     try:
         db_client = get_supabase_client()
         response = await asyncio.to_thread(
-            lambda: db_client.table("documents").insert(document_data).execute()
+            lambda: db_client.table("documents").insert(clean_data).execute()
         )
         if response and hasattr(response, "data") and response.data:
             return response.data[0]
-        return document_data
+        return clean_data
     except Exception as err:
         logger.warning("Supabase insert_document fallback (in-memory): %s", err)
-        return document_data
+        return clean_data
 
 
 async def get_procurement_hierarchy(procurement_id: str) -> Dict[str, Any]:
@@ -1619,6 +1649,158 @@ async def delete_procurement(procurement_id: str) -> None:
         _IN_MEMORY_DOCUMENTS.pop(d_id, None)
     _IN_MEMORY_FINANCIAL_EVALUATIONS.pop(procurement_id, None)
     _save_local_store()
+
+
+# ---------------------------------------------------------------------------
+# Technical Freeze & Clarification Store Helpers
+# ---------------------------------------------------------------------------
+async def update_submission_freeze_db(
+    submission_id: str,
+    technical_freeze_status: str,
+    is_locked: bool,
+    frozen_at: Optional[str] = None,
+    frozen_by: Optional[str] = None,
+    freeze_reason: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Updates technical freeze status, lock state, and freeze metadata for a submission."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if submission_id in _IN_MEMORY_SUBMISSIONS:
+        _IN_MEMORY_SUBMISSIONS[submission_id]["technical_freeze_status"] = technical_freeze_status
+        _IN_MEMORY_SUBMISSIONS[submission_id]["is_locked"] = is_locked
+        _IN_MEMORY_SUBMISSIONS[submission_id]["frozen_at"] = frozen_at
+        _IN_MEMORY_SUBMISSIONS[submission_id]["frozen_by"] = frozen_by
+        _IN_MEMORY_SUBMISSIONS[submission_id]["freeze_reason"] = freeze_reason
+        _IN_MEMORY_SUBMISSIONS[submission_id]["updated_at"] = now_iso
+        _save_local_store()
+
+    try:
+        db_client = get_supabase_client()
+        update_payload = {
+            "technical_freeze_status": technical_freeze_status,
+            "is_locked": is_locked,
+            "frozen_at": frozen_at,
+            "frozen_by": frozen_by,
+            "freeze_reason": freeze_reason,
+            "updated_at": now_iso,
+        }
+        res = await asyncio.to_thread(
+            lambda: db_client.table("bid_submissions").update(update_payload).eq("id", submission_id).execute()
+        )
+        if res and hasattr(res, "data") and res.data:
+            return res.data[0]
+    except Exception as exc:
+        logger.debug("Non-blocking DB update for submission freeze (%s): %s", submission_id, exc)
+
+    return _IN_MEMORY_SUBMISSIONS.get(submission_id)
+
+
+async def insert_clarification_db(clarification_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Inserts a new clarification record into database and fallback in-memory store."""
+    from fastapi.encoders import jsonable_encoder
+    c_id = clarification_data.get("id")
+    encoded = jsonable_encoder(clarification_data)
+    if c_id:
+        _IN_MEMORY_CLARIFICATIONS[c_id] = encoded
+        _save_local_store()
+    try:
+        db_client = get_supabase_client()
+        res = await asyncio.to_thread(
+            lambda: db_client.table("clarification_requests").insert(encoded).execute()
+        )
+        if res and hasattr(res, "data") and res.data:
+            return res.data[0]
+    except Exception as exc:
+        logger.debug("Non-blocking DB insert for clarification (%s): %s", c_id, exc)
+    return encoded
+
+
+async def update_clarification_db(clarification_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Updates an existing clarification record."""
+    from fastapi.encoders import jsonable_encoder
+    encoded = jsonable_encoder(update_data)
+    if clarification_id in _IN_MEMORY_CLARIFICATIONS:
+        _IN_MEMORY_CLARIFICATIONS[clarification_id].update(encoded)
+        _save_local_store()
+    try:
+        db_client = get_supabase_client()
+        res = await asyncio.to_thread(
+            lambda: db_client.table("clarification_requests").update(encoded).eq("id", clarification_id).execute()
+        )
+        if res and hasattr(res, "data") and res.data:
+            return res.data[0]
+    except Exception as exc:
+        logger.debug("Non-blocking DB update for clarification (%s): %s", clarification_id, exc)
+    return _IN_MEMORY_CLARIFICATIONS.get(clarification_id)
+
+
+async def get_clarification_db(clarification_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves a single clarification record by ID."""
+    if clarification_id in _IN_MEMORY_CLARIFICATIONS:
+        return dict(_IN_MEMORY_CLARIFICATIONS[clarification_id])
+    try:
+        db_client = get_supabase_client()
+        res = await asyncio.to_thread(
+            lambda: db_client.table("clarification_requests").select("*").eq("id", clarification_id).execute()
+        )
+        if res and hasattr(res, "data") and res.data:
+            return res.data[0]
+    except Exception as exc:
+        logger.debug("Non-blocking DB fetch for clarification (%s): %s", clarification_id, exc)
+    return _IN_MEMORY_CLARIFICATIONS.get(clarification_id)
+
+
+async def list_clarifications_db(
+    procurement_id: Optional[str] = None,
+    submission_id: Optional[str] = None,
+    bidder_id: Optional[str] = None,
+    status: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Lists clarification records with optional filtering."""
+    results = list(_IN_MEMORY_CLARIFICATIONS.values())
+    if procurement_id:
+        results = [c for c in results if c.get("procurement_id") == procurement_id]
+    if submission_id:
+        results = [c for c in results if c.get("submission_id") == submission_id]
+    if bidder_id:
+        results = [c for c in results if c.get("bidder_id") == bidder_id]
+    if status:
+        results = [c for c in results if c.get("status") == status]
+    return results
+
+
+async def insert_audit_log_db(audit_entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Appends an immutable audit event to the audit trail."""
+    from fastapi.encoders import jsonable_encoder
+    entry = jsonable_encoder(audit_entry)
+    entry.setdefault("id", str(uuid.uuid4()))
+    entry.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
+    _IN_MEMORY_AUDIT_LOGS.append(entry)
+    _save_local_store()
+    try:
+        db_client = get_supabase_client()
+        await asyncio.to_thread(
+            lambda: db_client.table("audit_logs").insert(entry).execute()
+        )
+    except Exception as exc:
+        logger.debug("Non-blocking DB insert for audit log: %s", exc)
+    return entry
+
+
+async def get_audit_logs_db(
+    procurement_id: Optional[str] = None,
+    submission_id: Optional[str] = None,
+    event_type: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Retrieves audit trail entries filtered by procurement, submission, or event type."""
+    logs = list(_IN_MEMORY_AUDIT_LOGS)
+    if procurement_id:
+        logs = [l for l in logs if l.get("procurement_id") == procurement_id]
+    if submission_id:
+        logs = [l for l in logs if l.get("submission_id") == submission_id]
+    if event_type:
+        logs = [l for l in logs if l.get("event_type") == event_type]
+    return logs
+
 
 
 

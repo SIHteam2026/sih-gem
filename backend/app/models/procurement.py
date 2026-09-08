@@ -46,6 +46,15 @@ class DocumentType(str, Enum):
     OTHER = "OTHER"
 
 
+class TechnicalFreezeStatus(str, Enum):
+    """Enumeration of Technical Freeze (Cover 1) evaluation statuses."""
+    NOT_FROZEN = "NOT_FROZEN"
+    FROZEN = "FROZEN"
+    TECHNICAL_REVIEW_REQUIRED = "TECHNICAL_REVIEW_REQUIRED"
+    TECHNICALLY_QUALIFIED = "TECHNICALLY_QUALIFIED"
+    TECHNICALLY_DISQUALIFIED = "TECHNICALLY_DISQUALIFIED"
+
+
 # ---------------------------------------------------------------------------
 # Document Models
 # ---------------------------------------------------------------------------
@@ -114,6 +123,11 @@ class BidSubmissionBase(BaseModel):
     external_submission_reference: Optional[str] = Field(None, description="External source submission reference.")
     submitted_at: Optional[datetime] = Field(default_factory=datetime.utcnow, description="Submission timestamp.")
     status: str = Field(default="SUBMITTED", description="Submission status (e.g. SUBMITTED, UNDER_REVIEW, EVALUATED).")
+    technical_freeze_status: TechnicalFreezeStatus = Field(default=TechnicalFreezeStatus.NOT_FROZEN, description="Technical Freeze lifecycle status.")
+    is_locked: bool = Field(default=False, description="Whether the submission is locked against further evidence mutation.")
+    frozen_at: Optional[datetime] = Field(None, description="Timestamp when technical freeze was applied.")
+    frozen_by: Optional[str] = Field(None, description="Officer/system identifier that applied technical freeze.")
+    freeze_reason: Optional[str] = Field(None, description="Operational rationale or context for freeze.")
 
 
 class BidSubmissionCreate(BidSubmissionBase):
@@ -328,6 +342,11 @@ class SubmissionSummaryResponse(BaseModel):
     external_submission_reference: Optional[str] = Field(None, description="External submission reference.")
     submitted_at: Optional[datetime] = Field(None, description="Submission timestamp.")
     status: str = Field(default="SUBMITTED", description="Submission status.")
+    technical_freeze_status: TechnicalFreezeStatus = Field(default=TechnicalFreezeStatus.NOT_FROZEN, description="Technical Freeze lifecycle status.")
+    is_locked: bool = Field(default=False, description="Whether the submission is locked against further evidence mutation.")
+    frozen_at: Optional[datetime] = Field(None, description="Timestamp when technical freeze was applied.")
+    frozen_by: Optional[str] = Field(None, description="Officer/system identifier that applied technical freeze.")
+    freeze_reason: Optional[str] = Field(None, description="Operational rationale or context for freeze.")
     bidder: Optional[BidderSummaryResponse] = Field(None, description="Associated bidder profile.")
     documents: List[DocumentMetadataResponse] = Field(default_factory=list, description="Attached evidence document metadata.")
     document_count: int = Field(default=0, description="Total documents attached.")
