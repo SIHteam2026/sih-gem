@@ -161,12 +161,18 @@ async def freeze_submission_service(
             if proc:
                 tenders = proc.get("tenders", []) or []
                 all_subs = [s for t in tenders for s in (t.get("submissions", []) or [])]
-                if all_subs and all(s.get("technical_freeze_status") == TechnicalFreezeStatus.FROZEN.value for s in all_subs):
-                    if proc.get("status") in (ProcurementStatus.TECHNICAL_REVIEW.value, ProcurementStatus.READY_FOR_TECHNICAL_SCRUTINY.value):
-                        await update_procurement_status_db(resolved_procurement_id, ProcurementStatus.TECHNICAL_FREEZE.value)
-                elif not freeze_request.freeze:
-                    if proc.get("status") in (ProcurementStatus.TECHNICAL_FREEZE.value, ProcurementStatus.COVER_2_READY.value):
-                        await update_procurement_status_db(resolved_procurement_id, ProcurementStatus.TECHNICAL_REVIEW.value)
+                all_subs_frozen = all_subs and all(s.get("technical_freeze_status") == TechnicalFreezeStatus.FROZEN.value for s in all_subs)
+                from app.services.procurement_lifecycle_service import transition_procurement_state
+                target_st = ProcurementStatus.TECHNICAL_FREEZE if all_subs_frozen else ProcurementStatus.TECHNICAL_REVIEW
+                try:
+                    await transition_procurement_state(
+                        procurement_id=resolved_procurement_id,
+                        target_status=target_st,
+                        actor=freeze_request.officer_id or "OFFICER",
+                        reason=f"Submission {submission_id} freeze state updated",
+                    )
+                except Exception as exc:
+                    logger.debug("Procurement status transition skipped: %s", exc)
         except Exception as exc:
             logger.debug("Procurement status sync skipped on freeze: %s", exc)
 
@@ -476,9 +482,15 @@ async def create_clarification_service(
     if resolved_proc_id:
         try:
             if proc and proc.get("status") in (ProcurementStatus.TECHNICAL_REVIEW.value, ProcurementStatus.READY_FOR_TECHNICAL_SCRUTINY.value, ProcurementStatus.READY.value):
-                await update_procurement_status_db(resolved_proc_id, ProcurementStatus.CLARIFICATION_OPEN.value)
+                from app.services.procurement_lifecycle_service import transition_procurement_state
+                await transition_procurement_state(
+                    procurement_id=resolved_proc_id,
+                    target_status=ProcurementStatus.CLARIFICATION_OPEN,
+                    actor=payload.created_by or "OFFICER",
+                    reason=f"Clarification created on requirement {payload.requirement_id}",
+                )
         except Exception as exc:
-            logger.debug("Procurement status sync skipped on clarification create: %s", exc)
+            logger.debug("Procurement status transition skipped on clarification create: %s", exc)
 
     return ClarificationRecord.model_validate(inserted)
 
@@ -581,12 +593,25 @@ async def re_evaluate_clarification_service(
             detail=f"Clarification '{clarification_id}' not found.",
         )
 
+    c_status = clarification.get("status")
+    if c_status in (ClarificationStatus.CANCELLED.value, ClarificationStatus.REJECTED.value):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot execute re-evaluation on clarification '{clarification_id}' in terminal state '{c_status}'.",
+        )
+
     proc_id = clarification.get("procurement_id")
     if proc_id:
         try:
-            await update_procurement_status_db(proc_id, ProcurementStatus.RE_EVALUATION_RUNNING.value)
+            from app.services.procurement_lifecycle_service import transition_procurement_state
+            await transition_procurement_state(
+                procurement_id=proc_id,
+                target_status=ProcurementStatus.RE_EVALUATION_RUNNING,
+                actor="CANONICAL_ENGINE",
+                reason=f"Targeted re-evaluation started for clarification {clarification_id}",
+            )
         except Exception as exc:
-            logger.debug("Procurement status sync skipped on re-eval start: %s", exc)
+            logger.debug("Procurement status transition skipped on re-eval start: %s", exc)
 
     submission_id = clarification.get("submission_id")
     target_req_id = clarification.get("requirement_id")
@@ -715,12 +740,18 @@ async def re_evaluate_clarification_service(
 
     if proc_id:
         try:
+            from app.services.procurement_lifecycle_service import transition_procurement_state
             all_c = await list_clarifications_db(procurement_id=proc_id)
             has_open = any(c.get("status") in (ClarificationStatus.OPEN.value, ClarificationStatus.RESPONDED.value, ClarificationStatus.UNDER_REVIEW.value, ClarificationStatus.REQUIRES_FURTHER_CLARIFICATION.value) for c in all_c if c.get("id") != clarification_id)
-            next_status = ProcurementStatus.CLARIFICATION_OPEN.value if has_open else ProcurementStatus.TECHNICAL_REVIEW.value
-            await update_procurement_status_db(proc_id, next_status)
+            next_status = ProcurementStatus.CLARIFICATION_OPEN if has_open else ProcurementStatus.TECHNICAL_REVIEW
+            await transition_procurement_state(
+                procurement_id=proc_id,
+                target_status=next_status,
+                actor="CANONICAL_ENGINE",
+                reason=f"Re-evaluation concluded for clarification {clarification_id}",
+            )
         except Exception as exc:
-            logger.debug("Procurement status sync skipped on re-eval end: %s", exc)
+            logger.debug("Procurement status transition skipped on re-eval end: %s", exc)
 
     return ClarificationRecord.model_validate(updated or {**clarification, **update_payload})
 
@@ -775,6 +806,7 @@ async def resolve_clarification_service(
 
     if proc_id:
         try:
+            from app.services.procurement_lifecycle_service import transition_procurement_state
             all_c = await list_clarifications_db(procurement_id=proc_id)
             has_open = any(
                 (target_status.value if c.get("id") == clarification_id else c.get("status")) in (
@@ -785,10 +817,15 @@ async def resolve_clarification_service(
                 )
                 for c in all_c
             )
-            next_status = ProcurementStatus.CLARIFICATION_OPEN.value if has_open else ProcurementStatus.TECHNICAL_REVIEW.value
-            await update_procurement_status_db(proc_id, next_status)
+            next_status = ProcurementStatus.CLARIFICATION_OPEN if has_open else ProcurementStatus.TECHNICAL_REVIEW
+            await transition_procurement_state(
+                procurement_id=proc_id,
+                target_status=next_status,
+                actor=actor,
+                reason=f"Clarification {clarification_id} resolved with status {target_status.value}",
+            )
         except Exception as exc:
-            logger.debug("Procurement status sync skipped on clarification resolution: %s", exc)
+            logger.debug("Procurement status transition skipped on clarification resolution: %s", exc)
 
     return ClarificationRecord.model_validate(updated or {**clarification, **update_payload})
 

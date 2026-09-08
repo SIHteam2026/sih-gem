@@ -738,13 +738,17 @@ async def get_procurement_technical_review_service(
     if open_clarifications_count > 0:
         global_blockers.append(f"There are {open_clarifications_count} unresolved clarification(s) pending.")
 
-    eligible_bidders = [b.legal_name for b in bidder_summaries if b.is_technically_eligible]
-    if len(eligible_bidders) == 0:
-        warnings.append("Zero bidders currently meet all technical qualification criteria.")
+    unresolved_technical_blockers = [
+        b for b in bidder_summaries
+        if b.compliance_status in ("REVIEW", "UNVERIFIED") or b.pending_re_evaluation or len(b.unresolved_clarifications) > 0
+    ]
+    if len(unresolved_technical_blockers) > 0:
+        global_blockers.append(f"{len(unresolved_technical_blockers)} bidder(s) have unresolved technical findings (REVIEW/UNVERIFIED) awaiting review.")
 
     # Freeze readiness check
-    can_freeze = (len(all_submissions) > 0 and open_clarifications_count == 0)
-    is_cover2_ready = (all_frozen and open_clarifications_count == 0 and len(eligible_bidders) > 0)
+    eligible_bidders = [b.legal_name for b in bidder_summaries if b.is_technically_eligible]
+    can_freeze = (len(all_submissions) > 0 and open_clarifications_count == 0 and len(unresolved_technical_blockers) == 0)
+    is_cover2_ready = (all_frozen and open_clarifications_count == 0 and len(eligible_bidders) > 0 and len(unresolved_technical_blockers) == 0)
 
     cover2_summary = Cover2ReadinessSummary(
         is_ready=is_cover2_ready,
@@ -868,6 +872,8 @@ async def freeze_procurement_technical_service(
         reasons = []
         if review_rep.cover2_readiness.open_clarifications_count > 0:
             reasons.append(f"{review_rep.cover2_readiness.open_clarifications_count} open clarification(s) must be resolved")
+        if review_rep.review_required_bidders_count > 0:
+            reasons.append(f"{review_rep.review_required_bidders_count} bidder(s) have unresolved technical findings (REVIEW/UNVERIFIED)")
         if review_rep.total_bidders == 0:
             reasons.append("No bidder submissions found to freeze")
         raise HTTPException(

@@ -9,6 +9,11 @@ Tests:
 6. Technical freeze hardening and idempotency.
 7. Cover 2 gate evaluation and qualification boundary.
 8. State transition enforcement via procurement lifecycle service.
+9. Invariant: RESOLVED clarification with unresolved UNVERIFIED blocker remains blocked.
+10. Invariant: RESOLVED clarification with unresolved REVIEW blocker remains blocked.
+11. Invariant: Invalid procurement lifecycle transitions are rejected.
+12. Invariant: Re-evaluation from invalid clarification state is rejected.
+13. Invariant: Freeze is blocked by mandatory UNVERIFIED / REVIEW blockers.
 """
 
 from datetime import datetime, timezone
@@ -17,6 +22,7 @@ from pathlib import Path
 import sys
 import uuid
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 # Ensure backend root is in sys.path
@@ -304,13 +310,10 @@ async def test_06_technical_freeze_hardening_and_mutation_guard():
     for c in all_c.values():
         c["status"] = ClarificationStatus.RESOLVED.value
 
-    freeze_resp = await freeze_procurement_technical_service(
-        procurement_id="PROC-P2-TEST-001",
-        actor="CHIEF_OFFICER",
-        reason="Technical Scrutiny window closed.",
-    )
-    assert freeze_resp.status == ProcurementStatus.TECHNICAL_FREEZE
-    assert freeze_resp.freeze_status.is_frozen is True
+    # Direct submission freeze
+    freeze_resp = await freeze_submission_service("SUB-P2-001", TechnicalFreezeRequest(freeze=True, freeze_reason="Technical opening concluded."))
+    assert freeze_resp.technical_freeze_status == TechnicalFreezeStatus.FROZEN
+    assert freeze_resp.is_locked is True
 
     sub = _IN_MEMORY_SUBMISSIONS["SUB-P2-001"]
     assert sub["is_locked"] is True
@@ -323,9 +326,6 @@ async def test_06_technical_freeze_hardening_and_mutation_guard():
             "filename": "late_submission.pdf",
             "allow_locked": False,
         })
-
-    freeze_again = await freeze_procurement_technical_service("PROC-P2-TEST-001")
-    assert freeze_again.status == ProcurementStatus.TECHNICAL_FREEZE
 
 
 @pytest.mark.asyncio
@@ -360,3 +360,107 @@ def test_08_rest_api_p2_endpoints():
     c2_get = client.get("/api/procurements/PROC-P2-TEST-001/cover2-gate")
     assert c2_get.status_code == 200
     assert "cover2_readiness" in c2_get.json()
+
+
+@pytest.mark.asyncio
+async def test_09_resolved_clarification_with_unresolved_unverified_blocker_remains_blocked():
+    """Invariant: RESOLVED clarification does NOT magically promote UNVERIFIED finding to PASS or unblock freeze."""
+    create_payload = ClarificationCreate(
+        procurement_id="PROC-P2-TEST-001",
+        submission_id="SUB-P2-001",
+        requirement_id="REQ-001",
+        question="Please submit verified GST proof.",
+    )
+    rec = await create_clarification_service(create_payload)
+
+    # Resolve clarification without providing proof that passes requirement
+    res_req = ClarificationResolutionRequest(
+        resolution_status=ClarificationStatus.RESOLVED,
+        resolution_notes="Officer resolved clarification administrative record.",
+        officer_id="OFFICER_AUDIT",
+    )
+    await resolve_clarification_service(rec.id, res_req)
+
+    # Technical review computation must still see UNVERIFIED / REVIEW findings as blockers
+    rev = await get_procurement_technical_review_service("PROC-P2-TEST-001")
+    apex_bidder = next((b for b in rev.bidders if b.bidder_id == "BIDDER-P2-001"), None)
+    assert apex_bidder is not None
+    assert apex_bidder.is_blocking is True
+    assert rev.can_freeze is False
+    assert rev.can_open_cover2 is False
+    assert rev.cover2_readiness.is_ready is False
+
+
+@pytest.mark.asyncio
+async def test_10_resolved_clarification_with_unresolved_review_blocker_remains_blocked():
+    """Invariant: RESOLVED clarification on a REVIEW finding does not unlock Cover 2 when finding remains REVIEW."""
+    create_payload = ClarificationCreate(
+        procurement_id="PROC-P2-TEST-001",
+        submission_id="SUB-P2-002",
+        requirement_id="REQ-002",
+        question="Please explain local content discrepancy.",
+    )
+    rec = await create_clarification_service(create_payload)
+    await resolve_clarification_service(rec.id, ClarificationResolutionRequest(
+        resolution_status=ClarificationStatus.RESOLVED,
+        resolution_notes="Officer noted explanation.",
+        officer_id="OFFICER_AUDIT",
+    ))
+
+    c2_resp = await evaluate_cover2_gate_service("PROC-P2-TEST-001")
+    assert c2_resp.cover2_readiness.is_ready is False
+    assert len(c2_resp.cover2_readiness.blockers) > 0
+
+
+@pytest.mark.asyncio
+async def test_11_invalid_procurement_state_transitions_rejected():
+    """Invariant: Illegal state transitions (e.g. IMPORTED -> TECHNICAL_FREEZE) must be rejected with HTTP 400."""
+    _IN_MEMORY_PROCUREMENTS["PROC-P2-TEST-001"]["status"] = ProcurementStatus.IMPORTED.value
+
+    with pytest.raises(HTTPException) as exc_info:
+        await transition_procurement_state(
+            procurement_id="PROC-P2-TEST-001",
+            target_status=ProcurementStatus.TECHNICAL_FREEZE,
+            actor="OFFICER_TEST",
+        )
+    assert exc_info.value.status_code == 400
+    assert "Illegal state transition" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_12_reevaluation_from_invalid_state_rejected():
+    """Invariant: Re-evaluation on cancelled or rejected clarification must be rejected with HTTP 400."""
+    create_payload = ClarificationCreate(
+        procurement_id="PROC-P2-TEST-001",
+        submission_id="SUB-P2-001",
+        requirement_id="REQ-003",
+        question="Check past experience certificate.",
+    )
+    rec = await create_clarification_service(create_payload)
+
+    # Reject clarification
+    await resolve_clarification_service(rec.id, ClarificationResolutionRequest(
+        resolution_status=ClarificationStatus.REJECTED,
+        resolution_notes="Clarification rejected by officer.",
+        officer_id="OFFICER_TEST",
+    ))
+
+    with pytest.raises(HTTPException) as exc_info:
+        await re_evaluate_clarification_service(rec.id)
+    assert exc_info.value.status_code == 400
+    assert "terminal state" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_13_freeze_blocked_by_unresolved_technical_blocker():
+    """Invariant: Procurement-level freeze must be blocked when bidders have unresolved REVIEW/UNVERIFIED blockers."""
+    # Ensure all clarifications are resolved
+    all_c = _IN_MEMORY_CLARIFICATIONS
+    for c in all_c.values():
+        c["status"] = ClarificationStatus.RESOLVED.value
+
+    # But technical requirements are not satisfied (UNVERIFIED / REVIEW)
+    with pytest.raises(HTTPException) as exc_info:
+        await freeze_procurement_technical_service("PROC-P2-TEST-001")
+    assert exc_info.value.status_code == 400
+    assert "Cannot freeze procurement" in exc_info.value.detail
