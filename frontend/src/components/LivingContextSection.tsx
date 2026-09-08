@@ -55,7 +55,7 @@ export default function LivingContextSection({
   else if (hour >= 21) greeting = "Good night Sir!";
 
   return (
-    <div className={`w-full max-w-[1040px] flex flex-col font-sans tracking-tight ${className}`}>
+    <div className={`w-full max-w-5xl mx-auto flex flex-col font-sans tracking-tight ${className}`}>
       {/* Header & Structural Breakdown */}
       <div className="mb-6">
         <h1 className="text-3xl sm:text-4xl font-bold text-[#111827] leading-tight mb-2">
