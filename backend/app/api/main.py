@@ -199,9 +199,20 @@ from app.api.mock_gem_router import router as mock_gem_router
 app.include_router(mock_gem_router)
 
 # Register Procurement Workspace Router
-from app.api.procurement_router import router as procurement_router
+try:
+    from app.api.procurement_router import router as procurement_router
+except ImportError:
+    from api.procurement_router import router as procurement_router
 
 app.include_router(procurement_router)
+
+# Register Action Studio Router
+try:
+    from app.api.action_studio_router import router as action_studio_router
+except ImportError:
+    from api.action_studio_router import router as action_studio_router
+
+app.include_router(action_studio_router)
 
 
 
