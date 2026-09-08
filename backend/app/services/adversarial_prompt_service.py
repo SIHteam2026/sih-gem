@@ -31,10 +31,23 @@ class AdversarialGeminiClient:
     
     def __init__(self):
         self.api_key = os.getenv("GEMINI_API_KEY")
-        if not self.api_key or genai is None:
-            self.client = None
-        else:
-            self.client = genai.Client(api_key=self.api_key)
+        self.client = None
+        if genai and self.api_key:
+            try:
+                self.client = genai.Client(api_key=self.api_key)
+            except Exception as e:
+                logger.warning("Failed to initialize GenAI client: %s", e)
+        if self.client is None:
+            try:
+                from app.ai.llm_service import _genai_client
+                if _genai_client:
+                    self.client = _genai_client
+            except Exception:
+                pass
+        self.calls_made = 0
+
+    def reset_call_count(self) -> None:
+        """Resets the counter of LLM calls made during a verification pass."""
         self.calls_made = 0
 
     def is_available(self) -> bool:
@@ -120,19 +133,16 @@ Return a JSON object conforming strictly to this schema:
             if validated.status == "CONTRADICTION":
                 valid_details = []
                 for d in validated.details:
-                    # simplistic grounding check
+                    if not d.evidence_refs:
+                        continue
                     refs_valid = True
                     for ref in d.evidence_refs:
+                        ref_clean = ref.strip()
+                        if not ref_clean:
+                            refs_valid = False
+                            break
                         # Check if ref is a substring of any evidence quote or claim
-                        found = False
-                        for eq in evidence_quotes:
-                            if ref.lower() in eq.lower():
-                                found = True
-                                break
-                        for c in bidder_claims:
-                            if ref.lower() in c.lower():
-                                found = True
-                                break
+                        found = any(ref_clean.lower() in str(eq).lower() for eq in evidence_quotes) or any(ref_clean.lower() in str(c).lower() for c in bidder_claims)
                         if not found:
                             refs_valid = False
                             break
@@ -140,10 +150,12 @@ Return a JSON object conforming strictly to this schema:
                         valid_details.append(d)
                 
                 if not valid_details:
-                    # All citations hallucinated
-                    logger.warning("AdversarialGeminiClient: LLM hallucinated evidence citations. Rejecting.")
+                    # All citations hallucinated or ungrounded
+                    logger.warning("AdversarialGeminiClient: LLM citations ungrounded or empty. Rejecting.")
                     validated.status = "INSUFFICIENT_EVIDENCE"
-                validated.details = valid_details
+                    validated.details = []
+                else:
+                    validated.details = valid_details
 
             return validated
 
