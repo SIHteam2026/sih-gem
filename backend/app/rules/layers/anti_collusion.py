@@ -52,6 +52,26 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Heuristic confidence mapping for each signal type (0.0 to 1.0)
+SIGNAL_CONFIDENCE: Dict[str, float] = {
+    "SHARED_BANK_ACCOUNT": 1.0,
+    "SHARED_PHONE_NUMBER": 0.9,
+    "SHARED_EMAIL_ADDRESS": 0.8,
+    "SHARED_PHYSICAL_ADDRESS": 0.7,
+    "SHARED_DOCUMENT_AUTHOR": 0.6,
+    "DEFAULT": 0.5,
+}
+
+# Common boilerplate phrases in CPCL BOQ documents that should be ignored for collusion detection
+BOQ_BOILERPLATE_PHRASES = [
+    "online multichannel water quality analyzer units",
+    "boq",
+    "specification",
+    "description",
+    "technical specifications",
+]
+
+
 
 class AntiCollusionVerifier(BaseVerifier):
     """Verifier for Layer 4: Anti-Collusion and Relatedness."""
@@ -218,13 +238,17 @@ class AntiCollusionVerifier(BaseVerifier):
             # Calibrate severity based on signal convergence
             if has_bank or len(sigs) >= 3:
                 severity = FindingSeverity.CRITICAL
-                confidence = 0.96
             elif len(sigs) >= 2:
                 severity = FindingSeverity.HIGH
-                confidence = 0.90
             else:
                 severity = FindingSeverity.MEDIUM
-                confidence = 0.80
+
+            # Compute heuristic confidence based on signal strengths
+            # Use the highest confidence value among the involved signals
+            signal_confidences = [SIGNAL_CONFIDENCE.get(sig, SIGNAL_CONFIDENCE["DEFAULT"]) for sig in signal_names]
+            max_signal_conf = max(signal_confidences) if signal_confidences else SIGNAL_CONFIDENCE["DEFAULT"]
+            # Apply a scaling factor to reflect overall assessment (e.g., 0.95)
+            confidence = round(max_signal_conf * 0.95, 2)
 
             reasons = [s["description"] for s in sigs]
             explanation = (
@@ -233,29 +257,36 @@ class AntiCollusionVerifier(BaseVerifier):
                 "Requires procurement officer review under GeM Anti-Collusion and Related-Party guidelines."
             )
 
-            findings.append(
-                VerificationFinding(
-                    verifier=self.verifier_id,
-                    verification_layer=self.layer,
-                    bidder_id=bid_a,
-                    status=ComplianceState.REVIEW,
-                    severity=severity,
-                    claim={"involved_bidders": [bid_a, bid_b], "bidder_names": [name_a, name_b]},
-                    observation={"matched_signals": signal_names, "signal_count": len(sigs)},
-                    reason=explanation,
-                    evidence=[ProvenanceRecord(
-                        quote=s.get("evidence"),
-                        source_type="COLLUSION_SIGNAL_EVIDENCE"
-                    ) for s in sigs],
-                    confidence=confidence,
-                    machine_readable_flags=signal_names + ["COLLUSION_RISK_FLAG", "MULTI_BIDDER_REVIEW_REQUIRED"],
-                    metadata={
-                        "involved_bidders": [bid_a, bid_b],
-                        "bidder_names": [name_a, name_b],
-                        "signals": sigs,
-                    },
-                )
-            )
+                        # Suppress boilerplate-only author overlap findings
+            if len(sigs) == 1 and signal_names[0] == "SHARED_DOCUMENT_AUTHOR":
+                desc = sigs[0].get("description", "").lower()
+                if any(phrase in desc for phrase in BOQ_BOILERPLATE_PHRASES):
+                    # Skip adding this finding as it's likely boilerplate overlap
+                    continue
+
+findings.append(
+    VerificationFinding(
+        verifier=self.verifier_id,
+        verification_layer=self.layer,
+        bidder_id=bid_a,
+        status=ComplianceState.REVIEW,
+        severity=severity,
+        claim={"involved_bidders": [bid_a, bid_b], "bidder_names": [name_a, name_b]},
+        observation={"matched_signals": signal_names, "signal_count": len(sigs)},
+        reason=explanation,
+        evidence=[ProvenanceRecord(
+            quote=s.get("evidence"),
+            source_type="COLLUSION_SIGNAL_EVIDENCE"
+        ) for s in sigs],
+        confidence=confidence,
+        machine_readable_flags=signal_names + ["COLLUSION_RISK_FLAG", "MULTI_BIDDER_REVIEW_REQUIRED"],
+        metadata={
+            "involved_bidders": [bid_a, bid_b],
+            "bidder_names": [name_a, name_b],
+            "signals": sigs,
+        },
+    )
+)
 
         # 6. If multiple bidders evaluated and no collusion detected, record positive audit
         if not findings and len(bidders) >= 2:
@@ -269,7 +300,7 @@ class AntiCollusionVerifier(BaseVerifier):
                     observation="No cross-bidder metadata, contact, address, or banking linkage detected.",
                     reason=f"Multi-bidder anti-collusion screening clear across {len(bidders)} competing submissions.",
                     confidence=1.0,
-                    machine_readable_flags=["NO_COLLUSION_DETECTED", "BIDDER_INDEPENDENCE_CONFIRMED"],
+                    machine_readable_flags=["NO_COLLUSION_DETECTED", "NO_SUSPICIOUS_LINKAGE_DETECTED"],
                     metadata={"bidders_screened": [b.get("id") for b in bidders]},
                 )
             )
