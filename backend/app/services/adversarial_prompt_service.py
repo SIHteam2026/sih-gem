@@ -112,8 +112,9 @@ Return a JSON object conforming strictly to this schema:
         
         try:
             # We request JSON response using Gemini's structured output capability if possible
+            gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
             response = self.client.models.generate_content(
-                model="gemini-2.5-flash",
+                model=gemini_model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
