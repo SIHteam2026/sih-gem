@@ -20,10 +20,10 @@ export default function HomeShell({
   contextSlot,
   recentProcurementSlot,
   children,
-  className = ",
+  className = "",
 }: HomeShellProps) {
  return (
- <div className={min-h-screen bg-white text-[#111827] flex flex-col selection:bg-[#d8e6ee] overflow-x-hidden }>
+ <div className={"min-h-screen bg-white text-[#111827] flex flex-col selection:bg-[#d8e6ee]" overflow-x-hidden }>
  {header}
  <main id=main-content className=mx-auto w-full max-w-[1360px] flex-1 px-6 sm:px-10 lg:px-12 pt-6 sm:pt-8 lg:pt-10 pb-12>
  {(heroSlot || contextSlot) && (
