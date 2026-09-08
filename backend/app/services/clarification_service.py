@@ -16,6 +16,7 @@ from fastapi import HTTPException, status
 try:
     from app.db.client import (
         get_clarification_db,
+        get_procurement_detail_db,
         get_procurement_hierarchy,
         get_submission_detail_db,
         insert_audit_log_db,
@@ -23,6 +24,7 @@ try:
         insert_document,
         list_clarifications_db,
         update_clarification_db,
+        update_procurement_status_db,
         update_submission_freeze_db,
     )
     from app.models.clarification import (
@@ -34,7 +36,7 @@ try:
         TechnicalFreezeRequest,
         TechnicalFreezeResponse,
     )
-    from app.models.procurement import Document, IngestionDocumentInput, TechnicalFreezeStatus
+    from app.models.procurement import Document, IngestionDocumentInput, ProcurementStatus, TechnicalFreezeStatus
     from app.services.claim_extraction_service import process_document_evidence
     from app.services.tender_contract_service import get_tender_evaluation_contract
     from app.rules.verification_engine import canonical_verification_engine
@@ -42,6 +44,7 @@ try:
 except ImportError:
     from db.client import (
         get_clarification_db,
+        get_procurement_detail_db,
         get_procurement_hierarchy,
         get_submission_detail_db,
         insert_audit_log_db,
@@ -49,6 +52,7 @@ except ImportError:
         insert_document,
         list_clarifications_db,
         update_clarification_db,
+        update_procurement_status_db,
         update_submission_freeze_db,
     )
     from models.clarification import (
@@ -60,7 +64,7 @@ except ImportError:
         TechnicalFreezeRequest,
         TechnicalFreezeResponse,
     )
-    from models.procurement import Document, IngestionDocumentInput, TechnicalFreezeStatus
+    from models.procurement import Document, IngestionDocumentInput, ProcurementStatus, TechnicalFreezeStatus
     from services.claim_extraction_service import process_document_evidence
     from services.tender_contract_service import get_tender_evaluation_contract
     from rules.verification_engine import canonical_verification_engine
@@ -128,6 +132,22 @@ async def freeze_submission_service(
             "timestamp": now_iso,
         },
     })
+
+    # Sync parent procurement status
+    if resolved_procurement_id:
+        try:
+            proc = await get_procurement_detail_db(resolved_procurement_id)
+            if proc:
+                tenders = proc.get("tenders", []) or []
+                all_subs = [s for t in tenders for s in (t.get("submissions", []) or [])]
+                if all_subs and all(s.get("technical_freeze_status") == TechnicalFreezeStatus.FROZEN.value for s in all_subs):
+                    if proc.get("status") in (ProcurementStatus.TECHNICAL_REVIEW.value, ProcurementStatus.READY_FOR_TECHNICAL_SCRUTINY.value):
+                        await update_procurement_status_db(resolved_procurement_id, ProcurementStatus.TECHNICAL_FREEZE.value)
+                elif not freeze_request.freeze:
+                    if proc.get("status") in (ProcurementStatus.TECHNICAL_FREEZE.value, ProcurementStatus.COVER_2_READY.value):
+                        await update_procurement_status_db(resolved_procurement_id, ProcurementStatus.TECHNICAL_REVIEW.value)
+        except Exception as exc:
+            logger.debug("Procurement status sync skipped on freeze: %s", exc)
 
     return TechnicalFreezeResponse(
         submission_id=submission_id,
@@ -245,6 +265,14 @@ async def create_clarification_service(
         "details": audit_entry["details"],
     })
 
+    if resolved_proc_id:
+        try:
+            proc = await get_procurement_detail_db(resolved_proc_id)
+            if proc and proc.get("status") in (ProcurementStatus.TECHNICAL_REVIEW.value, ProcurementStatus.READY_FOR_TECHNICAL_SCRUTINY.value, ProcurementStatus.READY.value):
+                await update_procurement_status_db(resolved_proc_id, ProcurementStatus.CLARIFICATION_OPEN.value)
+        except Exception as exc:
+            logger.debug("Procurement status sync skipped on clarification create: %s", exc)
+
     return ClarificationRecord.model_validate(inserted)
 
 
@@ -345,6 +373,13 @@ async def re_evaluate_clarification_service(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Clarification '{clarification_id}' not found.",
         )
+
+    proc_id = clarification.get("procurement_id")
+    if proc_id:
+        try:
+            await update_procurement_status_db(proc_id, ProcurementStatus.RE_EVALUATION_RUNNING.value)
+        except Exception as exc:
+            logger.debug("Procurement status sync skipped on re-eval start: %s", exc)
 
     submission_id = clarification.get("submission_id")
     target_req_id = clarification.get("requirement_id")
@@ -470,6 +505,15 @@ async def re_evaluate_clarification_service(
         "actor": "CANONICAL_ENGINE",
         "details": audit_entry["details"],
     })
+
+    if proc_id:
+        try:
+            all_c = await list_clarifications_db(procurement_id=proc_id)
+            has_open = any(c.get("status") in (ClarificationStatus.OPEN.value, ClarificationStatus.RESPONDED.value) for c in all_c if c.get("id") != clarification_id)
+            next_status = ProcurementStatus.CLARIFICATION_OPEN.value if has_open else ProcurementStatus.TECHNICAL_REVIEW.value
+            await update_procurement_status_db(proc_id, next_status)
+        except Exception as exc:
+            logger.debug("Procurement status sync skipped on re-eval end: %s", exc)
 
     return ClarificationRecord.model_validate(updated or {**clarification, **update_payload})
 

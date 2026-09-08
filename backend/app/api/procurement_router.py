@@ -12,13 +12,17 @@ from fastapi import APIRouter, HTTPException, Query
 try:
     from app.models.procurement import (
         BidderSummaryResponse,
+        Cover2ReadinessResponse,
         ProcurementDetailResponse,
         ProcurementListResponse,
         ProcurementProcessingStatusResponse,
+        ProcurementTechnicalReviewResponse,
         StartProcessingResponse,
         SubmissionSummaryResponse,
         TenderWorkspaceDetailResponse,
         TechnicalFreezeStatus,
+        TechnicalScrutinyRunRequest,
+        TechnicalScrutinyRunResponse,
     )
     from app.models.clarification import (
         ClarificationCreate,
@@ -32,19 +36,24 @@ try:
     from app.models.financial import ProcurementFinancialEvaluationResponse
     from app.services import (
         clarification_service,
+        procurement_lifecycle_service,
         procurement_processing_service,
         procurement_read_service,
     )
 except ImportError:
     from models.procurement import (
         BidderSummaryResponse,
+        Cover2ReadinessResponse,
         ProcurementDetailResponse,
         ProcurementListResponse,
         ProcurementProcessingStatusResponse,
+        ProcurementTechnicalReviewResponse,
         StartProcessingResponse,
         SubmissionSummaryResponse,
         TenderWorkspaceDetailResponse,
         TechnicalFreezeStatus,
+        TechnicalScrutinyRunRequest,
+        TechnicalScrutinyRunResponse,
     )
     from models.clarification import (
         ClarificationCreate,
@@ -58,6 +67,7 @@ except ImportError:
     from models.financial import ProcurementFinancialEvaluationResponse
     from services import (
         clarification_service,
+        procurement_lifecycle_service,
         procurement_processing_service,
         procurement_read_service,
     )
@@ -294,9 +304,19 @@ async def get_procurement_financial_endpoint(
     description="Applies a formal technical freeze on a submission. Distinguishes NOT_FROZEN, FROZEN, TECHNICAL_REVIEW_REQUIRED, TECHNICALLY_QUALIFIED, TECHNICALLY_DISQUALIFIED.",
 )
 @router.post(
+    "/procurements/{procurement_id}/submissions/{submission_id}/technical-freeze",
+    response_model=TechnicalFreezeResponse,
+    summary="Freeze / Lock Technical Bid Submission",
+)
+@router.post(
     "/submissions/{submission_id}/freeze",
     response_model=TechnicalFreezeResponse,
     summary="Freeze / Lock Bid Submission",
+)
+@router.post(
+    "/submissions/{submission_id}/technical-freeze",
+    response_model=TechnicalFreezeResponse,
+    summary="Freeze / Lock Technical Bid Submission",
 )
 async def freeze_submission_endpoint(
     submission_id: str,
@@ -510,6 +530,86 @@ async def re_evaluate_clarification_endpoint(
     except Exception as exc:
         logger.error("Failed to re-evaluate clarification '%s': %s", clarification_id, exc)
         raise HTTPException(status_code=500, detail=f"Internal error executing targeted re-evaluation: {str(exc)}")
+
+
+# ---------------------------------------------------------------------------
+# Technical Scrutiny, Technical Review & Cover 2 Gate Endpoints
+# ---------------------------------------------------------------------------
+@router.post(
+    "/procurements/{procurement_id}/technical-scrutiny/run",
+    response_model=TechnicalScrutinyRunResponse,
+    summary="Run Authoritative Technical Scrutiny Pipeline",
+    description="Executes the canonical multi-layer verification engine (L1-L7) across all submission evidence.",
+)
+async def run_technical_scrutiny_endpoint(
+    procurement_id: str,
+    payload: Optional[TechnicalScrutinyRunRequest] = None,
+) -> TechnicalScrutinyRunResponse:
+    """Initiates full multi-layer technical scrutiny for the procurement workspace."""
+    try:
+        actor = payload.actor if payload and payload.actor else "PROCUREMENT_OFFICER"
+        force = payload.force if payload else False
+        notes = payload.notes if payload else None
+        return await procurement_lifecycle_service.run_technical_scrutiny_command(
+            procurement_id=procurement_id,
+            actor=actor,
+            force=force,
+            notes=notes,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed executing technical scrutiny for '%s': %s", procurement_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error running technical scrutiny: {str(exc)}")
+
+
+@router.get(
+    "/procurements/{procurement_id}/technical-review",
+    response_model=ProcurementTechnicalReviewResponse,
+    summary="Get Officer Technical Review Representation",
+    description="Retrieves the structured officer-facing Technical Review representation including bidder summaries, matrix, findings, freeze state, and Cover 2 readiness.",
+)
+async def get_technical_review_endpoint(
+    procurement_id: str,
+) -> ProcurementTechnicalReviewResponse:
+    """Retrieves the full structured Technical Review representation."""
+    try:
+        return await procurement_lifecycle_service.get_procurement_technical_review_service(procurement_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed retrieving technical review for '%s': %s", procurement_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error retrieving technical review: {str(exc)}")
+
+
+@router.post(
+    "/procurements/{procurement_id}/cover2-gate",
+    response_model=Cover2ReadinessResponse,
+    summary="Evaluate and Advance Cover 2 Readiness Gate",
+    description="Checks hard gating blockers (technical freeze enforced, open clarifications resolved, qualified bidders present) and advances state to COVER_2_READY if passed.",
+)
+@router.post(
+    "/procurements/{procurement_id}/cover2-ready",
+    response_model=Cover2ReadinessResponse,
+    summary="Evaluate and Advance Cover 2 Readiness Gate",
+)
+@router.get(
+    "/procurements/{procurement_id}/cover2-gate",
+    response_model=Cover2ReadinessResponse,
+    summary="Check Cover 2 Readiness Status",
+)
+async def evaluate_cover2_gate_endpoint(
+    procurement_id: str,
+) -> Cover2ReadinessResponse:
+    """Evaluates Cover 2 financial opening readiness."""
+    try:
+        return await procurement_lifecycle_service.evaluate_cover2_gate_service(procurement_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed evaluating Cover 2 gate for '%s': %s", procurement_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error evaluating Cover 2 readiness: {str(exc)}")
+
 
 
 

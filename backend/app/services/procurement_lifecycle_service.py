@@ -1,0 +1,793 @@
+"""Canonical Procurement Lifecycle & Technical Scrutiny Orchestration Service.
+
+Integrates the multi-layer verification pipeline (L1-L7) into an authoritative officer-facing
+backend workflow with deterministic state transitions, audit logging, and Cover 2 readiness gating.
+"""
+
+from datetime import datetime, timezone
+import json
+import logging
+import time
+from typing import Any, Dict, List, Optional, Set, Tuple
+import uuid
+
+from fastapi import HTTPException, status
+
+try:
+    from app.db.client import (
+        get_audit_logs_db,
+        get_clarification_db,
+        get_procurement_detail_db,
+        get_procurement_processing_metadata_db,
+        get_submission_detail_db,
+        get_tender_detail_db,
+        get_tender_requirements,
+        insert_audit_log_db,
+        insert_bid_evaluation,
+        list_clarifications_db,
+        update_procurement_status_db,
+        update_submission_freeze_db,
+    )
+    from app.models.clarification import ClarificationRecord, ClarificationStatus
+    from app.models.evaluation import ComplianceState
+    from app.models.evidence import BidderClaim, EvidenceObservation
+    from app.models.procurement import (
+        Cover2ReadinessResponse,
+        Cover2ReadinessSummary,
+        Document,
+        OfficerBidderTechnicalSummary,
+        OfficerClarificationSummary,
+        OfficerFindingSummary,
+        OfficerFreezeSummary,
+        OfficerRequirementSummary,
+        ProcurementStatus,
+        ProcurementTechnicalReviewResponse,
+        TechnicalFreezeStatus,
+        TechnicalScrutinyRunResponse,
+    )
+    from app.models.tender_contract import RequirementEvaluationContract, TenderEvaluationContract
+    from app.models.verification import (
+        FindingSeverity,
+        VerificationContext,
+        VerificationEngineReport,
+        VerificationFinding,
+        VerificationLayer,
+    )
+    from app.rules.verification_engine import canonical_verification_engine
+    from app.services.claim_extraction_service import process_document_evidence
+    from app.services.master_pipeline import evaluate_canonical_submission_by_id
+    from app.services.tender_contract_service import get_tender_evaluation_contract
+except ImportError:
+    from db.client import (
+        get_audit_logs_db,
+        get_clarification_db,
+        get_procurement_detail_db,
+        get_procurement_processing_metadata_db,
+        get_submission_detail_db,
+        get_tender_detail_db,
+        get_tender_requirements,
+        insert_audit_log_db,
+        insert_bid_evaluation,
+        list_clarifications_db,
+        update_procurement_status_db,
+        update_submission_freeze_db,
+    )
+    from models.clarification import ClarificationRecord, ClarificationStatus
+    from models.evaluation import ComplianceState
+    from models.evidence import BidderClaim, EvidenceObservation
+    from models.procurement import (
+        Cover2ReadinessResponse,
+        Cover2ReadinessSummary,
+        Document,
+        OfficerBidderTechnicalSummary,
+        OfficerClarificationSummary,
+        OfficerFindingSummary,
+        OfficerFreezeSummary,
+        OfficerRequirementSummary,
+        ProcurementStatus,
+        ProcurementTechnicalReviewResponse,
+        TechnicalFreezeStatus,
+        TechnicalScrutinyRunResponse,
+    )
+    from models.tender_contract import RequirementEvaluationContract, TenderEvaluationContract
+    from models.verification import (
+        FindingSeverity,
+        VerificationContext,
+        VerificationEngineReport,
+        VerificationFinding,
+        VerificationLayer,
+    )
+    from rules.verification_engine import canonical_verification_engine
+    from services.claim_extraction_service import process_document_evidence
+    from services.master_pipeline import evaluate_canonical_submission_by_id
+    from services.tender_contract_service import get_tender_evaluation_contract
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Legal State Machine Transitions
+# ---------------------------------------------------------------------------
+LEGAL_PROCUREMENT_TRANSITIONS: Dict[ProcurementStatus, Set[ProcurementStatus]] = {
+    ProcurementStatus.IMPORTED: {
+        ProcurementStatus.READY_FOR_TECHNICAL_SCRUTINY,
+        ProcurementStatus.TECHNICAL_SCRUTINY_RUNNING,
+        ProcurementStatus.READY,
+        ProcurementStatus.PROCESSING,
+        ProcurementStatus.FAILED,
+    },
+    ProcurementStatus.READY_FOR_TECHNICAL_SCRUTINY: {
+        ProcurementStatus.TECHNICAL_SCRUTINY_RUNNING,
+        ProcurementStatus.FAILED,
+    },
+    ProcurementStatus.TECHNICAL_SCRUTINY_RUNNING: {
+        ProcurementStatus.TECHNICAL_REVIEW,
+        ProcurementStatus.FAILED,
+    },
+    ProcurementStatus.TECHNICAL_REVIEW: {
+        ProcurementStatus.TECHNICAL_SCRUTINY_RUNNING,
+        ProcurementStatus.CLARIFICATION_OPEN,
+        ProcurementStatus.TECHNICAL_FREEZE,
+        ProcurementStatus.COVER_2_READY,
+        ProcurementStatus.FAILED,
+    },
+    ProcurementStatus.CLARIFICATION_OPEN: {
+        ProcurementStatus.RE_EVALUATION_RUNNING,
+        ProcurementStatus.TECHNICAL_REVIEW,
+        ProcurementStatus.TECHNICAL_SCRUTINY_RUNNING,
+        ProcurementStatus.FAILED,
+    },
+    ProcurementStatus.RE_EVALUATION_RUNNING: {
+        ProcurementStatus.TECHNICAL_REVIEW,
+        ProcurementStatus.CLARIFICATION_OPEN,
+        ProcurementStatus.FAILED,
+    },
+    ProcurementStatus.TECHNICAL_FREEZE: {
+        ProcurementStatus.COVER_2_READY,
+        ProcurementStatus.TECHNICAL_REVIEW,
+        ProcurementStatus.FAILED,
+    },
+    ProcurementStatus.COVER_2_READY: {
+        ProcurementStatus.TECHNICAL_FREEZE,
+        ProcurementStatus.TECHNICAL_REVIEW,
+        ProcurementStatus.FAILED,
+    },
+    ProcurementStatus.FAILED: {
+        ProcurementStatus.READY_FOR_TECHNICAL_SCRUTINY,
+        ProcurementStatus.TECHNICAL_SCRUTINY_RUNNING,
+        ProcurementStatus.TECHNICAL_REVIEW,
+    },
+    # Aliases
+    ProcurementStatus.READY: {
+        ProcurementStatus.READY_FOR_TECHNICAL_SCRUTINY,
+        ProcurementStatus.TECHNICAL_SCRUTINY_RUNNING,
+        ProcurementStatus.TECHNICAL_REVIEW,
+        ProcurementStatus.PROCESSING,
+        ProcurementStatus.FAILED,
+    },
+    ProcurementStatus.PROCESSING: {
+        ProcurementStatus.READY_FOR_TECHNICAL_SCRUTINY,
+        ProcurementStatus.TECHNICAL_SCRUTINY_RUNNING,
+        ProcurementStatus.TECHNICAL_REVIEW,
+        ProcurementStatus.READY,
+        ProcurementStatus.FAILED,
+    },
+}
+
+
+def validate_procurement_state_transition(
+    current_status: ProcurementStatus,
+    target_status: ProcurementStatus,
+) -> bool:
+    """Validates if transitioning from current_status to target_status is permitted."""
+    if current_status == target_status:
+        return True
+    allowed = LEGAL_PROCUREMENT_TRANSITIONS.get(current_status, set())
+    return target_status in allowed
+
+
+async def transition_procurement_state(
+    procurement_id: str,
+    target_status: ProcurementStatus,
+    actor: str = "PROCUREMENT_OFFICER",
+    reason: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Authoritatively transitions procurement lifecycle state and logs an immutable audit event."""
+    proc = await get_procurement_detail_db(procurement_id)
+    if not proc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Procurement workspace '{procurement_id}' was not found.",
+        )
+
+    raw_current = proc.get("status", ProcurementStatus.IMPORTED.value)
+    try:
+        current_status = ProcurementStatus(raw_current)
+    except ValueError:
+        current_status = ProcurementStatus.IMPORTED
+
+    if not validate_procurement_state_transition(current_status, target_status):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Illegal state transition from '{current_status.value}' to '{target_status.value}' "
+                f"for procurement '{procurement_id}'."
+            ),
+        )
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    processing_metadata = proc.get("processing_metadata") or {}
+    processing_metadata["last_status_transition"] = {
+        "from_status": current_status.value,
+        "to_status": target_status.value,
+        "actor": actor,
+        "reason": reason,
+        "timestamp": now_iso,
+    }
+    if metadata:
+        processing_metadata.update(metadata)
+
+    updated = await update_procurement_status_db(
+        procurement_id=procurement_id,
+        status=target_status.value,
+        processing_metadata=processing_metadata,
+    )
+
+    await insert_audit_log_db({
+        "event_type": "PROCUREMENT_STATE_TRANSITION",
+        "procurement_id": procurement_id,
+        "actor": actor,
+        "details": {
+            "from_status": current_status.value,
+            "to_status": target_status.value,
+            "reason": reason,
+            "timestamp": now_iso,
+            "metadata": metadata or {},
+        },
+    })
+
+    return updated or {**proc, "status": target_status.value}
+
+
+# ---------------------------------------------------------------------------
+# Authoritative Technical Scrutiny Command
+# ---------------------------------------------------------------------------
+async def run_technical_scrutiny_command(
+    procurement_id: str,
+    actor: str = "PROCUREMENT_OFFICER",
+    force: bool = False,
+    notes: Optional[str] = None,
+) -> TechnicalScrutinyRunResponse:
+    """Executes the single authoritative Technical Scrutiny pipeline (L1-L7) across all submissions."""
+    start_time = time.perf_counter()
+    proc = await get_procurement_detail_db(procurement_id)
+    if not proc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Procurement workspace '{procurement_id}' was not found.",
+        )
+
+    raw_current = proc.get("status", ProcurementStatus.IMPORTED.value)
+    try:
+        current_status = ProcurementStatus(raw_current)
+    except ValueError:
+        current_status = ProcurementStatus.IMPORTED
+
+    # Transition to TECHNICAL_SCRUTINY_RUNNING
+    await transition_procurement_state(
+        procurement_id=procurement_id,
+        target_status=ProcurementStatus.TECHNICAL_SCRUTINY_RUNNING,
+        actor=actor,
+        reason=notes or "Initiating authoritative technical scrutiny pipeline (L1-L7).",
+    )
+
+    await insert_audit_log_db({
+        "event_type": "TECHNICAL_SCRUTINY_STARTED",
+        "procurement_id": procurement_id,
+        "actor": actor,
+        "details": {"force": force, "notes": notes},
+    })
+
+    # Collect tenders, requirements, bidders, submissions, and documents
+    tenders = proc.get("tenders", []) or []
+    all_requirements: List[Any] = []
+    all_bidders: List[Dict[str, Any]] = []
+    all_submissions: List[Dict[str, Any]] = []
+    all_documents: List[Any] = list(proc.get("documents", []) or [])
+
+    tender_ids: List[str] = []
+    for t in tenders:
+        t_id = str(t.get("id"))
+        tender_ids.append(t_id)
+        t_docs = t.get("documents", []) or []
+        all_documents.extend(t_docs)
+
+        # Requirements
+        try:
+            contract_pkg = await get_tender_evaluation_contract(t_id)
+            if contract_pkg and contract_pkg.requirements:
+                all_requirements.extend(contract_pkg.requirements)
+        except Exception as e:
+            logger.warning("Could not fetch contract package for tender '%s': %s", t_id, e)
+
+        subs = t.get("submissions", []) or []
+        for s in subs:
+            all_submissions.append(s)
+            s_docs = s.get("documents", []) or []
+            all_documents.extend(s_docs)
+            b = s.get("bidder")
+            if b and b not in all_bidders:
+                all_bidders.append(b)
+
+    # Ingest claims and observations for verification engine context
+    all_claims: List[BidderClaim] = []
+    all_observations: List[EvidenceObservation] = []
+
+    for sub in all_submissions:
+        sub_id = sub.get("id")
+        bidder_id = sub.get("bidder_id")
+        s_docs = sub.get("documents", []) or []
+        for doc_item in s_docs:
+            if isinstance(doc_item, dict):
+                doc_model = Document(
+                    id=str(doc_item.get("id") or uuid.uuid4()),
+                    procurement_id=procurement_id,
+                    tender_id=str(sub.get("tender_id") or (tender_ids[0] if tender_ids else "")),
+                    bid_submission_id=sub_id,
+                    filename=doc_item.get("filename", "evidence.pdf"),
+                    document_type=doc_item.get("document_type") or "OTHER",
+                    mime_type=doc_item.get("mime_type", "application/pdf"),
+                    file_size=doc_item.get("file_size"),
+                    storage_path=doc_item.get("storage_path"),
+                    content_text=doc_item.get("content_text") or (json.dumps([{"page": 1, "text": doc_item["text"]}]) if "text" in doc_item else None),
+                    processing_status=doc_item.get("processing_status", "COMPLETED"),
+                )
+            elif isinstance(doc_item, Document):
+                doc_model = doc_item
+            else:
+                continue
+
+            extracted = process_document_evidence(
+                doc=doc_model,
+                tender_context={"bidder_id": bidder_id, "bid_submission_id": sub_id},
+            )
+            all_claims.extend(extracted.get("claims", []))
+            all_observations.extend(extracted.get("observations", []))
+
+    # Execute Canonical Verification Engine across full context (L1-L7)
+    v_context = VerificationContext(
+        procurement_id=procurement_id,
+        tender_id=tender_ids[0] if tender_ids else "TENDER-DEFAULT",
+        tender_metadata=proc,
+        requirements=all_requirements,
+        bidders=all_bidders,
+        submissions=all_submissions,
+        documents=all_documents,
+        claims=all_claims,
+        observations=all_observations,
+        external_verifications={},
+        extra_context={"procurement_id": procurement_id, "actor": actor},
+    )
+
+    engine_report: VerificationEngineReport = await canonical_verification_engine.run_verification(v_context)
+
+    # Evaluate each submission and persist evaluation records
+    disqualified_count = 0
+    review_count = 0
+    qualified_count = 0
+
+    for sub in all_submissions:
+        sub_id = sub.get("id")
+        t_id = sub.get("tender_id") or (tender_ids[0] if tender_ids else "TENDER-DEFAULT")
+        try:
+            eval_res = await evaluate_canonical_submission_by_id(
+                submission_id=sub_id,
+                tender_id_or_ref=t_id,
+                context={"procurement_id": procurement_id, "engine_report": engine_report.model_dump()},
+            )
+            # Persist to database/in-memory store
+            bidder_obj = sub.get("bidder") or {}
+            bidder_name = bidder_obj.get("legal_name") if isinstance(bidder_obj, dict) else "Bidder"
+            await insert_bid_evaluation(
+                tender_id=t_id,
+                bidder_name=bidder_name,
+                evaluation_data=eval_res,
+                bid_id=sub_id,
+            )
+
+            # Analyze pass / fail / review counts
+            machine_summary = eval_res.get("machine_review_summary", {})
+            fails = machine_summary.get(ComplianceState.FAIL.value, 0)
+            reviews = machine_summary.get(ComplianceState.REVIEW.value, 0) + machine_summary.get(ComplianceState.UNVERIFIED.value, 0)
+
+            if fails > 0:
+                disqualified_count += 1
+            elif reviews > 0 or eval_res.get("review_required", False):
+                review_count += 1
+            else:
+                qualified_count += 1
+
+        except Exception as eval_exc:
+            logger.warning("Error evaluating submission '%s': %s", sub_id, eval_exc)
+            review_count += 1
+
+    # Check open clarifications
+    clarifications = await list_clarifications_db(procurement_id=procurement_id)
+    open_clarifications = [c for c in clarifications if c.get("status") in (ClarificationStatus.OPEN.value, ClarificationStatus.RESPONDED.value)]
+
+    # Complete Scrutiny & Transition to TECHNICAL_REVIEW
+    await transition_procurement_state(
+        procurement_id=procurement_id,
+        target_status=ProcurementStatus.TECHNICAL_REVIEW,
+        actor=actor,
+        reason="Technical scrutiny execution completed.",
+        metadata={
+            "bidders_evaluated": len(all_submissions),
+            "disqualified_count": disqualified_count,
+            "review_count": review_count,
+            "qualified_count": qualified_count,
+            "total_findings": engine_report.total_findings,
+        },
+    )
+
+    elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+    await insert_audit_log_db({
+        "event_type": "TECHNICAL_SCRUTINY_COMPLETED",
+        "procurement_id": procurement_id,
+        "actor": actor,
+        "details": {
+            "bidders_evaluated": len(all_submissions),
+            "disqualified_count": disqualified_count,
+            "review_count": review_count,
+            "qualified_count": qualified_count,
+            "open_clarifications_count": len(open_clarifications),
+            "execution_time_ms": elapsed_ms,
+        },
+    })
+
+    executed_layers = [
+        VerificationLayer.ADMINISTRATIVE_AND_IDENTITY.value,
+        VerificationLayer.CORPORATE_EXISTENCE_AND_RISK.value,
+        VerificationLayer.ANTI_COLLUSION_AND_RELATEDNESS.value,
+        VerificationLayer.ADVERSARIAL_TECHNICAL.value,
+        VerificationLayer.PAST_PERFORMANCE_AND_CAPACITY.value,
+        VerificationLayer.FINANCIAL_AND_COMMERCIAL.value,
+    ]
+
+    return TechnicalScrutinyRunResponse(
+        procurement_id=procurement_id,
+        status=ProcurementStatus.TECHNICAL_REVIEW,
+        executed_layers=executed_layers,
+        bidders_evaluated=len(all_submissions),
+        disqualified_count=disqualified_count,
+        review_count=review_count,
+        qualified_count=qualified_count,
+        open_clarifications_count=len(open_clarifications),
+        execution_time_ms=elapsed_ms,
+        message="Technical Scrutiny pipeline executed successfully across all submission evidence.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Structured Officer-Facing Technical Review Representation
+# ---------------------------------------------------------------------------
+async def get_procurement_technical_review_service(
+    procurement_id: str,
+) -> ProcurementTechnicalReviewResponse:
+    """Aggregates the complete officer-facing Technical Review representation."""
+    proc = await get_procurement_detail_db(procurement_id)
+    if not proc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Procurement workspace '{procurement_id}' was not found.",
+        )
+
+    raw_status = proc.get("status", ProcurementStatus.IMPORTED.value)
+    try:
+        proc_status = ProcurementStatus(raw_status)
+    except ValueError:
+        proc_status = ProcurementStatus.IMPORTED
+
+    tenders = proc.get("tenders", []) or []
+    all_requirements: List[Any] = []
+    all_submissions: List[Dict[str, Any]] = []
+    all_bidders: List[Dict[str, Any]] = []
+
+    for t in tenders:
+        t_id = str(t.get("id"))
+        try:
+            pkg = await get_tender_evaluation_contract(t_id)
+            if pkg and pkg.requirements:
+                for req in pkg.requirements:
+                    if req not in all_requirements:
+                        all_requirements.append(req)
+        except Exception:
+            pass
+
+        subs = t.get("submissions", []) or []
+        for s in subs:
+            all_submissions.append(s)
+            b = s.get("bidder")
+            if b and b not in all_bidders:
+                all_bidders.append(b)
+
+    # Clarifications
+    clarification_records = await list_clarifications_db(procurement_id=procurement_id)
+    clarification_summaries: List[OfficerClarificationSummary] = []
+    open_clarifications_count = 0
+
+    for c in clarification_records:
+        c_status = c.get("status", "OPEN")
+        if c_status in (ClarificationStatus.OPEN.value, ClarificationStatus.RESPONDED.value):
+            open_clarifications_count += 1
+
+        b_id = c.get("bidder_id", "")
+        matching_b = next((b for b in all_bidders if b.get("id") == b_id), {})
+        b_name = matching_b.get("legal_name") or "Bidder"
+
+        created_at_val = None
+        if c.get("created_at"):
+            try:
+                created_at_val = datetime.fromisoformat(c["created_at"])
+            except Exception:
+                pass
+
+        clarification_summaries.append(
+            OfficerClarificationSummary(
+                clarification_id=c.get("id", ""),
+                bidder_id=b_id,
+                bidder_name=b_name,
+                requirement_id=c.get("requirement_id"),
+                subject=c.get("question") or "Clarification Request",
+                status=c_status,
+                created_at=created_at_val,
+            )
+        )
+
+    # Bidder Summaries & Finding Compilation
+    bidder_summaries: List[OfficerBidderTechnicalSummary] = []
+    finding_summaries: List[OfficerFindingSummary] = []
+    req_compliance_by_bidder: Dict[str, Dict[str, str]] = {}
+
+    all_frozen = len(all_submissions) > 0
+    freeze_reasons: List[str] = []
+    frozen_by_list: List[str] = []
+    frozen_at_list: List[str] = []
+    qualified_bidder_names: List[str] = []
+    disqualified_bidder_names: List[str] = []
+
+    for sub in all_submissions:
+        sub_id = sub.get("id", "")
+        b_id = sub.get("bidder_id", "")
+        b_obj = sub.get("bidder") or {}
+        b_name = b_obj.get("legal_name") or "Bidder"
+
+        # Check freeze state
+        f_status_raw = sub.get("technical_freeze_status", TechnicalFreezeStatus.NOT_FROZEN.value)
+        try:
+            sub_freeze_status = TechnicalFreezeStatus(f_status_raw)
+        except ValueError:
+            sub_freeze_status = TechnicalFreezeStatus.NOT_FROZEN
+
+        if sub_freeze_status != TechnicalFreezeStatus.FROZEN:
+            all_frozen = False
+        else:
+            if sub.get("freeze_reason"):
+                freeze_reasons.append(sub["freeze_reason"])
+            if sub.get("frozen_by"):
+                frozen_by_list.append(sub["frozen_by"])
+            if sub.get("frozen_at"):
+                frozen_at_list.append(sub["frozen_at"])
+
+        # Check open clarifications for this bidder
+        bidder_has_open_c = any(
+            c.get("bidder_id") == b_id and c.get("status") in (ClarificationStatus.OPEN.value, ClarificationStatus.RESPONDED.value)
+            for c in clarification_records
+        )
+
+        # Run or resolve evaluation results
+        t_id = sub.get("tender_id") or (tenders[0].get("id") if tenders else "")
+        try:
+            eval_res = await evaluate_canonical_submission_by_id(submission_id=sub_id, tender_id_or_ref=t_id)
+        except Exception:
+            eval_res = {}
+
+        machine_summary = eval_res.get("machine_review_summary", {})
+        pass_count = machine_summary.get(ComplianceState.PASS.value, 0)
+        fail_count = machine_summary.get(ComplianceState.FAIL.value, 0)
+        review_count = machine_summary.get(ComplianceState.REVIEW.value, 0) + machine_summary.get(ComplianceState.UNVERIFIED.value, 0)
+
+        # Populate requirement-level matrix
+        for r_res in eval_res.get("requirement_results", []):
+            req_id = getattr(r_res, "requirement_id", None) or (r_res.get("requirement_id") if isinstance(r_res, dict) else None)
+            st_val = getattr(r_res, "state", None) or (r_res.get("state") if isinstance(r_res, dict) else None)
+            st_str = st_val.value if hasattr(st_val, "value") else str(st_val or "UNVERIFIED")
+            if req_id:
+                req_compliance_by_bidder.setdefault(req_id, {})[b_id] = st_str
+
+            # Extract findings from requirement evaluations
+            c_findings = getattr(r_res, "contradiction_findings", []) or (r_res.get("contradiction_findings", []) if isinstance(r_res, dict) else [])
+            for c_f in c_findings:
+                finding_summaries.append(
+                    OfficerFindingSummary(
+                        finding_id=str(uuid.uuid4()),
+                        bidder_id=b_id,
+                        bidder_name=b_name,
+                        layer="CONTRADICTION_DETECTION",
+                        severity=FindingSeverity.WARNING.value if getattr(c_f, "severity", None) is None else getattr(c_f, "severity"),
+                        title=f"Contradiction in {req_id}",
+                        detail=getattr(c_f, "description", str(c_f)),
+                        evidence_pointer=getattr(c_f, "evidence_pointer", None),
+                        source_reference=req_id,
+                        requires_clarification=True,
+                    )
+                )
+
+        # Overall recommendation
+        if fail_count > 0:
+            compliance_status = "FAIL"
+            is_eligible = False
+            disqualified_bidder_names.append(b_name)
+        elif review_count > 0 or bidder_has_open_c:
+            compliance_status = "REVIEW"
+            is_eligible = False
+        elif pass_count > 0:
+            compliance_status = "PASS"
+            is_eligible = True
+            qualified_bidder_names.append(b_name)
+        else:
+            compliance_status = "UNVERIFIED"
+            is_eligible = False
+
+        bidder_summaries.append(
+            OfficerBidderTechnicalSummary(
+                bidder_id=b_id,
+                legal_name=b_name,
+                submission_id=sub_id,
+                technical_freeze_status=sub_freeze_status,
+                compliance_status=compliance_status,
+                passed_requirements_count=pass_count,
+                failed_requirements_count=fail_count,
+                review_requirements_count=review_count,
+                findings_count=len([f for f in finding_summaries if f.bidder_id == b_id]),
+                has_open_clarifications=bidder_has_open_c,
+                is_technically_eligible=is_eligible,
+                summary_notes=f"Passed {pass_count} criteria, {fail_count} failed, {review_count} require review.",
+            )
+        )
+
+    # Requirement Summaries
+    req_summaries: List[OfficerRequirementSummary] = []
+    for r in all_requirements:
+        r_id = getattr(r, "requirement_id", None) or (r.get("requirement_id") if isinstance(r, dict) else str(r))
+        cat = getattr(r, "category", None) or (r.get("category") if isinstance(r, dict) else "GENERAL")
+        title = getattr(r, "title", None) or (r.get("title") if isinstance(r, dict) else (getattr(r, "description", "")[:60] or r_id))
+        desc = getattr(r, "description", None) or (r.get("description") if isinstance(r, dict) else None)
+        is_mand = getattr(r, "is_mandatory", True) if hasattr(r, "is_mandatory") else (r.get("is_mandatory", True) if isinstance(r, dict) else True)
+
+        req_summaries.append(
+            OfficerRequirementSummary(
+                requirement_id=r_id,
+                category=cat.value if hasattr(cat, "value") else str(cat),
+                title=title,
+                description=desc,
+                is_mandatory=is_mand,
+                compliance_by_bidder=req_compliance_by_bidder.get(r_id, {}),
+            )
+        )
+
+    # Freeze summary
+    freeze_summary = OfficerFreezeSummary(
+        is_frozen=all_frozen,
+        frozen_at=datetime.fromisoformat(frozen_at_list[0]) if frozen_at_list else None,
+        frozen_by=frozen_by_list[0] if frozen_by_list else None,
+        freeze_reason=freeze_reasons[0] if freeze_reasons else None,
+        qualified_bidders=qualified_bidder_names,
+        disqualified_bidders=disqualified_bidder_names,
+    )
+
+    # Cover 2 Readiness Evaluation
+    blockers: List[str] = []
+    warnings: List[str] = []
+
+    if not all_frozen:
+        blockers.append("Technical Freeze (Cover 1) must be applied to all submissions before opening Cover 2.")
+
+    if open_clarifications_count > 0:
+        blockers.append(f"There are {open_clarifications_count} unresolved clarification(s) pending.")
+
+    eligible_bidders = [b.legal_name for b in bidder_summaries if b.is_technically_eligible]
+    if len(eligible_bidders) == 0:
+        warnings.append("Zero bidders currently meet all technical qualification criteria.")
+
+    is_cover2_ready = (len(blockers) == 0 and len(eligible_bidders) > 0)
+
+    cover2_summary = Cover2ReadinessSummary(
+        is_ready=is_cover2_ready,
+        blockers=blockers,
+        warnings=warnings,
+        eligible_bidder_count=len(eligible_bidders),
+        eligible_bidders=eligible_bidders,
+        technical_freeze_enforced=all_frozen,
+        open_clarifications_count=open_clarifications_count,
+    )
+
+    last_eval_time = None
+    if proc.get("updated_at"):
+        try:
+            last_eval_time = datetime.fromisoformat(proc["updated_at"])
+        except Exception:
+            pass
+
+    return ProcurementTechnicalReviewResponse(
+        procurement_id=procurement_id,
+        external_reference=proc.get("external_reference", ""),
+        title=proc.get("title", "Procurement Workspace"),
+        status=proc_status,
+        total_bidders=len(all_submissions),
+        bidders=bidder_summaries,
+        requirements=req_summaries,
+        key_findings=finding_summaries,
+        clarifications=clarification_summaries,
+        freeze_status=freeze_summary,
+        cover2_readiness=cover2_summary,
+        decision_authority="HUMAN_PROCUREMENT_OFFICER",
+        last_evaluated_at=last_eval_time,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Cover 2 Readiness Gate Service
+# ---------------------------------------------------------------------------
+async def evaluate_cover2_gate_service(
+    procurement_id: str,
+    actor: str = "PROCUREMENT_OFFICER",
+) -> Cover2ReadinessResponse:
+    """Evaluates readiness gate for unlocking Cover 2 Financial Opening."""
+    review_rep = await get_procurement_technical_review_service(procurement_id)
+    c2_summary = review_rep.cover2_readiness
+
+    now_dt = datetime.now(timezone.utc)
+
+    if c2_summary.is_ready:
+        # Move procurement state to COVER_2_READY if currently in TECHNICAL_FREEZE or TECHNICAL_REVIEW
+        if review_rep.status in (ProcurementStatus.TECHNICAL_FREEZE, ProcurementStatus.TECHNICAL_REVIEW):
+            await transition_procurement_state(
+                procurement_id=procurement_id,
+                target_status=ProcurementStatus.COVER_2_READY,
+                actor=actor,
+                reason="Cover 2 readiness gate passed successfully.",
+            )
+
+        await insert_audit_log_db({
+            "event_type": "COVER_2_GATE_PASSED",
+            "procurement_id": procurement_id,
+            "actor": actor,
+            "details": {
+                "eligible_bidders": c2_summary.eligible_bidders,
+                "eligible_bidder_count": c2_summary.eligible_bidder_count,
+                "technical_freeze_enforced": c2_summary.technical_freeze_enforced,
+            },
+        })
+    else:
+        await insert_audit_log_db({
+            "event_type": "COVER_2_GATE_BLOCKED",
+            "procurement_id": procurement_id,
+            "actor": actor,
+            "details": {
+                "blockers": c2_summary.blockers,
+                "warnings": c2_summary.warnings,
+                "open_clarifications_count": c2_summary.open_clarifications_count,
+                "technical_freeze_enforced": c2_summary.technical_freeze_enforced,
+            },
+        })
+
+    return Cover2ReadinessResponse(
+        procurement_id=procurement_id,
+        status=ProcurementStatus.COVER_2_READY if c2_summary.is_ready else review_rep.status,
+        cover2_readiness=c2_summary,
+        decision_authority="HUMAN_PROCUREMENT_OFFICER",
+        evaluated_at=now_dt,
+    )

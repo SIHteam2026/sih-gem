@@ -109,9 +109,12 @@ class TenderTemplateExclusionIndex:
 
         # 2. Requirements
         for r in requirements:
-            self._add_text(r.description or "")
-            self._add_text(r.title or "")
-            for f in r.extraction_fingerprints or []:
+            r_desc = getattr(r, "description", "") or (r.get("description", "") if isinstance(r, dict) else "")
+            r_title = getattr(r, "title", "") or (r.get("title", "") if isinstance(r, dict) else "")
+            self._add_text(r_desc)
+            self._add_text(r_title)
+            fingerprints = getattr(r, "extraction_fingerprints", None) or (r.get("extraction_fingerprints", []) if isinstance(r, dict) else [])
+            for f in fingerprints or []:
                 self._add_text(f)
 
         # 3. Tender RFP documents

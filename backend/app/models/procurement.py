@@ -16,11 +16,20 @@ except ImportError:
 
 
 class ProcurementStatus(str, Enum):
-    """Enumeration of procurement lifecycle statuses."""
+    """Enumeration of canonical procurement lifecycle statuses."""
     IMPORTED = "IMPORTED"
-    PROCESSING = "PROCESSING"
-    READY = "READY"
+    READY_FOR_TECHNICAL_SCRUTINY = "READY_FOR_TECHNICAL_SCRUTINY"
+    TECHNICAL_SCRUTINY_RUNNING = "TECHNICAL_SCRUTINY_RUNNING"
+    TECHNICAL_REVIEW = "TECHNICAL_REVIEW"
+    CLARIFICATION_OPEN = "CLARIFICATION_OPEN"
+    RE_EVALUATION_RUNNING = "RE_EVALUATION_RUNNING"
+    TECHNICAL_FREEZE = "TECHNICAL_FREEZE"
+    COVER_2_READY = "COVER_2_READY"
     FAILED = "FAILED"
+
+    # Backward compatibility aliases
+    READY = "READY"
+    PROCESSING = "PROCESSING"
 
 
 class ProcessingStage(str, Enum):
@@ -495,6 +504,129 @@ class ProcessingContext(BaseModel):
     force: bool = Field(default=False, description="Force re-processing flag.")
     retry_count: int = Field(default=0, description="Current retry attempt number.")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Shared contextual metadata.")
+
+
+# ---------------------------------------------------------------------------
+# Technical Scrutiny & Review Lifecycle Models
+# ---------------------------------------------------------------------------
+class TechnicalScrutinyRunRequest(BaseModel):
+    """Request payload for initiating full Technical Scrutiny."""
+    force: bool = Field(default=False, description="Force re-execution even if already completed.")
+    actor: Optional[str] = Field(default="PROCUREMENT_OFFICER", description="Initiator of the scrutiny run.")
+    notes: Optional[str] = Field(default=None, description="Optional operational notes or rationale.")
+
+
+class TechnicalScrutinyRunResponse(BaseModel):
+    """Authoritative response from executing full Technical Scrutiny (L1-L7)."""
+    procurement_id: str = Field(..., description="Target procurement UUID.")
+    status: ProcurementStatus = Field(..., description="Updated procurement status (e.g. TECHNICAL_REVIEW).")
+    executed_layers: List[str] = Field(default_factory=list, description="Verification layers executed (L1-L7).")
+    bidders_evaluated: int = Field(default=0, description="Total bidders evaluated.")
+    disqualified_count: int = Field(default=0, description="Total bidders with failed mandatory criteria.")
+    review_count: int = Field(default=0, description="Total bidders requiring officer review.")
+    qualified_count: int = Field(default=0, description="Total bidders meeting pass criteria.")
+    open_clarifications_count: int = Field(default=0, description="Total unresolved clarification requests.")
+    execution_time_ms: float = Field(default=0.0, description="Execution duration in milliseconds.")
+    message: str = Field(..., description="Summary message.")
+
+
+class OfficerBidderTechnicalSummary(BaseModel):
+    """Officer-facing summary for a single participating bidder."""
+    bidder_id: str = Field(..., description="Bidder UUID.")
+    legal_name: str = Field(..., description="Corporate registered name.")
+    submission_id: str = Field(..., description="Bid submission UUID.")
+    technical_freeze_status: TechnicalFreezeStatus = Field(default=TechnicalFreezeStatus.NOT_FROZEN, description="Technical Freeze status.")
+    compliance_status: str = Field(..., description="Overall compliance recommendation: PASS, FAIL, REVIEW, UNVERIFIED.")
+    passed_requirements_count: int = Field(default=0, description="Number of passed requirements.")
+    failed_requirements_count: int = Field(default=0, description="Number of failed requirements.")
+    review_requirements_count: int = Field(default=0, description="Number of requirements needing review.")
+    findings_count: int = Field(default=0, description="Total forensic findings associated with bidder.")
+    has_open_clarifications: bool = Field(default=False, description="Whether bidder has pending/unresolved clarifications.")
+    is_technically_eligible: bool = Field(default=False, description="Whether bidder currently qualifies technically.")
+    summary_notes: Optional[str] = Field(default=None, description="Key takeaway notes for the officer.")
+
+
+class OfficerRequirementSummary(BaseModel):
+    """Officer-facing summary for a tender requirement across bidders."""
+    requirement_id: str = Field(..., description="Requirement UUID or code.")
+    category: str = Field(..., description="Requirement category (e.g., GST, OEM, TURNOVER).")
+    title: str = Field(..., description="Requirement title / description.")
+    description: Optional[str] = Field(default=None, description="Detailed requirement text.")
+    is_mandatory: bool = Field(default=True, description="Whether requirement is mandatory for qualification.")
+    compliance_by_bidder: Dict[str, str] = Field(default_factory=dict, description="Compliance status keyed by bidder ID.")
+
+
+class OfficerFindingSummary(BaseModel):
+    """Officer-facing actionable finding from multi-layer forensics."""
+    finding_id: Optional[str] = Field(default=None, description="Finding UUID if present.")
+    bidder_id: str = Field(..., description="Associated bidder UUID.")
+    bidder_name: str = Field(..., description="Associated bidder legal name.")
+    layer: str = Field(..., description="Verification layer that raised the finding.")
+    severity: str = Field(..., description="Severity level: INFO, WARNING, CRITICAL, FATAL.")
+    title: str = Field(..., description="Short finding headline.")
+    detail: str = Field(..., description="Detailed explanation.")
+    evidence_pointer: Optional[str] = Field(default=None, description="Document/page pointer if available.")
+    source_reference: Optional[str] = Field(default=None, description="Tender clause / external reference.")
+    requires_clarification: bool = Field(default=False, description="Whether this finding warrants a clarification.")
+
+
+class OfficerClarificationSummary(BaseModel):
+    """Officer-facing clarification status record."""
+    clarification_id: str = Field(..., description="Clarification UUID.")
+    bidder_id: str = Field(..., description="Associated bidder UUID.")
+    bidder_name: str = Field(..., description="Associated bidder legal name.")
+    requirement_id: Optional[str] = Field(default=None, description="Targeted requirement UUID.")
+    subject: str = Field(..., description="Clarification question / subject.")
+    status: str = Field(..., description="Clarification status: OPEN, RESPONDED, RESOLVED, CANCELLED.")
+    created_at: Optional[datetime] = Field(default=None, description="Creation timestamp.")
+
+
+class OfficerFreezeSummary(BaseModel):
+    """Officer-facing technical freeze state summary."""
+    is_frozen: bool = Field(default=False, description="Whether all submissions are technically frozen.")
+    frozen_at: Optional[datetime] = Field(default=None, description="When freeze was applied.")
+    frozen_by: Optional[str] = Field(default=None, description="Officer/system identifier.")
+    freeze_reason: Optional[str] = Field(default=None, description="Rationale for freeze.")
+    qualified_bidders: List[str] = Field(default_factory=list, description="Bidder names/IDs considered qualified.")
+    disqualified_bidders: List[str] = Field(default_factory=list, description="Bidder names/IDs considered disqualified.")
+
+
+class Cover2ReadinessSummary(BaseModel):
+    """Audit readiness summary for unlocking Cover 2 Financial Opening."""
+    is_ready: bool = Field(default=False, description="Whether Cover 2 Financial Opening is permissible.")
+    blockers: List[str] = Field(default_factory=list, description="Hard gating blockers preventing Cover 2 opening.")
+    warnings: List[str] = Field(default_factory=list, description="Advisory warnings for the officer.")
+    eligible_bidder_count: int = Field(default=0, description="Total bidders eligible for Cover 2.")
+    eligible_bidders: List[str] = Field(default_factory=list, description="Names/IDs of eligible bidders.")
+    technical_freeze_enforced: bool = Field(default=False, description="Whether Technical Freeze is fully enforced.")
+    open_clarifications_count: int = Field(default=0, description="Count of unresolved clarifications.")
+
+
+class Cover2ReadinessResponse(BaseModel):
+    """Full officer response for Cover 2 Readiness evaluation."""
+    procurement_id: str = Field(..., description="Target procurement UUID.")
+    status: ProcurementStatus = Field(..., description="Procurement status.")
+    cover2_readiness: Cover2ReadinessSummary = Field(..., description="Detailed Cover 2 gating breakdown.")
+    decision_authority: str = Field(default="HUMAN_PROCUREMENT_OFFICER", description="Governance boundary authority.")
+    evaluated_at: datetime = Field(default_factory=datetime.utcnow, description="Evaluation timestamp.")
+
+
+class ProcurementTechnicalReviewResponse(BaseModel):
+    """Authoritative Officer-facing Technical Review representation."""
+    procurement_id: str = Field(..., description="Procurement UUID.")
+    external_reference: str = Field(..., description="External procurement reference.")
+    title: str = Field(..., description="Procurement workspace title.")
+    status: ProcurementStatus = Field(..., description="Current procurement lifecycle status.")
+    total_bidders: int = Field(default=0, description="Total participating bidders.")
+    bidders: List[OfficerBidderTechnicalSummary] = Field(default_factory=list, description="Bidder compliance summaries.")
+    requirements: List[OfficerRequirementSummary] = Field(default_factory=list, description="Requirement matrix summaries.")
+    key_findings: List[OfficerFindingSummary] = Field(default_factory=list, description="Consolidated multi-layer forensic findings.")
+    clarifications: List[OfficerClarificationSummary] = Field(default_factory=list, description="Associated clarification lifecycles.")
+    freeze_status: OfficerFreezeSummary = Field(default_factory=OfficerFreezeSummary, description="Technical Freeze state.")
+    cover2_readiness: Cover2ReadinessSummary = Field(default_factory=Cover2ReadinessSummary, description="Cover 2 financial gate readiness.")
+    decision_authority: str = Field(default="HUMAN_PROCUREMENT_OFFICER", description="Governance boundary authority.")
+    last_evaluated_at: Optional[datetime] = Field(default=None, description="Timestamp of last scrutiny run.")
+
 
 
 
