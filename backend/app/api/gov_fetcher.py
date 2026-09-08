@@ -39,13 +39,14 @@ async def verify_gstin_external(gstin: Optional[str]) -> Dict[str, Any]:
         provider = SandboxGovProvider()
         result = await provider.verify_gstin(cleaned_gstin)
 
-        if result.outcome == "NOT_CONFIGURED":
+        from app.models.government import ProviderOutcome
+        if result.outcome in ("NOT_CONFIGURED", ProviderOutcome.NOT_CONFIGURED):
             # For backward compatibility
             return {
                 "gstin": cleaned_gstin,
                 "legal_name": None,
                 "status": "ERROR",
-                "error": "Sandbox API key not configured",
+                "error": result.reason or "Sandbox API key not configured",
             }
         
         if result.outcome == "VERIFIED" or result.outcome == "INVALID":
@@ -116,11 +117,12 @@ async def verify_pan_external(pan: Optional[str], name_as_per_pan: Optional[str]
         provider = SandboxGovProvider()
         result = await provider.verify_pan(cleaned_pan, name_as_per_pan=name_as_per_pan, date_of_birth=date_of_birth)
 
-        if result.outcome == "NOT_CONFIGURED":
+        from app.models.government import ProviderOutcome
+        if result.outcome in ("NOT_CONFIGURED", ProviderOutcome.NOT_CONFIGURED):
             return {
                 "pan": cleaned_pan,
                 "status": "ERROR",
-                "error": "Sandbox API key not configured",
+                "error": result.reason or "Sandbox API key not configured",
             }
         
         if result.outcome == "VERIFIED" or result.outcome == "INVALID":
