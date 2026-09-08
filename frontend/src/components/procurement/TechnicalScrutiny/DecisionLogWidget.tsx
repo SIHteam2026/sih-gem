@@ -24,22 +24,32 @@ export function DecisionLogWidget({ procurementId, layerKey, onProceed }: Decisi
         observation: observation.trim()
       });
       setIsSaved(true);
-      // Give a brief moment to show saved state before transitioning
       setTimeout(() => {
         onProceed();
       }, 600);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to save observation. Backend endpoint may not be ready.';
-      setError(message);
       setIsSaving(false);
+      const isNotImplemented = err instanceof Error && err.message === 'NOT_IMPLEMENTED';
+      if (isNotImplemented) {
+        // Feature flag / placeholder mode - backend is not ready
+        setIsSaved(true); // Locally transition to collapse the widget for presentation
+        // We do NOT claim it was persisted to backend.
+        setTimeout(() => {
+          onProceed();
+        }, 600);
+      } else {
+        const message = err instanceof Error ? err.message : 'Failed to save observation.';
+        setError(message);
+      }
     }
   };
 
   if (isSaved) {
+    // If we're saved but we know it's not implemented, we can show a transient local-only state
     return (
       <div className="flex items-center gap-2 text-sm text-[#059669] py-3 bg-[#ecfdf5] px-4 rounded-md border border-[#a7f3d0] mt-4 ml-auto w-full lg:w-80">
         <Check className="w-4 h-4" />
-        <span className="font-medium">Officer observation saved</span>
+        <span className="font-medium">Observation entered (Local only)</span>
       </div>
     );
   }

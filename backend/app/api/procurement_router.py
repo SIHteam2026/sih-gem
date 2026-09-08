@@ -17,6 +17,8 @@ try:
         ProcurementListResponse,
         ProcurementProcessingStatusResponse,
         ProcurementTechnicalReviewResponse,
+        OfficerObservationCreate,
+        OfficerObservationRecord,
         StartProcessingResponse,
         SubmissionSummaryResponse,
         TenderWorkspaceDetailResponse,
@@ -670,6 +672,26 @@ async def get_technical_review_endpoint(
         logger.error("Failed retrieving technical review for '%s': %s", procurement_id, exc)
         raise HTTPException(status_code=500, detail=f"Internal error retrieving technical review: {str(exc)}")
 
+@router.post(
+    "/procurements/{procurement_id}/observations",
+    response_model=OfficerObservationRecord,
+    summary="Record Officer Observation for Technical Scrutiny Checkpoint",
+    description="Records a canonical officer observation for a specific technical layer."
+)
+async def create_officer_observation_endpoint(
+    procurement_id: str,
+    payload: OfficerObservationCreate,
+) -> OfficerObservationRecord:
+    try:
+        from app.services.procurement_lifecycle_service import record_officer_observation_service
+        # Default mock actor. In a real environment, this would come from the auth context.
+        actor = "HUMAN_PROCUREMENT_OFFICER"
+        return await record_officer_observation_service(procurement_id, payload, actor)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed recording observation for '%s': %s", procurement_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error recording observation: {str(exc)}")
 
 @router.post(
     "/procurements/{procurement_id}/cover2-gate",

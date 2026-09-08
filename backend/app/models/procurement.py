@@ -1,4 +1,4 @@
-"""Canonical Procurement Data Models.
+﻿"""Canonical Procurement Data Models.
 
 Defines persistent Pydantic domain schemas for the OPAL procurement ingestion foundation:
 Procurement -> Tender -> Bidder -> BidSubmission -> Documents.
@@ -647,3 +647,146 @@ class ProcurementTechnicalReviewResponse(BaseModel):
 
 
 
+
+
+class OfficerTechnicalCheckPresentation(BaseModel):
+    check_id: str
+    title: str
+    status: str
+    bidders: Dict[str, str] = Field(default_factory=dict)
+    explanation: Optional[str] = None
+    evidence_references: List[str] = Field(default_factory=list)
+    blocking: bool = False
+    clarification_status: Optional[str] = None
+
+class OfficerTechnicalLayerPresentation(BaseModel):
+    layer_key: str
+    display_name: str
+    checks: List[OfficerTechnicalCheckPresentation] = Field(default_factory=list)
+
+class Cover2ReadinessSummary(BaseModel):
+    is_ready: bool = False
+    blockers: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    eligible_bidder_count: int = 0
+    eligible_bidders: List[str] = Field(default_factory=list)
+    technical_freeze_enforced: bool = False
+    open_clarifications_count: int = 0
+
+class Cover2ReadinessResponse(BaseModel):
+    procurement_id: str
+    status: ProcurementStatus
+    cover2_readiness: Cover2ReadinessSummary
+    decision_authority: str = "HUMAN_PROCUREMENT_OFFICER"
+    evaluated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class OfficerObservationRecord(BaseModel):
+    observation_id: str
+    procurement_id: str
+    layer: str
+    actor: str
+    observation: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class OfficerObservationCreate(BaseModel):
+    layer: str
+    observation: str
+
+class TechnicalScrutinyRunRequest(BaseModel):
+    force: bool = False
+    actor: Optional[str] = "PROCUREMENT_OFFICER"
+    notes: Optional[str] = None
+
+class TechnicalScrutinyRunResponse(BaseModel):
+    procurement_id: str
+    status: ProcurementStatus
+    executed_layers: List[str] = Field(default_factory=list)
+    bidders_evaluated: int = 0
+    disqualified_count: int = 0
+    review_count: int = 0
+    qualified_count: int = 0
+    open_clarifications_count: int = 0
+    execution_time_ms: float = 0.0
+    message: str
+
+class OfficerFreezeSummary(BaseModel):
+    is_frozen: bool = False
+    frozen_at: Optional[datetime] = None
+    frozen_by: Optional[str] = None
+    freeze_reason: Optional[str] = None
+    qualified_bidders: List[str] = Field(default_factory=list)
+    disqualified_bidders: List[str] = Field(default_factory=list)
+
+class OfficerBidderTechnicalSummary(BaseModel):
+    bidder_id: str
+    legal_name: str
+    submission_id: str
+    technical_freeze_status: TechnicalFreezeStatus = TechnicalFreezeStatus.NOT_FROZEN
+    compliance_status: str
+    passed_requirements_count: int = 0
+    failed_requirements_count: int = 0
+    review_requirements_count: int = 0
+    findings_count: int = 0
+    has_open_clarifications: bool = False
+    is_technically_eligible: bool = False
+    is_blocking: bool = False
+    officer_action_required: bool = False
+    blockers: List[str] = Field(default_factory=list)
+    unresolved_clarifications: List[str] = Field(default_factory=list)
+    pending_re_evaluation: bool = False
+    summary_notes: Optional[str] = None
+
+class OfficerRequirementSummary(BaseModel):
+    requirement_id: str
+    category: str
+    title: str
+    description: Optional[str] = None
+    is_mandatory: bool = True
+    compliance_by_bidder: Dict[str, str] = Field(default_factory=dict)
+
+class OfficerFindingSummary(BaseModel):
+    finding_id: Optional[str] = None
+    bidder_id: str
+    bidder_name: str
+    layer: str
+    severity: str
+    title: str
+    detail: str
+    evidence_pointer: Optional[str] = None
+    source_reference: Optional[str] = None
+    requires_clarification: bool = False
+    is_blocking: bool = False
+    clarification_id: Optional[str] = None
+    clarification_status: Optional[str] = None
+
+class OfficerClarificationSummary(BaseModel):
+    clarification_id: str
+    bidder_id: str
+    bidder_name: str
+    requirement_id: Optional[str] = None
+    subject: str
+    status: str
+    created_at: Optional[datetime] = None
+
+class ProcurementTechnicalReviewResponse(BaseModel):
+    procurement_id: str
+    external_reference: str
+    title: str
+    status: ProcurementStatus
+    total_bidders: int = 0
+    qualified_bidders_count: int = 0
+    excluded_bidders_count: int = 0
+    review_required_bidders_count: int = 0
+    unresolved_blockers: List[str] = Field(default_factory=list)
+    can_freeze: bool = False
+    can_open_cover2: bool = False
+    bidders: List[OfficerBidderTechnicalSummary] = Field(default_factory=list)
+    requirements: List[OfficerRequirementSummary] = Field(default_factory=list)
+    key_findings: List[OfficerFindingSummary] = Field(default_factory=list)
+    clarifications: List[OfficerClarificationSummary] = Field(default_factory=list)
+    observations: List[OfficerObservationRecord] = Field(default_factory=list)
+    presentation_layers: List[OfficerTechnicalLayerPresentation] = Field(default_factory=list)
+    freeze_status: OfficerFreezeSummary = Field(default_factory=OfficerFreezeSummary)
+    cover2_readiness: Cover2ReadinessSummary = Field(default_factory=Cover2ReadinessSummary)
+    decision_authority: str = "HUMAN_PROCUREMENT_OFFICER"
+    last_evaluated_at: Optional[datetime] = None

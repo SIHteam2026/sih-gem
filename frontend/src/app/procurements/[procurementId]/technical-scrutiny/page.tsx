@@ -21,70 +21,11 @@ export default function TechnicalScrutinyPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        // We'll mock the technical review payload if backend is not ready
-        // But we attempt to fetch it first.
-        let reviewData: TechnicalReviewResponse;
-        try {
-          reviewData = await fetchTechnicalReview(id);
-        } catch (err) {
-          console.warn("Backend not ready, using simulated fallback for Technical Review.", err);
-          reviewData = {
-            procurementId: id,
-            canOpenCover2: true,
-            freezeReady: true,
-            layers: [
-              {
-                key: 'INGESTION_AND_DOCUMENT_INTEGRITY',
-                title: '01 — DOCUMENT & EVIDENCE INTEGRITY',
-                checks: [
-                  { id: 'c1', description: 'Document extraction and parsing', status: 'PASS', synthesis: 'All uploaded documents successfully processed.' },
-                  { id: 'c2', description: 'Evidence provenance verification', status: 'PASS' }
-                ]
-              },
-              {
-                key: 'ADMINISTRATIVE_AND_IDENTITY',
-                title: '02 — ADMINISTRATIVE & IDENTITY',
-                checks: [
-                  { id: 'c3', description: 'Validating GST registrations', status: 'PASS' },
-                  { id: 'c4', description: 'Checking PAN records', status: 'PASS' }
-                ]
-              },
-              {
-                key: 'CORPORATE_EXISTENCE_AND_RISK',
-                title: '03 — CORPORATE EXISTENCE & RISK',
-                checks: [
-                  { id: 'c5', description: 'Corporate entity matching', status: 'REVIEW', synthesis: 'AquaPure corporate existence needs manual verification.' }
-                ]
-              },
-              {
-                key: 'ANTI_COLLUSION_AND_RELATEDNESS',
-                title: '04 — ANTI-COLLUSION FORENSICS',
-                checks: [
-                  { id: 'c6', description: 'Digital Metadata Collisions', status: 'PASS', synthesis: 'No suspicious linkage detected.' },
-                  { id: 'c7', description: 'Financial Instrument Overlap', status: 'UNVERIFIED', synthesis: 'Required evidence was not submitted for all bidders.' }
-                ]
-              },
-              {
-                key: 'ADVERSARIAL_TECHNICAL',
-                title: '05 — ADVERSARIAL TECHNICAL REVIEW',
-                checks: [
-                  { id: 'c8', description: 'Technical consistency check', status: 'PASS' }
-                ]
-              },
-              {
-                key: 'PAST_PERFORMANCE_AND_CAPACITY',
-                title: '06 — PAST PERFORMANCE & CAPACITY',
-                checks: [
-                  { id: 'c9', description: 'Qualifying experience validation', status: 'PASS' }
-                ]
-              }
-            ]
-          };
-        }
+        const reviewData = await fetchTechnicalReview(id);
         setData(reviewData);
 
         try {
-          // fetchProcurement from actual services/api
+          // fetchProcurementDetail from actual services/api
           const pData = await fetchProcurementDetail(id);
           if (pData) {
             setProjectName(pData.title || pData.external_reference || 'Procurement Project');

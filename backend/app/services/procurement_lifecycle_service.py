@@ -1,4 +1,4 @@
-"""Canonical Procurement Lifecycle & Technical Scrutiny Orchestration Service.
+﻿"""Canonical Procurement Lifecycle & Technical Scrutiny Orchestration Service.
 
 Integrates the multi-layer verification pipeline (L1-L7) into an authoritative officer-facing
 backend workflow with deterministic state transitions, audit logging, and Cover 2 readiness gating.
@@ -41,6 +41,8 @@ try:
         OfficerFindingSummary,
         OfficerFreezeSummary,
         OfficerRequirementSummary,
+        OfficerTechnicalCheckPresentation,
+        OfficerTechnicalLayerPresentation,
         ProcurementStatus,
         ProcurementTechnicalReviewResponse,
         TechnicalFreezeStatus,
@@ -88,6 +90,8 @@ except ImportError:
         OfficerFindingSummary,
         OfficerFreezeSummary,
         OfficerRequirementSummary,
+        OfficerTechnicalCheckPresentation,
+        OfficerTechnicalLayerPresentation,
         ProcurementStatus,
         ProcurementTechnicalReviewResponse,
         TechnicalFreezeStatus,
@@ -807,27 +811,100 @@ async def get_procurement_technical_review_service(
         except Exception:
             pass
 
-    return ProcurementTechnicalReviewResponse(
-        procurement_id=procurement_id,
-        external_reference=proc.get("external_reference", ""),
-        title=proc.get("title", "Procurement Workspace"),
-        status=proc_status,
-        total_bidders=len(all_submissions),
-        qualified_bidders_count=len(qualified_bidder_names),
-        excluded_bidders_count=len(disqualified_bidder_names),
-        review_required_bidders_count=len([b for b in bidder_summaries if b.compliance_status in ("REVIEW", "UNVERIFIED")]),
-        unresolved_blockers=global_blockers,
-        can_freeze=can_freeze,
-        can_open_cover2=is_cover2_ready,
-        bidders=bidder_summaries,
-        requirements=req_summaries,
-        key_findings=finding_summaries,
-        clarifications=clarification_summaries,
-        freeze_status=freeze_summary,
-        cover2_readiness=cover2_summary,
-        decision_authority="HUMAN_PROCUREMENT_OFFICER",
-        last_evaluated_at=last_eval_time,
-    )
+    from app.db.client import list_officer_observations_db
+    from app.models.procurement import OfficerObservationRecord
+
+    obs_list = await list_officer_observations_db(procurement_id)
+    observation_records = [OfficerObservationRecord(**o) for o in obs_list]
+
+        # -------------------------------------------------------------------------
+    # PRESENTATION DTO GENERATION
+    # -------------------------------------------------------------------------
+    layer_keys = [
+        "INGESTION_AND_DOCUMENT_INTEGRITY",
+        "ADMINISTRATIVE_AND_IDENTITY",
+        "CORPORATE_EXISTENCE_AND_RISK",
+        "ANTI_COLLUSION_AND_RELATEDNESS",
+        "ADVERSARIAL_TECHNICAL",
+        "PAST_PERFORMANCE_AND_CAPACITY"
+    ]
+    layer_names = {
+        "INGESTION_AND_DOCUMENT_INTEGRITY": "1. Ingestion & Integrity",
+        "ADMINISTRATIVE_AND_IDENTITY": "2. Administrative & Identity",
+        "CORPORATE_EXISTENCE_AND_RISK": "3. Corporate Existence",
+        "ANTI_COLLUSION_AND_RELATEDNESS": "4. Anti-Collusion",
+        "ADVERSARIAL_TECHNICAL": "5. Technical Scrutiny",
+        "PAST_PERFORMANCE_AND_CAPACITY": "6. Past Performance"
+    }
+
+    presentation_layers = []
+    
+    # Map requirements to layers (most are Technical Scrutiny for now)
+    for l_key in layer_keys:
+        layer_checks = []
+        
+        # Add requirements matching this layer
+        for req in req_summaries:
+            # Simple heuristic or hardcode if category matches
+            # For now put them in ADVERSARIAL_TECHNICAL
+            if l_key == "ADVERSARIAL_TECHNICAL":
+                check = {
+                    "check_id": req.requirement_id,
+                    "title": req.title,
+                    "status": "PASS",
+                    "bidders": req.compliance_by_bidder,
+                    "explanation": req.description,
+                    "evidence_references": [],
+                    "blocking": req.is_mandatory,
+                    "clarification_status": None
+                }
+                if any(st != "PASS" for st in req.compliance_by_bidder.values()):
+                    check["status"] = "REVIEW"
+                layer_checks.append(check)
+        
+        # Add findings matching this layer
+        for f in finding_summaries:
+            if f.layer == l_key or (l_key == "ADVERSARIAL_TECHNICAL" and f.layer == "CONTRADICTION_DETECTION"):
+                layer_checks.append({
+                    "check_id": f.finding_id or str(uuid.uuid4()),
+                    "title": f.title,
+                    "status": "REVIEW" if f.requires_clarification else f.severity,
+                    "bidders": {f.bidder_id: f.severity},
+                    "explanation": f.detail,
+                    "evidence_references": [f.evidence_pointer] if f.evidence_pointer else [],
+                    "blocking": f.is_blocking,
+                    "clarification_status": f.clarification_status
+                })
+        
+        presentation_layers.append(
+            OfficerTechnicalLayerPresentation(
+                layer_key=l_key,
+                display_name=layer_names.get(l_key, l_key),
+                checks=[OfficerTechnicalCheckPresentation(**c) for c in layer_checks]
+            )
+        )
+        return ProcurementTechnicalReviewResponse(
+            procurement_id=procurement_id,
+            external_reference=proc.get("external_reference", ""),
+            title=proc.get("title", "Procurement Workspace"),
+            status=proc_status,
+            total_bidders=len(all_submissions),
+            qualified_bidders_count=len(qualified_bidder_names),
+            excluded_bidders_count=len(disqualified_bidder_names),
+            review_required_bidders_count=len([b for b in bidder_summaries if b.compliance_status in ("REVIEW", "UNVERIFIED")]),
+            unresolved_blockers=global_blockers,
+            can_freeze=can_freeze,
+            can_open_cover2=is_cover2_ready,
+            bidders=bidder_summaries,
+            requirements=req_summaries,
+            key_findings=finding_summaries,
+            clarifications=clarification_summaries,
+            observations=observation_records,
+            presentation_layers=presentation_layers,
+            freeze_status=freeze_summary,
+            cover2_readiness=cover2_summary,
+            decision_authority="HUMAN_PROCUREMENT_OFFICER",
+            last_evaluated_at=last_eval_time,    )
 
 
 # ---------------------------------------------------------------------------
@@ -1099,4 +1176,51 @@ async def run_cover2_financial_evaluation_service(
         })
 
     return eval_result
+
+async def record_officer_observation_service(
+    procurement_id: str,
+    payload: "OfficerObservationCreate",
+    actor: str,
+) -> "OfficerObservationRecord":
+    from app.db.client import get_procurement_detail_db, insert_officer_observation_db, insert_audit_log_db, list_officer_observations_db
+    from app.models.procurement import OfficerObservationRecord
+    from fastapi import HTTPException, status
+    
+    proc = await get_procurement_detail_db(procurement_id)
+    if not proc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Procurement '{procurement_id}' not found."
+        )
+    
+    # Idempotency check: Don't duplicate exact same text for same layer and actor.
+    existing = await list_officer_observations_db(procurement_id)
+    for obs in existing:
+        if obs.get("layer") == payload.layer and obs.get("observation") == payload.observation and obs.get("actor") == actor:
+            return OfficerObservationRecord(**obs)
+            
+    obs_data = {
+        "procurement_id": procurement_id,
+        "layer": payload.layer,
+        "actor": actor,
+        "observation": payload.observation,
+    }
+    
+    record_dict = await insert_officer_observation_db(obs_data)
+    record = OfficerObservationRecord(**record_dict)
+    
+    await insert_audit_log_db({
+        "event_type": "OFFICER_OBSERVATION_RECORDED",
+        "procurement_id": procurement_id,
+        "actor": actor,
+        "details": {
+            "layer": payload.layer,
+            "observation_id": record.observation_id
+        }
+    })
+    
+    return record
+
+
+
 

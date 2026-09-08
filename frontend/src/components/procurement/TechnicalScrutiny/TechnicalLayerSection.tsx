@@ -76,7 +76,7 @@ export function TechnicalLayerSection({ layer, procurementId, isActive, isComple
       {isCompleted && (
         <div className="mt-6 flex items-center gap-2 text-sm text-[#64748b] py-2 border-t border-slate-100">
           <span className="w-1.5 h-1.5 rounded-full bg-[#cbd5e1]" />
-          <span>Officer observation recorded for this stage</span>
+          <span>Observation entered locally (not persisted to canonical backend)</span>
         </div>
       )}
     </div>
