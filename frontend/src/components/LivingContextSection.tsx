@@ -77,24 +77,29 @@ export default function LivingContextSection({
           procurements.map((project) => {
             const statusStr = (project.status || "New").toUpperCase();
             const badgeText = statusStr === "READY" ? "Technical Bid Complete" : statusStr;
-            const badgeColor = statusStr === "READY" ? "text-[#84cc16] border-[#84cc16]/40 bg-[#84cc16]/5" : "text-[#84cc16] border-[#84cc16]/40 bg-white";
             
             return (
               <div 
                 key={project.id} 
-                className="bg-white/70 backdrop-blur-md border border-white/20 p-[24px] rounded-3xl shadow-[0_4px_24px_rgba(0,0,0,0.02)] flex flex-col justify-between min-h-[200px]"
+                className="bg-white/90 backdrop-blur-md border border-white/40 border-t-white border-l-white p-[24px] rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.06)] flex flex-col justify-between min-h-[200px]"
               >
-                <div>
-                  <h3 className="text-[20px] font-normal text-[#111827] mb-[16px] leading-snug line-clamp-3">{project.title}</h3>
-                  <div className="flex items-center mb-[16px]">
-                    <span className={`px-[10px] py-[2px] border text-[11px] rounded-full font-medium ${badgeColor}`}>
+                <div className="space-y-3">
+                  <h3 className="text-[#111827] font-bold text-lg tracking-tight leading-snug line-clamp-3">
+                    {project.title}
+                  </h3>
+                  <div className="flex items-center">
+                    <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-lime-50/50 border border-lime-200/60 text-lime-700">
                       {badgeText}
                     </span>
                   </div>
                 </div>
-                <div className="mt-auto pt-[16px]">
-                  <p className="text-[13px] text-[#9ca3af] font-medium truncate">{project.organization || "Ministry of Health and Family Welfare"}</p>
-                  <p className="text-[12px] text-[#9ca3af] mt-[4px]">Tender date: {new Date(project.created_at || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '.')}</p>
+                <div className="mt-auto pt-[16px] space-y-1">
+                  <p className="text-slate-400 font-normal text-xs sm:text-sm truncate">
+                    {project.organization || "Ministry of Health and Family Welfare"}
+                  </p>
+                  <p className="text-slate-400 font-normal text-xs sm:text-sm">
+                    Tender date: {new Date(project.created_at || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '.')}
+                  </p>
                 </div>
               </div>
             );
