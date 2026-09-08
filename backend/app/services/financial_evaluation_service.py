@@ -1233,8 +1233,13 @@ async def execute_cover2_financial_evaluation(
         b_eval.provenance = all_provenance
 
         # Step D: BOQ Parity Check
-        parity_findings = check_boq_parity(all_items, CPCL_EXPECTED_BOQ)
-        b_eval.commercial_findings.extend(parity_findings)
+        resolved_expected_boq = tender.get("expected_boq")
+        if not resolved_expected_boq and any(kw in str(tender_ref or "").upper() or kw in str(procurement_id).upper() for kw in ("CPCL", "WQM", "017")):
+            resolved_expected_boq = CPCL_EXPECTED_BOQ
+
+        if resolved_expected_boq:
+            parity_findings = check_boq_parity(all_items, resolved_expected_boq)
+            b_eval.commercial_findings.extend(parity_findings)
 
         # Check line item arithmetic errors
         for it in all_items:

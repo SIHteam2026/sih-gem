@@ -36,9 +36,10 @@ try:
         TechnicalFreezeRequest,
         TechnicalFreezeResponse,
     )
-    from app.models.financial import ProcurementFinancialEvaluationResponse
+    from app.models.financial import Cover2RunRequest, ProcurementFinancialEvaluationResponse
     from app.services import (
         clarification_service,
+        financial_evaluation_service,
         procurement_lifecycle_service,
         procurement_processing_service,
         procurement_read_service,
@@ -70,9 +71,10 @@ except ImportError:
         TechnicalFreezeRequest,
         TechnicalFreezeResponse,
     )
-    from models.financial import ProcurementFinancialEvaluationResponse
+    from models.financial import Cover2RunRequest, ProcurementFinancialEvaluationResponse
     from services import (
         clarification_service,
+        financial_evaluation_service,
         procurement_lifecycle_service,
         procurement_processing_service,
         procurement_read_service,
@@ -694,6 +696,72 @@ async def evaluate_cover2_gate_endpoint(
     except Exception as exc:
         logger.error("Failed evaluating Cover 2 gate for '%s': %s", procurement_id, exc)
         raise HTTPException(status_code=500, detail=f"Internal error evaluating Cover 2 readiness: {str(exc)}")
+
+
+# ---------------------------------------------------------------------------
+# Cover 2 Financial Evaluation & Review Endpoints
+# ---------------------------------------------------------------------------
+@router.post(
+    "/procurements/{procurement_id}/cover2/open",
+    response_model=ProcurementFinancialEvaluationResponse,
+    summary="Open Cover 2 and Run Financial Evaluation",
+    description="Validates Cover 2 readiness prerequisites (freeze enforced, zero open clarifications, zero unresolved blockers), unlocks eligible commercial bids, performs deterministic normalization, BOQ parity check, L1 ranking, and anomaly detection.",
+)
+@router.post(
+    "/procurements/{procurement_id}/cover2/run",
+    response_model=ProcurementFinancialEvaluationResponse,
+    summary="Run Cover 2 Financial Evaluation",
+)
+@router.post(
+    "/procurements/{procurement_id}/financial-evaluation",
+    response_model=ProcurementFinancialEvaluationResponse,
+    summary="Run Cover 2 Financial Evaluation (Alias)",
+)
+async def open_cover2_financial_evaluation_endpoint(
+    procurement_id: str,
+    payload: Optional[Cover2RunRequest] = None,
+) -> ProcurementFinancialEvaluationResponse:
+    """Opens Cover 2 financial envelope and executes commercial evaluation pipeline."""
+    try:
+        actor = payload.actor if payload and payload.actor else "PROCUREMENT_OFFICER"
+        force = payload.force if payload else False
+        notes = payload.notes if payload else None
+        return await procurement_lifecycle_service.run_cover2_financial_evaluation_service(
+            procurement_id=procurement_id,
+            actor=actor,
+            force=force,
+            notes=notes,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed opening Cover 2 financial evaluation for '%s': %s", procurement_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error executing Cover 2 financial evaluation: {str(exc)}")
+
+
+@router.get(
+    "/procurements/{procurement_id}/financial-review",
+    response_model=ProcurementFinancialEvaluationResponse,
+    summary="Get Officer Financial Review Representation",
+    description="Retrieves the structured officer-facing Cover 2 financial evaluation and commercial review representation.",
+)
+@router.get(
+    "/procurements/{procurement_id}/financial-evaluation",
+    response_model=ProcurementFinancialEvaluationResponse,
+    summary="Get Financial Evaluation (Alias)",
+)
+async def get_financial_review_endpoint(
+    procurement_id: str,
+) -> ProcurementFinancialEvaluationResponse:
+    """Retrieves the stored Cover 2 financial evaluation representation."""
+    try:
+        return await financial_evaluation_service.get_procurement_financial_evaluation_service(procurement_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed retrieving financial evaluation for '%s': %s", procurement_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error retrieving financial evaluation: {str(exc)}")
+
 
 
 

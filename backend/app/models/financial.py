@@ -148,3 +148,11 @@ class FinancialEvaluationResult(BaseModel):
     rank: Optional[int] = Field(default=None, description="Commercial rank.")
     is_l1: bool = Field(default=False, description="Is L1 flag.")
     line_items: List[BOQItemEvaluation] = Field(default_factory=list, description="BOQ line items.")
+
+
+class Cover2RunRequest(BaseModel):
+    """Request payload for initiating Cover 2 Financial Opening & Evaluation."""
+    force: bool = Field(default=False, description="Force re-execution even if already evaluated.")
+    actor: Optional[str] = Field(default="PROCUREMENT_OFFICER", description="Initiator of the financial opening.")
+    notes: Optional[str] = Field(default=None, description="Operational notes or rationale.")
+

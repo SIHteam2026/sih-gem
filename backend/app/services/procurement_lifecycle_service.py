@@ -16,6 +16,7 @@ from fastapi import HTTPException, status
 try:
     from app.db.client import (
         get_audit_logs_db,
+        get_bid_evaluations,
         get_clarification_db,
         get_procurement_detail_db,
         get_procurement_processing_metadata_db,
@@ -45,6 +46,7 @@ try:
         TechnicalFreezeStatus,
         TechnicalScrutinyRunResponse,
     )
+    from app.models.financial import ProcurementFinancialEvaluationResponse
     from app.models.tender_contract import RequirementEvaluationContract, TenderEvaluationContract
     from app.models.verification import (
         FindingSeverity,
@@ -60,6 +62,7 @@ try:
 except ImportError:
     from db.client import (
         get_audit_logs_db,
+        get_bid_evaluations,
         get_clarification_db,
         get_procurement_detail_db,
         get_procurement_processing_metadata_db,
@@ -75,6 +78,7 @@ except ImportError:
     from models.clarification import ClarificationRecord, ClarificationStatus
     from models.evaluation import ComplianceState
     from models.evidence import BidderClaim, EvidenceObservation
+    from models.financial import ProcurementFinancialEvaluationResponse
     from models.procurement import (
         Cover2ReadinessResponse,
         Cover2ReadinessSummary,
@@ -129,6 +133,7 @@ LEGAL_PROCUREMENT_TRANSITIONS: Dict[ProcurementStatus, Set[ProcurementStatus]] =
         ProcurementStatus.CLARIFICATION_OPEN,
         ProcurementStatus.TECHNICAL_FREEZE,
         ProcurementStatus.COVER_2_READY,
+        ProcurementStatus.FINANCIAL_EVALUATION_RUNNING,
         ProcurementStatus.FAILED,
     },
     ProcurementStatus.CLARIFICATION_OPEN: {
@@ -145,18 +150,41 @@ LEGAL_PROCUREMENT_TRANSITIONS: Dict[ProcurementStatus, Set[ProcurementStatus]] =
     },
     ProcurementStatus.TECHNICAL_FREEZE: {
         ProcurementStatus.COVER_2_READY,
+        ProcurementStatus.FINANCIAL_EVALUATION_RUNNING,
         ProcurementStatus.TECHNICAL_REVIEW,
         ProcurementStatus.FAILED,
     },
     ProcurementStatus.COVER_2_READY: {
+        ProcurementStatus.FINANCIAL_EVALUATION_RUNNING,
+        ProcurementStatus.FINANCIAL_REVIEW,
+        ProcurementStatus.L1_DETERMINED,
         ProcurementStatus.TECHNICAL_FREEZE,
         ProcurementStatus.TECHNICAL_REVIEW,
+        ProcurementStatus.FAILED,
+    },
+    ProcurementStatus.FINANCIAL_EVALUATION_RUNNING: {
+        ProcurementStatus.FINANCIAL_REVIEW,
+        ProcurementStatus.L1_DETERMINED,
+        ProcurementStatus.COVER_2_READY,
+        ProcurementStatus.FAILED,
+    },
+    ProcurementStatus.FINANCIAL_REVIEW: {
+        ProcurementStatus.FINANCIAL_EVALUATION_RUNNING,
+        ProcurementStatus.L1_DETERMINED,
+        ProcurementStatus.COVER_2_READY,
+        ProcurementStatus.FAILED,
+    },
+    ProcurementStatus.L1_DETERMINED: {
+        ProcurementStatus.FINANCIAL_EVALUATION_RUNNING,
+        ProcurementStatus.FINANCIAL_REVIEW,
+        ProcurementStatus.COVER_2_READY,
         ProcurementStatus.FAILED,
     },
     ProcurementStatus.FAILED: {
         ProcurementStatus.READY_FOR_TECHNICAL_SCRUTINY,
         ProcurementStatus.TECHNICAL_SCRUTINY_RUNNING,
         ProcurementStatus.TECHNICAL_REVIEW,
+        ProcurementStatus.COVER_2_READY,
     },
     # Aliases
     ProcurementStatus.READY: {
@@ -590,10 +618,22 @@ async def get_procurement_technical_review_service(
 
         # Run or resolve evaluation results
         t_id = sub.get("tender_id") or (tenders[0].get("id") if tenders else "")
+        eval_res = {}
         try:
-            eval_res = await evaluate_canonical_submission_by_id(submission_id=sub_id, tender_id_or_ref=t_id)
+            persisted_evals = await get_bid_evaluations(t_id)
+            for rec in persisted_evals:
+                ed = rec.get("evaluation_data") or {}
+                if ed.get("submission_id") in (sub_id, sub.get("external_submission_reference")) or rec.get("bidder_name") == b_name or ed.get("bidder_name") == b_name:
+                    eval_res = ed
+                    break
         except Exception:
             eval_res = {}
+
+        if not eval_res:
+            try:
+                eval_res = await evaluate_canonical_submission_by_id(submission_id=sub_id, tender_id_or_ref=t_id)
+            except Exception:
+                eval_res = {}
 
         machine_summary = eval_res.get("machine_review_summary", {})
         pass_count = machine_summary.get(ComplianceState.PASS.value, 0)
@@ -920,3 +960,143 @@ async def freeze_procurement_technical_service(
     })
 
     return await get_procurement_technical_review_service(procurement_id)
+
+
+# ---------------------------------------------------------------------------
+# Cover 2 Financial Opening & Evaluation Orchestration
+# ---------------------------------------------------------------------------
+async def run_cover2_financial_evaluation_service(
+    procurement_id: str,
+    actor: str = "PROCUREMENT_OFFICER",
+    force: bool = False,
+    notes: Optional[str] = None,
+) -> ProcurementFinancialEvaluationResponse:
+    """Authoritatively executes Cover 2 Financial Opening and Commercial Evaluation.
+
+    Invariants Enforced:
+    1. Gatekeeper Verification: Technical Freeze must be enforced, zero open clarifications,
+       and zero unresolved mandatory technical blockers before Cover 2 opening.
+    2. Lifecycle Transitions: Transitions state from TECHNICAL_FREEZE/COVER_2_READY ->
+       FINANCIAL_EVALUATION_RUNNING -> FINANCIAL_REVIEW / L1_DETERMINED.
+    3. Audit Logging: Emits immutable structured audit logs for all stages.
+    4. Officer Decision Authority: Emits decision_authority = 'HUMAN_PROCUREMENT_OFFICER'.
+    """
+    try:
+        from app.services.financial_evaluation_service import (
+            execute_cover2_financial_evaluation,
+            get_procurement_financial_evaluation_service,
+        )
+    except ImportError:
+        from services.financial_evaluation_service import (
+            execute_cover2_financial_evaluation,
+            get_procurement_financial_evaluation_service,
+        )
+
+    # 1. Fetch procurement technical review representation
+    review_rep = await get_procurement_technical_review_service(procurement_id)
+    c2_summary = review_rep.cover2_readiness
+
+    # 2. Enforce Cover 2 readiness gate blockers (unless force is requested)
+    if not force and not c2_summary.is_ready:
+        blockers = c2_summary.blockers or ["Prerequisites for Cover 2 financial opening not met."]
+        await insert_audit_log_db({
+            "event_type": "COVER2_OPEN_BLOCKED",
+            "procurement_id": procurement_id,
+            "actor": actor,
+            "details": {
+                "blockers": blockers,
+                "open_clarifications_count": c2_summary.open_clarifications_count,
+                "technical_freeze_enforced": c2_summary.technical_freeze_enforced,
+                "eligible_bidder_count": c2_summary.eligible_bidder_count,
+            },
+        })
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot open Cover 2 for procurement '{procurement_id}': " + "; ".join(blockers),
+        )
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # 3. Log attempt and transition state to FINANCIAL_EVALUATION_RUNNING
+    await insert_audit_log_db({
+        "event_type": "COVER2_OPEN_ATTEMPTED",
+        "procurement_id": procurement_id,
+        "actor": actor,
+        "details": {
+            "eligible_bidder_count": c2_summary.eligible_bidder_count,
+            "eligible_bidders": c2_summary.eligible_bidders,
+            "notes": notes,
+            "timestamp": now_iso,
+        },
+    })
+
+    if review_rep.status != ProcurementStatus.FINANCIAL_EVALUATION_RUNNING:
+        await transition_procurement_state(
+            procurement_id=procurement_id,
+            target_status=ProcurementStatus.FINANCIAL_EVALUATION_RUNNING,
+            actor=actor,
+            reason=notes or "Cover 2 Financial Opening initiated by officer.",
+        )
+
+    await insert_audit_log_db({
+        "event_type": "COVER2_OPENED",
+        "procurement_id": procurement_id,
+        "actor": actor,
+        "details": {
+            "eligible_bidders": c2_summary.eligible_bidders,
+            "eligible_bidder_count": c2_summary.eligible_bidder_count,
+            "timestamp": now_iso,
+        },
+    })
+
+    await insert_audit_log_db({
+        "event_type": "FINANCIAL_EVALUATION_STARTED",
+        "procurement_id": procurement_id,
+        "actor": actor,
+        "details": {
+            "timestamp": now_iso,
+        },
+    })
+
+    # 4. Execute canonical financial evaluation
+    eval_result: ProcurementFinancialEvaluationResponse = await execute_cover2_financial_evaluation(procurement_id)
+
+    # 5. Transition to L1_DETERMINED (if L1 exists) or FINANCIAL_REVIEW
+    final_status = ProcurementStatus.L1_DETERMINED if eval_result.l1_bidder_id else ProcurementStatus.FINANCIAL_REVIEW
+    await transition_procurement_state(
+        procurement_id=procurement_id,
+        target_status=final_status,
+        actor=actor,
+        reason=f"Cover 2 financial evaluation completed. L1: {eval_result.l1_bidder_name or 'None'}.",
+    )
+
+    await insert_audit_log_db({
+        "event_type": "FINANCIAL_EVALUATION_COMPLETED",
+        "procurement_id": procurement_id,
+        "actor": actor,
+        "details": {
+            "eligible_bidders_count": eval_result.eligible_bidders_count,
+            "excluded_bidders_count": eval_result.excluded_bidders_count,
+            "l1_bidder": eval_result.l1_bidder_name,
+            "l1_amount": eval_result.l1_evaluated_amount,
+            "anomalies_detected": len(eval_result.comparative_signals),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    })
+
+    if eval_result.l1_bidder_id:
+        await insert_audit_log_db({
+            "event_type": "L1_DETERMINED",
+            "procurement_id": procurement_id,
+            "actor": actor,
+            "details": {
+                "l1_bidder_id": eval_result.l1_bidder_id,
+                "l1_bidder_name": eval_result.l1_bidder_name,
+                "l1_evaluated_amount": eval_result.l1_evaluated_amount,
+                "currency": eval_result.currency,
+                "decision_authority": "HUMAN_PROCUREMENT_OFFICER",
+            },
+        })
+
+    return eval_result
+
