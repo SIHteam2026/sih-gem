@@ -1770,6 +1770,7 @@ async def list_clarifications_db(
     submission_id: Optional[str] = None,
     bidder_id: Optional[str] = None,
     status: Optional[str] = None,
+    requirement_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Lists clarification records with optional filtering."""
     results = list(_IN_MEMORY_CLARIFICATIONS.values())
@@ -1781,6 +1782,8 @@ async def list_clarifications_db(
         results = [c for c in results if c.get("bidder_id") == bidder_id]
     if status:
         results = [c for c in results if c.get("status") == status]
+    if requirement_id:
+        results = [c for c in results if c.get("requirement_id") == requirement_id]
     return results
 
 

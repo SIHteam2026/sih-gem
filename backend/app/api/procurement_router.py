@@ -26,8 +26,11 @@ try:
     )
     from app.models.clarification import (
         ClarificationCreate,
+        ClarificationDraftRequest,
+        ClarificationDraftResponse,
         ClarificationListResponse,
         ClarificationRecord,
+        ClarificationResolutionRequest,
         ClarificationResponseInput,
         ClarificationStatus,
         TechnicalFreezeRequest,
@@ -57,8 +60,11 @@ except ImportError:
     )
     from models.clarification import (
         ClarificationCreate,
+        ClarificationDraftRequest,
+        ClarificationDraftResponse,
         ClarificationListResponse,
         ClarificationRecord,
+        ClarificationResolutionRequest,
         ClarificationResponseInput,
         ClarificationStatus,
         TechnicalFreezeRequest,
@@ -396,6 +402,30 @@ async def get_submission_freeze_endpoint(
 # Clarification Lifecycle Endpoints
 # ---------------------------------------------------------------------------
 @router.post(
+    "/procurements/{procurement_id}/clarifications/draft",
+    response_model=ClarificationDraftResponse,
+    summary="Generate AI-Drafted Shortfall / Clarification Notice",
+    description="Generates an evidence-grounded draft shortfall/clarification notice for officer review and editing without modifying compliance state.",
+)
+@router.post(
+    "/clarifications/draft",
+    response_model=ClarificationDraftResponse,
+    summary="Generate AI-Drafted Shortfall Notice",
+)
+async def generate_clarification_draft_endpoint(
+    payload: ClarificationDraftRequest,
+) -> ClarificationDraftResponse:
+    """Generates an evidence-grounded draft clarification notice for an observed shortfall."""
+    try:
+        return await clarification_service.generate_clarification_draft_service(payload)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to generate clarification draft: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Internal error generating clarification draft: {str(exc)}")
+
+
+@router.post(
     "/procurements/{procurement_id}/clarifications",
     response_model=ClarificationRecord,
     summary="Create Clarification / Shortfall Request",
@@ -532,9 +562,64 @@ async def re_evaluate_clarification_endpoint(
         raise HTTPException(status_code=500, detail=f"Internal error executing targeted re-evaluation: {str(exc)}")
 
 
+@router.post(
+    "/procurements/{procurement_id}/clarifications/{clarification_id}/resolve",
+    response_model=ClarificationRecord,
+    summary="Explicitly Resolve Clarification Lifecycle",
+    description="Explicitly marks a clarification as RESOLVED, REQUIRES_FURTHER_CLARIFICATION, or REJECTED with officer rationale and immutable audit record.",
+)
+@router.post(
+    "/clarifications/{clarification_id}/resolve",
+    response_model=ClarificationRecord,
+    summary="Explicitly Resolve Clarification Lifecycle",
+)
+async def resolve_clarification_endpoint(
+    clarification_id: str,
+    payload: ClarificationResolutionRequest,
+    procurement_id: Optional[str] = None,
+) -> ClarificationRecord:
+    """Explicitly resolves or updates status on a clarification lifecycle record."""
+    try:
+        return await clarification_service.resolve_clarification_service(
+            clarification_id=clarification_id,
+            payload=payload,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to resolve clarification '%s': %s", clarification_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error resolving clarification: {str(exc)}")
+
+
 # ---------------------------------------------------------------------------
-# Technical Scrutiny, Technical Review & Cover 2 Gate Endpoints
+# Technical Scrutiny, Technical Review, Freeze & Cover 2 Gate Endpoints
 # ---------------------------------------------------------------------------
+@router.post(
+    "/procurements/{procurement_id}/technical-freeze",
+    response_model=ProcurementTechnicalReviewResponse,
+    summary="Apply Technical Freeze Across Procurement Workspace (Cover 1)",
+    description="Validates that technical scrutiny is complete, no open clarifications remain, and applies technical freeze lock across all submissions.",
+)
+async def freeze_procurement_endpoint(
+    procurement_id: str,
+    payload: Optional[TechnicalFreezeRequest] = None,
+) -> ProcurementTechnicalReviewResponse:
+    """Applies technical freeze across all submissions in the procurement workspace."""
+    try:
+        actor = payload.officer_id if payload and payload.officer_id else "PROCUREMENT_OFFICER"
+        reason = payload.freeze_reason if payload else "Cover 1 Technical Freeze applied."
+        return await procurement_lifecycle_service.freeze_procurement_technical_service(
+            procurement_id=procurement_id,
+            actor=actor,
+            reason=reason,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to freeze procurement '%s': %s", procurement_id, exc)
+        raise HTTPException(status_code=500, detail=f"Internal error applying technical freeze: {str(exc)}")
+
+
 @router.post(
     "/procurements/{procurement_id}/technical-scrutiny/run",
     response_model=TechnicalScrutinyRunResponse,

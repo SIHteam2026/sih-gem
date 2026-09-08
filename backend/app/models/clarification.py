@@ -23,8 +23,41 @@ class ClarificationStatus(str, Enum):
     RESPONDED = "RESPONDED"
     UNDER_REVIEW = "UNDER_REVIEW"
     RESOLVED = "RESOLVED"
+    REQUIRES_FURTHER_CLARIFICATION = "REQUIRES_FURTHER_CLARIFICATION"
     EXPIRED = "EXPIRED"
     CANCELLED = "CANCELLED"
+    REJECTED = "REJECTED"
+
+
+class ClarificationDraftRequest(BaseModel):
+    """Request payload for generating an AI-drafted clarification / shortfall notice."""
+    procurement_id: str = Field(..., description="Procurement workspace UUID.")
+    submission_id: str = Field(..., description="Bid submission UUID.")
+    requirement_id: str = Field(..., description="Target tender requirement ID.")
+    originating_finding_id: Optional[str] = Field(None, description="Optional originating finding UUID.")
+    custom_instruction: Optional[str] = Field(None, description="Optional guidance or operational notes from the officer.")
+
+
+class ClarificationDraftResponse(BaseModel):
+    """Structured AI-generated draft clarification notice for officer review and editing."""
+    subject: str = Field(..., description="Formal notice subject line.")
+    recipient_bidder: str = Field(..., description="Name or corporate identity of the recipient bidder.")
+    tender_reference: str = Field(..., description="Tender identifier / reference number.")
+    requirement_id: str = Field(..., description="Target tender requirement code.")
+    requirement_title: str = Field(..., description="Human-readable requirement title.")
+    observed_shortfall: str = Field(..., description="Clear explanation of the observed shortfall, ambiguity, or missing proof.")
+    requested_clarification: str = Field(..., description="Specific evidentiary documents or clarifications requested.")
+    suggested_deadline_days: Optional[int] = Field(None, description="Optional suggested timeframe in days if derived from domain rules.")
+    supporting_evidence_references: List[str] = Field(default_factory=list, description="Relevant cited document references or page numbers.")
+    is_draft: bool = Field(default=True, description="Strictly marked as a draft notice.")
+    decision_authority: str = Field(default="HUMAN_PROCUREMENT_OFFICER", description="Decision authority boundary.")
+
+
+class ClarificationResolutionRequest(BaseModel):
+    """Request payload for explicitly resolving or advancing a clarification status."""
+    resolution_status: ClarificationStatus = Field(..., description="Target status: RESOLVED, REQUIRES_FURTHER_CLARIFICATION, REJECTED, or CANCELLED.")
+    resolution_notes: Optional[str] = Field(None, description="Officer notes explaining the resolution.")
+    officer_id: Optional[str] = Field(default="OFFICER", description="Procurement officer taking the resolution action.")
 
 
 # ---------------------------------------------------------------------------

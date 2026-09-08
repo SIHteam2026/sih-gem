@@ -270,6 +270,11 @@ async def test_rest_api_freeze_and_clarification_endpoints(setup_test_procuremen
         assert status_res.status_code == 200
         assert status_res.json()["is_locked"] is True
 
+        # Unfreeze before opening clarification (as frozen submissions reject new clarifications)
+        unfreeze_res = await ac.post(f"/api/submissions/{sub_id}/unfreeze")
+        assert unfreeze_res.status_code == 200
+        assert unfreeze_res.json()["is_locked"] is False
+
         # 3. API: Create Clarification
         clar_create_payload = {
             "submission_id": sub_id,
