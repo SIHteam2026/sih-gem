@@ -600,6 +600,15 @@ async def _extract_text_from_pdf(file_bytes: bytes, filename: str) -> ExtractedD
         for p in pages
     ]
 
+    pdf_meta: dict = {}
+    try:
+        import pymupdf
+        with pymupdf.open(stream=file_bytes, filetype="pdf") as mdoc:
+            if mdoc.metadata:
+                pdf_meta = dict(mdoc.metadata)
+    except Exception:
+        pass
+
     return ExtractedDocumentContent(
         filename=filename,
         file_format="pdf",
@@ -610,7 +619,7 @@ async def _extract_text_from_pdf(file_bytes: bytes, filename: str) -> ExtractedD
         tables=[],
         source_locations=source_locations,
         file_size=len(file_bytes),
-        metadata={"page_count": len(pages)},
+        metadata={"page_count": len(pages), **pdf_meta},
     )
 
 

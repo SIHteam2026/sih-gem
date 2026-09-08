@@ -47,12 +47,13 @@ class TestSandboxHardening(unittest.IsolatedAsyncioTestCase):
     # -----------------------------------------------------------------------
     async def test_01_unconfigured_provider_safe_behavior(self):
         """When settings are missing or unconfigured, provider must return NOT_CONFIGURED safely."""
-        provider = SandboxGovProvider(settings=None)
-        self.assertFalse(provider.is_configured)
+        with patch.dict(os.environ, {"SANDBOX_API_KEY": "", "SANDBOX_API_SECRET": ""}):
+            provider = SandboxGovProvider(settings=None)
+            self.assertFalse(provider.is_configured)
 
-        # Authenticate returns None safely without raising
-        token = await provider.authenticate()
-        self.assertIsNone(token)
+            # Authenticate returns None safely without raising
+            token = await provider.authenticate()
+            self.assertIsNone(token)
 
         # GSTIN verification returns safe NOT_CONFIGURED GovVerificationResult
         gst_res = await provider.verify_gstin("27AABCU9603R1ZN")
