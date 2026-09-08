@@ -76,41 +76,29 @@ export default function WorkspaceDetailPage() {
     <div className="min-h-screen bg-white font-['Stack_Sans_Text',_sans-serif]">
       <Navbar />
 
-      <main className="w-full max-w-[1000px] mx-auto pt-10 pb-16">
-
-        {/* Back link — same left margin as dashboard title */}
-        <div className="ml-[24px] mb-8">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-[13px] text-[#9ca3af] hover:text-[#6b7280] transition-colors tracking-tight"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Back to Workspace
-          </Link>
-        </div>
+      <main className="w-full max-w-[1200px] mx-auto pt-10 pb-16 px-6 md:px-12">
 
         {loading && (
-          <p className="ml-[24px] text-[14px] text-[#9ca3af]">Loading project workspace…</p>
+          <p className="text-[14px] text-[#9ca3af]">Loading project workspace…</p>
         )}
         {error && (
-          <p className="ml-[24px] text-[14px] text-red-500">{error}</p>
+          <p className="text-[14px] text-red-500">{error}</p>
         )}
 
         {!loading && !error && procurement && (
           <>
-            {/* ── PROJECT TITLE ── same size/weight/margin as "Opal Workspace" */}
-            <h1 className="text-[40px] font-medium text-[#111827] leading-tight ml-[24px] mb-[20px] tracking-tight max-w-[680px]">
+            {/* ── PROJECT TITLE ── */}
+            <h1 className="text-[40px] font-medium text-[#111827] leading-tight mb-[20px] tracking-tight max-w-[680px]">
               {procurement.title}
             </h1>
 
-            {/* ── AI SUMMARY DESCRIPTION ── lighter color, same left margin */}
-            <p className="ml-[24px] text-[15px] text-[#9ca3af] leading-relaxed max-w-[620px] mb-[20px]">
+            {/* ── AI SUMMARY DESCRIPTION ── */}
+            <p className="text-[15px] text-[#9ca3af] leading-relaxed max-w-[620px] mb-[20px]">
               {description}
             </p>
 
             {/* ── METADATA + TENDER PILL ROW ── */}
-            {/* Ministry + Tender date left-aligned; Tender pill far right */}
-            <div className="ml-[24px] flex items-end justify-between pr-0 mb-0">
+            <div className="flex items-end justify-between pr-0 mb-0">
               {/* Left: ministry + tender date */}
               <div className="flex flex-col gap-[3px]">
                 <p className="text-[14px] text-[#6b7280] font-normal">
@@ -121,7 +109,7 @@ export default function WorkspaceDetailPage() {
                 </p>
               </div>
 
-              {/* Right: Tender pill — vertically centered with the two metadata lines */}
+              {/* Right: Tender pill */}
               <div className="flex items-center gap-1.5 bg-yellow-100 border border-yellow-200 text-yellow-800 text-[13px] font-medium px-3 py-1 rounded-full shrink-0">
                 <FileText className="w-3.5 h-3.5 text-yellow-600" />
                 Tender
@@ -129,10 +117,10 @@ export default function WorkspaceDetailPage() {
             </div>
 
             {/* ── HORIZONTAL DIVIDER ── */}
-            <hr className="border-[#f1f5f9] mt-5 mb-8 ml-[24px]" />
+            <hr className="border-[#f1f5f9] mt-5 mb-8" />
 
             {/* ── LOWER TWO-COLUMN SECTION ── */}
-            <div className="ml-[24px] flex flex-col md:flex-row gap-10 items-start">
+            <div className="flex flex-col md:flex-row gap-10 items-start justify-between">
 
               {/* LEFT PANEL — Deadline + Officer action */}
               <div className="flex flex-col gap-5 min-w-[220px]">
@@ -162,7 +150,7 @@ export default function WorkspaceDetailPage() {
                     : "Sir, the submission deadline has not yet passed. Technical scrutiny is not yet available."}
                 </p>
 
-                {/* Technical Scrutiny button — green if deadline past, gray if not */}
+                {/* Technical Scrutiny button */}
                 {isDeadlinePast ? (
                   <Link
                     href={`/procurements/${procurement.id}`}
@@ -184,36 +172,38 @@ export default function WorkspaceDetailPage() {
               </div>
 
               {/* RIGHT PANEL — Bidder Submissions */}
-              <div className="flex-1 bg-yellow-50/60 rounded-xl p-6">
-                <h2 className="font-semibold text-[#111827] text-[15px] mb-4">
+              <div className="w-full max-w-[360px] flex flex-col">
+                <h2 className="font-semibold text-[#111827] text-[15px] mb-3 text-right">
                   Bidder Submissions
                 </h2>
-
-                {allSubmissions.length === 0 ? (
-                  <p className="text-[13px] text-[#9ca3af]">
-                    No bidder submissions registered yet.
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-yellow-100">
-                    {allSubmissions.map((sub) => (
-                      <li
-                        key={sub.id}
-                        className="flex items-center justify-between py-3"
-                      >
-                        <span className="text-[14px] text-[#111827]">
-                          {sub.bidder?.legal_name || "Unknown Bidder"}
-                        </span>
-                        <Link
-                          href={`/submissions/${sub.id}`}
-                          className="shrink-0 ml-4 text-orange-400 hover:text-orange-500 transition-colors"
-                          aria-label={`Open submission for ${sub.bidder?.legal_name || sub.id}`}
+                
+                <div className="bg-yellow-50/60 rounded-xl p-5 w-full">
+                  {allSubmissions.length === 0 ? (
+                    <p className="text-[13px] text-[#9ca3af]">
+                      No bidder submissions registered yet.
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-yellow-100">
+                      {allSubmissions.map((sub) => (
+                        <li
+                          key={sub.id}
+                          className="flex items-center justify-between py-3"
                         >
-                          <FileText className="w-5 h-5" />
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                          <span className="text-[14px] text-[#111827]">
+                            {sub.bidder?.legal_name || "Unknown Bidder"}
+                          </span>
+                          <Link
+                            href={`/submissions/${sub.id}`}
+                            className="shrink-0 ml-4 text-orange-400 hover:text-orange-500 transition-colors"
+                            aria-label={`Open submission for ${sub.bidder?.legal_name || sub.id}`}
+                          >
+                            <FileText className="w-5 h-5" />
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
 
             </div>
