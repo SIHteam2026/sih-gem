@@ -1,5 +1,5 @@
-import HomeShell from @/components/HomeShell;
-import LivingContextSection from @/components/LivingContextSection;
+import HomeShell from "@/components/HomeShell";
+import LivingContextSection from "@/components/LivingContextSection";
 
 export default function Home() {
   return (
