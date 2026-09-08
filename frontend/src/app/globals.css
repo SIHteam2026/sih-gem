@@ -16,6 +16,8 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-stack-sans);
   --font-mono: var(--font-geist-mono);
+  --font-manrope: var(--font-manrope);
+  --font-serif: var(--font-plex-serif);
 }
 
 * {

@@ -81,23 +81,23 @@ export default function LivingContextSection({
             return (
               <div 
                 key={project.id} 
-                className="bg-white/90 backdrop-blur-md border border-white/40 border-t-white border-l-white p-[24px] rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.06)] flex flex-col justify-between min-h-[200px]"
+                className="bg-white p-[24px] rounded-3xl shadow-[-12px_-12px_24px_-4px_rgba(0,0,0,0.04)] flex flex-col justify-between min-h-[200px]"
               >
-                <div className="space-y-3">
-                  <h3 className="text-[#111827] font-bold text-lg tracking-tight leading-snug line-clamp-3">
+                <div>
+                  <h3 className="font-manrope text-[#111827] font-bold text-[19px] tracking-tight leading-[1.3] line-clamp-3 pb-2">
                     {project.title}
                   </h3>
-                  <div className="flex items-center">
-                    <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-lime-50/50 border border-lime-200/60 text-lime-700">
+                  <div className="flex items-center -mt-1">
+                    <span className="font-sans px-2 py-0.5 text-[11px] font-medium rounded-full bg-lime-50/50 border border-lime-200/60 text-lime-700">
                       {badgeText}
                     </span>
                   </div>
                 </div>
-                <div className="mt-auto pt-[16px] space-y-1">
-                  <p className="text-slate-400 font-normal text-xs sm:text-sm truncate">
+                <div className="mt-auto pt-[16px] space-y-1.5">
+                  <p className="font-serif italic text-slate-400 text-[13.5px] truncate">
                     {project.organization || "Ministry of Health and Family Welfare"}
                   </p>
-                  <p className="text-slate-400 font-normal text-xs sm:text-sm">
+                  <p className="font-manrope text-slate-400 text-[13px]">
                     Tender date: {new Date(project.created_at || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '.')}
                   </p>
                 </div>
