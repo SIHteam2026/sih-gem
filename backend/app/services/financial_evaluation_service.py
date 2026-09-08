@@ -78,6 +78,7 @@ def determine_technical_eligibility(
     evaluations: List[Dict[str, Any]],
     external_submission_reference: Optional[str] = None,
     bidder_name: Optional[str] = None,
+    mandatory_map: Optional[Dict[str, bool]] = None,
 ) -> Tuple[TechnicalEligibilityState, Optional[str]]:
     """Evaluates whether a bidder submission qualifies to enter Cover 2.
 
@@ -138,19 +139,30 @@ def determine_technical_eligibility(
             state = state.value
         state_str = str(state).upper()
 
-        is_mandatory = getattr(r, "mandatory", True) if hasattr(r, "mandatory") else (r.get("mandatory", True) if isinstance(r, dict) else True)
+        if mandatory_map is not None and req_id in mandatory_map:
+            is_mandatory = mandatory_map[req_id]
+        elif hasattr(r, "mandatory"):
+            is_mandatory = getattr(r, "mandatory")
+        elif isinstance(r, dict) and "mandatory" in r:
+            is_mandatory = r["mandatory"]
+        else:
+            is_mandatory = True
 
-        if state_str in ("FAIL", "NON_COMPLIANT") and is_mandatory:
-            failed_reqs.append(req_id)
-        elif state_str in ("REVIEW", "REVIEW_REQUIRED") and is_mandatory:
-            review_reqs.append(req_id)
-        elif state_str == "UNVERIFIED" and is_mandatory:
-            unverified_reqs.append(req_id)
+        if is_mandatory:
+            if state_str in ("FAIL", "NON_COMPLIANT"):
+                failed_reqs.append(req_id)
+            elif state_str in ("REVIEW", "REVIEW_REQUIRED"):
+                review_reqs.append(req_id)
+            elif state_str == "UNVERIFIED":
+                unverified_reqs.append(req_id)
 
     if failed_reqs:
+        msg = f"Failed mandatory technical requirement(s): {', '.join(failed_reqs)}."
+        if review_reqs:
+            msg += f" Additionally pending review on: {', '.join(review_reqs)}."
         return (
             TechnicalEligibilityState.TECHNICALLY_FAILED,
-            f"Failed mandatory technical requirement(s): {', '.join(failed_reqs)}.",
+            msg,
         )
 
     if review_reqs:
@@ -199,6 +211,57 @@ def extract_commercial_data_from_document(
     text = doc.get("content_text") or ""
     storage_path = doc.get("storage_path")
 
+    # 1. Try reading physical file bytes from disk if storage_path exists
+    f_bytes = None
+    if storage_path and os.path.exists(storage_path):
+        try:
+            with open(storage_path, "rb") as f:
+                f_bytes = f.read()
+        except Exception as read_err:
+            logger.debug("Failed reading file from storage_path %s: %s", storage_path, read_err)
+
+    # If text is empty or missing, and f_bytes is available:
+    if not text and f_bytes:
+        if filename.lower().endswith(".pdf"):
+            try:
+                import pymupdf
+                doc_fitz = pymupdf.open(stream=f_bytes, filetype="pdf")
+                pages_text = [p.get_text() for p in doc_fitz]
+                doc_fitz.close()
+                text = "\n".join(pages_text).strip()
+            except Exception:
+                try:
+                    import pdfplumber
+                    with pdfplumber.open(io.BytesIO(f_bytes)) as pl_pdf:
+                        pages_text = [p.extract_text() or "" for p in pl_pdf.pages]
+                        text = "\n".join(pages_text).strip()
+                except Exception as pl_err:
+                    logger.debug("PDF text extraction failed: %s", pl_err)
+        else:
+            try:
+                from app.services.multi_format_extractor import (
+                    detect_file_format,
+                    _extract_tabular_from_csv,
+                    _extract_structured_from_docx,
+                    _extract_sheets_from_xlsx,
+                    _extract_text_from_txt,
+                )
+                fmt = detect_file_format(filename, f_bytes, doc.get("mime_type"))
+                if fmt == "csv":
+                    res = _extract_tabular_from_csv(f_bytes, filename)
+                    text = res.raw_text
+                elif fmt == "docx":
+                    res = _extract_structured_from_docx(f_bytes, filename)
+                    text = res.raw_text
+                elif fmt == "xlsx":
+                    res = _extract_sheets_from_xlsx(f_bytes, filename)
+                    text = res.raw_text
+                elif fmt == "txt":
+                    res = _extract_text_from_txt(f_bytes, filename)
+                    text = res.raw_text
+            except Exception as mfe_err:
+                logger.debug("Multi-format extraction fallback failed for %s: %s", filename, mfe_err)
+
     # If content_text is serialized JSON from extractor, unpack raw_text
     if isinstance(text, str) and text.strip().startswith("{"):
         try:
@@ -209,19 +272,16 @@ def extract_commercial_data_from_document(
         except Exception:
             pass
 
-    # 1. Try table extraction if physical file exists
+    # 2. Try table extraction synchronously if physical file exists and is a PDF
     extracted_tables = []
-    if storage_path and os.path.exists(storage_path) and storage_path.lower().endswith(".pdf"):
+    if f_bytes and filename.lower().endswith(".pdf"):
         try:
-            from app.services.boq_parser import extract_financial_tables
-            with open(storage_path, "rb") as f:
-                f_bytes = f.read()
-            import asyncio
-            extracted_tables = asyncio.run(extract_financial_tables(f_bytes))
+            from app.services.boq_parser import extract_financial_tables_sync
+            extracted_tables = extract_financial_tables_sync(f_bytes)
         except Exception as te:
-            logger.debug("Table extraction via pdfplumber failed on %s: %s", storage_path, te)
+            logger.debug("Table extraction via boq_parser failed on %s: %s", filename, te)
 
-    # 2. Extract line items from table records if available
+    # 3. Extract line items from table records if available
     if extracted_tables:
         for idx, row in enumerate(extracted_tables, start=1):
             desc = row.get("description") or row.get("item_description") or row.get("item") or f"Item {idx}"
@@ -233,7 +293,7 @@ def extract_commercial_data_from_document(
 
             expected_total = qty * rate
             is_valid = math.isclose(expected_total, total, rel_tol=1e-3, abs_tol=1.0) if (qty and rate) else True
-            disc_note = None if is_valid else f"Arithmetic error: {qty} * {rate} = {expected_total} != quoted {total}."
+            disc_note = None if is_valid else f"Line total mismatch (Arithmetic mismatch): {qty} * {rate} = {expected_total} != quoted {total}."
 
             line_items.append(
                 BOQItemEvaluation(
@@ -249,14 +309,15 @@ def extract_commercial_data_from_document(
                     provenance={
                         "document_id": doc_id,
                         "source_document": filename,
+                        "file_path": storage_path,
                         "page_number": 1,
-                        "context": f"Table extraction row {idx}: {desc}",
+                        "context": f"Table extraction row {idx}: {desc} (Qty: {qty} {unit} @ INR {rate:,.2f})",
                         "confidence": 0.95,
                     },
                 )
             )
 
-    # 3. Text pattern extraction (fallback and for synthetic/mock strings)
+    # 4. Text pattern extraction (fallback and for synthetic/mock strings)
     if not line_items and text:
         # Line-by-line pattern for: Item <num>: <Desc>, Qty: <X> <unit>, Unit Rate: <Y>, Total: <Z>
         item_pattern = re.compile(
@@ -276,7 +337,7 @@ def extract_commercial_data_from_document(
 
                 expected_total = qty * rate
                 is_valid = math.isclose(expected_total, total, rel_tol=1e-3, abs_tol=1.0) if (qty and rate) else True
-                disc_note = None if is_valid else f"Arithmetic mismatch: {qty} * {rate} = {expected_total} != quoted {total}."
+                disc_note = None if is_valid else f"Line total mismatch (Arithmetic mismatch): {qty} * {rate} = {expected_total} != quoted {total}."
 
                 line_items.append(
                     BOQItemEvaluation(
@@ -292,51 +353,54 @@ def extract_commercial_data_from_document(
                         provenance={
                             "document_id": doc_id,
                             "source_document": filename,
+                            "file_path": storage_path,
                             "page_number": 1,
-                            "context": f"Item {item_idx}: {desc}, Qty: {qty} {unit} @ ₹{rate} = ₹{total}",
+                            "context": f"Item {item_idx}: {desc}, Qty: {qty} {unit} @ INR {rate:,.2f} = INR {total:,.2f}",
                             "confidence": 0.90,
                         },
                     )
                 )
 
-    # 4. Extract commercial summary totals from text
-    subtotal_match = re.search(r"Subtotal[:\-\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)", text, re.IGNORECASE)
-    if subtotal_match:
-        totals["subtotal"] = _clean_number(subtotal_match.group(1))
+    # 5. Extract commercial summary totals from text
+    if text:
+        subtotal_match = re.search(r"Subtotal[:\-\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)", text, re.IGNORECASE)
+        if subtotal_match:
+            totals["subtotal"] = _clean_number(subtotal_match.group(1))
 
-    taxes_match = re.search(
-        r"(?:Taxes|GST|IGST|CGST|SGST)(?:\s*\([^)]*\))?(?:\s*@\s*\d+(?:\.\d+)?%)?[:\-\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)",
-        text,
-        re.IGNORECASE,
-    )
-    if taxes_match:
-        totals["taxes"] = _clean_number(taxes_match.group(1))
+        taxes_match = re.search(
+            r"(?:Taxes|GST|IGST|CGST|SGST)(?:\s*\([^)]*\))?(?:\s*@\s*\d+(?:\.\d+)?%)?[:\-\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)",
+            text,
+            re.IGNORECASE,
+        )
+        if taxes_match:
+            totals["taxes"] = _clean_number(taxes_match.group(1))
 
-    freight_match = re.search(r"(?:Freight|Transit\s*Insurance|Shipping)[:\-\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)", text, re.IGNORECASE)
-    if freight_match:
-        totals["freight"] = _clean_number(freight_match.group(1))
+        freight_match = re.search(r"(?:Freight|Transit\s*Insurance|Shipping)[:\-\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)", text, re.IGNORECASE)
+        if freight_match:
+            totals["freight"] = _clean_number(freight_match.group(1))
 
-    discount_match = re.search(r"(?:Discount|Rebate)[:\-\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)", text, re.IGNORECASE)
-    if discount_match:
-        totals["discount"] = _clean_number(discount_match.group(1))
+        discount_match = re.search(r"(?:Discount|Rebate)[:\-\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)", text, re.IGNORECASE)
+        if discount_match:
+            totals["discount"] = _clean_number(discount_match.group(1))
 
-    total_match = re.search(
-        r"(?:Total\s+(?:[A-Za-z]+\s+)*(?:Price|Value|Amount|Bid|Total)?|Grand\s*Total|Evaluated\s*(?:Bid)?\s*(?:Price|Amount))[:\-\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)",
-        text,
-        re.IGNORECASE,
-    )
-    if total_match:
-        totals["total_bid_value"] = _clean_number(total_match.group(1))
+        total_match = re.search(
+            r"(?:Total\s+(?:[A-Za-z]+\s+)*(?:Price|Value|Amount|Bid|Total)?|Grand\s*Total|Evaluated\s*(?:Bid)?\s*(?:Price|Amount))[:\-\s]*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)",
+            text,
+            re.IGNORECASE,
+        )
+        if total_match:
+            totals["total_bid_value"] = _clean_number(total_match.group(1))
 
     # Add top-level provenance citation
-    if text:
-        snippet = text[:200].replace("\n", " ").strip()
+    if text or line_items:
+        snippet = (text[:200] if text else f"Extracted {len(line_items)} BOQ items from {filename}").replace("\n", " ").strip()
         provenance_list.append({
             "document_id": doc_id,
             "source_document": filename,
+            "file_path": storage_path,
             "page_number": 1,
             "snippet": f"Financial Quote Excerpt: {snippet}...",
-            "confidence": 0.90,
+            "confidence": 0.95 if extracted_tables else 0.90,
         })
 
     return line_items, totals, provenance_list
@@ -452,9 +516,9 @@ def normalize_commercial_bid(
         if not math.isclose(calculated_subtotal, extracted_subtotal, rel_tol=1e-3, abs_tol=1.0):
             findings.append(
                 CommercialFinding(
-                    finding_type="ARITHMETIC_ERROR",
+                    finding_type="SUBTOTAL_MISMATCH",
                     severity="HIGH",
-                    message=f"Sum of line items (INR {calculated_subtotal:,.2f}) does not match quoted subtotal (INR {extracted_subtotal:,.2f}).",
+                    message=f"Subtotal mismatch: Sum of line items (INR {calculated_subtotal:,.2f}) does not match quoted subtotal (INR {extracted_subtotal:,.2f}). Requires officer review.",
                     expected={"subtotal": calculated_subtotal},
                     observed={"subtotal": extracted_subtotal},
                 )
@@ -481,9 +545,9 @@ def normalize_commercial_bid(
         if extracted_total_bid is not None and not math.isclose(evaluated_total, extracted_total_bid, rel_tol=1e-3, abs_tol=1.0):
             findings.append(
                 CommercialFinding(
-                    finding_type="TOTAL_MISMATCH",
+                    finding_type="GRAND_TOTAL_MISMATCH",
                     severity="HIGH",
-                    message=f"Evaluated sum (subtotal {subtotal:,.2f} + tax {tax_amount:,.2f} + freight {freight_amount:,.2f} - discount {discount_amount:,.2f} = INR {evaluated_total:,.2f}) does not match quoted grand total (INR {extracted_total_bid:,.2f}).",
+                    message=f"Grand total mismatch: Evaluated sum (subtotal INR {subtotal:,.2f} + tax INR {tax_amount:,.2f} + freight INR {freight_amount:,.2f} - discount INR {discount_amount:,.2f} = INR {evaluated_total:,.2f}) does not match quoted grand total (INR {extracted_total_bid:,.2f}). Requires officer review; value is not silently repaired.",
                     expected={"evaluated_total": evaluated_total},
                     observed={"quoted_total": extracted_total_bid},
                 )
@@ -511,7 +575,12 @@ def calculate_anomaly_signals(
     evaluations: List[BidderFinancialEvaluation],
     estimated_value: Optional[float] = None,
 ) -> List[FinancialAnomalySignal]:
-    """Computes comparative anomaly signals across participating commercial bids."""
+    """Computes comparative anomaly signals across participating commercial bids.
+
+    Safety: Comparative pricing metrics serve strictly as screening indicators
+    for procurement officer review and do not claim definitive statistical proof,
+    especially on small sample sizes.
+    """
     signals: List[FinancialAnomalySignal] = []
 
     valid_bids = [
@@ -539,7 +608,7 @@ def calculate_anomaly_signals(
                 sig = FinancialAnomalySignal(
                     signal_type="UNUSUALLY_LOW_BID",
                     severity="WARNING",
-                    description=f"Bidder '{b.bidder_name}' quoted INR {b.evaluated_amount:,.2f} ({abs(diff_pct):.1f}% below estimated tender benchmark of INR {estimated_value:,.2f}). Potential Abnormally Low Bid (ALB) under GFR Rule 149.",
+                    description=f"Bidder '{b.bidder_name}' quoted INR {b.evaluated_amount:,.2f} ({abs(diff_pct):.1f}% below estimated tender benchmark of INR {estimated_value:,.2f}). Potential Abnormally Low Bid (ALB) under GFR Rule 149 (Screening indicator for officer review, sample size n={n}).",
                     metric_name="benchmark_variance_pct",
                     metric_value=round(diff_pct, 2),
                     threshold=-25.0,
@@ -551,7 +620,7 @@ def calculate_anomaly_signals(
                 sig = FinancialAnomalySignal(
                     signal_type="UNUSUALLY_HIGH_BID",
                     severity="INFO",
-                    description=f"Bidder '{b.bidder_name}' quoted INR {b.evaluated_amount:,.2f} ({diff_pct:.1f}% above estimated tender benchmark of INR {estimated_value:,.2f}).",
+                    description=f"Bidder '{b.bidder_name}' quoted INR {b.evaluated_amount:,.2f} ({diff_pct:.1f}% above estimated tender benchmark of INR {estimated_value:,.2f}, sample size n={n}).",
                     metric_name="benchmark_variance_pct",
                     metric_value=round(diff_pct, 2),
                     threshold=20.0,
@@ -568,7 +637,7 @@ def calculate_anomaly_signals(
                 sig = FinancialAnomalySignal(
                     signal_type="DISTANCE_FROM_MEDIAN",
                     severity="WARNING",
-                    description=f"Bidder '{b.bidder_name}' is {abs(peer_diff_pct):.1f}% below the peer bid median (INR {median_amount:,.2f}).",
+                    description=f"Bidder '{b.bidder_name}' is {abs(peer_diff_pct):.1f}% below peer bid median INR {median_amount:,.2f} (Screening indicator for officer review, sample size n={n}).",
                     metric_name="peer_median_distance_pct",
                     metric_value=round(peer_diff_pct, 2),
                     threshold=-20.0,
@@ -591,7 +660,7 @@ def calculate_anomaly_signals(
                         sig = FinancialAnomalySignal(
                             signal_type="BID_CLUSTERING",
                             severity="WARNING",
-                            description=f"Bids from '{b1.bidder_name}' (INR {b1.evaluated_amount:,.2f}) and '{b2.bidder_name}' (INR {b2.evaluated_amount:,.2f}) cluster suspiciously close ({cluster_pct:.2f}% variance). Officer review recommended for possible coordinated pricing.",
+                            description=f"Bids from '{b1.bidder_name}' (INR {b1.evaluated_amount:,.2f}) and '{b2.bidder_name}' (INR {b2.evaluated_amount:,.2f}) cluster suspiciously close ({cluster_pct:.2f}% variance). Potential coordinated pricing (Screening indicator for officer review, sample size n={n}).",
                             metric_name="bid_clustering_variance_pct",
                             metric_value=round(cluster_pct, 3),
                             threshold=1.0,
@@ -653,6 +722,24 @@ async def execute_cover2_financial_evaluation(
     if not tech_evals:
         tech_evals = await get_bid_evaluations()
 
+    # Build mandatory requirements map from tender definitions if available
+    mandatory_map: Dict[str, bool] = {}
+    try:
+        from app.db.client import get_tender_requirements
+        req_rows = await get_tender_requirements(tender_id)
+        if not req_rows and tender_uuid:
+            req_rows = await get_tender_requirements(tender_uuid)
+        if not req_rows and tender_ref:
+            req_rows = await get_tender_requirements(tender_ref)
+        if req_rows:
+            for r_row in req_rows:
+                rid = r_row.get("requirement_id") or r_row.get("id")
+                is_m = r_row.get("mandatory", True) if "mandatory" in r_row else r_row.get("is_mandatory", True)
+                if rid:
+                    mandatory_map[str(rid)] = bool(is_m)
+    except Exception as me:
+        logger.debug("Could not fetch tender requirements for mandatory map: %s", me)
+
     bidder_evaluations: List[BidderFinancialEvaluation] = []
     audit_trail: List[Dict[str, Any]] = []
 
@@ -678,6 +765,7 @@ async def execute_cover2_financial_evaluation(
             evaluations=tech_evals,
             external_submission_reference=sub.get("external_submission_reference"),
             bidder_name=bidder_name,
+            mandatory_map=mandatory_map,
         )
 
         is_unlocked = (eligibility_state == TechnicalEligibilityState.TECHNICALLY_ELIGIBLE)
@@ -709,6 +797,13 @@ async def execute_cover2_financial_evaluation(
             })
             bidder_evaluations.append(b_eval)
             continue
+
+        audit_trail.append({
+            "event": "BIDDER_UNLOCKED_FOR_COVER_2",
+            "bidder_name": bidder_name,
+            "submission_id": sub_id,
+            "status": eligibility_state.value,
+        })
 
         # Step B: Discover commercial documents and extract BOQ & totals
         docs = sub.get("documents", [])
@@ -746,9 +841,9 @@ async def execute_cover2_financial_evaluation(
             if not it.is_arithmetic_valid:
                 b_eval.commercial_findings.append(
                     CommercialFinding(
-                        finding_type="ARITHMETIC_ERROR",
+                        finding_type="LINE_TOTAL_MISMATCH",
                         severity="HIGH",
-                        message=it.discrepancy_note or f"Line item {it.item_number} has arithmetic error.",
+                        message=it.discrepancy_note or f"Line item {it.item_number} has arithmetic mismatch between unit rate and total price.",
                         expected={"unit_rate": it.unit_rate, "quantity": it.quantity, "total": it.quantity * it.unit_rate},
                         observed={"total": it.total_price},
                         source_provenance=it.provenance,
@@ -768,6 +863,16 @@ async def execute_cover2_financial_evaluation(
         b_eval.discount_amount = discount
         b_eval.quoted_amount = combined_totals.get("total_bid_value") or evaluated_amount
         b_eval.evaluated_amount = evaluated_amount
+
+        # Record findings audit event if any
+        if b_eval.commercial_findings:
+            audit_trail.append({
+                "event": "COMMERCIAL_FINDINGS_DETECTED",
+                "bidder_name": bidder_name,
+                "submission_id": sub_id,
+                "findings_count": len(b_eval.commercial_findings),
+                "finding_types": [f.finding_type for f in b_eval.commercial_findings],
+            })
 
         # Determine Commercial Status
         has_critical_findings = any(f.severity == "CRITICAL" for f in b_eval.commercial_findings)
@@ -807,6 +912,13 @@ async def execute_cover2_financial_evaluation(
         evaluations=bidder_evaluations,
         estimated_value=estimated_value,
     )
+
+    if anomaly_signals:
+        audit_trail.append({
+            "event": "FINANCIAL_ANOMALY_SIGNALS_DETECTED",
+            "signals_count": len(anomaly_signals),
+            "signal_types": [s.signal_type for s in anomaly_signals],
+        })
 
     # Audit log event: Ranking & L1 Determined
     l1_bidder = rankable_bids[0] if rankable_bids else None
@@ -872,6 +984,11 @@ async def get_procurement_financial_evaluation_service(
         tenders = proc_full.get("tenders", [])
         tender = proc_full.get("tender") or (tenders[0] if tenders else {})
         tender_id = tender.get("tender_reference") or tender.get("id") or procurement_id
+        subs = list(proc_full.get("submissions", []))
+        for t in tenders:
+            subs.extend(t.get("submissions", []))
+        total_bidders = len(subs)
+
         return ProcurementFinancialEvaluationResponse(
             procurement_id=procurement_id,
             tender_id=tender_id,
@@ -880,7 +997,7 @@ async def get_procurement_financial_evaluation_service(
             evaluator_version="opal-cover2-v1.0",
             currency="INR",
             estimated_tender_value=tender.get("estimated_value"),
-            total_bidders=len(proc_full.get("submissions", [])),
+            total_bidders=total_bidders,
             eligible_bidders_count=0,
             excluded_bidders_count=0,
             bidder_evaluations=[],

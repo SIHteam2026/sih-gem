@@ -466,6 +466,245 @@ class TestCover2FinancialEvaluation(unittest.TestCase):
 
         asyncio.run(_run())
 
+    def test_14_physical_pdf_extraction_from_disk(self):
+        """14. Verify extraction of real physical BOQ PDF from disk via boq_parser."""
+        from pathlib import Path
+        sample_path = Path(__file__).resolve().parent.parent / "data" / "sample_documents" / "CleanFlow_Commercial_BOQ_Bid.pdf"
+        self.assertTrue(sample_path.exists(), f"Sample PDF must exist at {sample_path}")
+
+        doc = {
+            "id": "doc-cft-physical",
+            "filename": "CleanFlow_Commercial_BOQ_Bid.pdf",
+            "storage_path": str(sample_path),
+            "content_text": "",  # Empty content text to force file reading
+        }
+
+        line_items, totals, provs = extract_commercial_data_from_document(doc)
+        self.assertEqual(len(line_items), 4)
+        self.assertEqual(line_items[0].quantity, 5.0)
+        self.assertEqual(line_items[0].unit_rate, 4400000.0)
+        self.assertEqual(line_items[0].total_price, 22000000.0)
+        self.assertEqual(line_items[0].provenance["file_path"], str(sample_path))
+        self.assertTrue(all(it.is_arithmetic_valid for it in line_items))
+
+    def test_15_aquapure_independent_failure_vs_review(self):
+        """15. Verify AquaPure MII review vs turnover failure independence."""
+        # Case A: Both turnover failure and MII review -> TECHNICALLY_FAILED
+        mock_evals_both = [{
+            "evaluation_data": {
+                "submission_id": "sub-aps-both",
+                "requirement_results": [
+                    {"requirement_id": "REQ-001", "state": "PASS"},
+                    {"requirement_id": "REQ-003", "state": "FAIL"},   # Turnover
+                    {"requirement_id": "REQ-006", "state": "REVIEW"}, # MII contradiction
+                ],
+            }
+        }]
+        mandatory_map = {"REQ-001": True, "REQ-003": True, "REQ-006": True}
+        state, reason = determine_technical_eligibility(
+            "sub-aps-both", "TENDER-001", mock_evals_both, mandatory_map=mandatory_map
+        )
+        self.assertEqual(state, TechnicalEligibilityState.TECHNICALLY_FAILED)
+        self.assertIn("REQ-003", reason)
+        self.assertIn("Additionally pending review on: REQ-006", reason)
+
+        # Case B: ONLY MII review (no turnover failure) -> TECHNICAL_REVIEW_REQUIRED
+        mock_evals_review_only = [{
+            "evaluation_data": {
+                "submission_id": "sub-aps-rev",
+                "requirement_results": [
+                    {"requirement_id": "REQ-001", "state": "PASS"},
+                    {"requirement_id": "REQ-003", "state": "PASS"},
+                    {"requirement_id": "REQ-006", "state": "REVIEW"}, # MII contradiction
+                ],
+            }
+        }]
+        state_rev, reason_rev = determine_technical_eligibility(
+            "sub-aps-rev", "TENDER-001", mock_evals_review_only, mandatory_map=mandatory_map
+        )
+        self.assertEqual(state_rev, TechnicalEligibilityState.TECHNICAL_REVIEW_REQUIRED)
+        self.assertIn("REQ-006", reason_rev)
+
+        # Case C: Non-mandatory requirement failure does NOT exclude bidder
+        mock_evals_optional_fail = [{
+            "evaluation_data": {
+                "submission_id": "sub-opt-fail",
+                "requirement_results": [
+                    {"requirement_id": "REQ-001", "state": "PASS"},
+                    {"requirement_id": "REQ-OPT-09", "state": "FAIL"}, # Optional
+                ],
+            }
+        }]
+        opt_map = {"REQ-001": True, "REQ-OPT-09": False}
+        state_opt, reason_opt = determine_technical_eligibility(
+            "sub-opt-fail", "TENDER-001", mock_evals_optional_fail, mandatory_map=opt_map
+        )
+        self.assertEqual(state_opt, TechnicalEligibilityState.TECHNICALLY_ELIGIBLE)
+        self.assertIsNone(reason_opt)
+
+    def test_16_all_seven_parity_discrepancy_types(self):
+        """16. Verify detection and emission of all 7 required parity discrepancy types."""
+        # 1. MISSING_ITEM
+        items_missing = [
+            BOQItemEvaluation(
+                item_number=1,
+                description="Online Multichannel Water Quality Analyzer Units",
+                quantity=5.0,
+                unit="units",
+                unit_rate=4000000.0,
+                total_price=20000000.0,
+            )
+        ]
+        f_missing = check_boq_parity(items_missing, CPCL_EXPECTED_BOQ)
+        types_missing = {f.finding_type for f in f_missing}
+        self.assertIn("MISSING_ITEM", types_missing)
+
+        # 2. QUANTITY_MISMATCH
+        items_qty = [
+            BOQItemEvaluation(
+                item_number=1,
+                description="Online Multichannel Water Quality Analyzer Units",
+                quantity=10.0,  # Expected 5.0
+                unit="units",
+                unit_rate=4000000.0,
+                total_price=40000000.0,
+            ),
+            BOQItemEvaluation(item_number=2, description="Submersible Sensor Probes", quantity=5.0, unit="sets", unit_rate=1.0, total_price=5.0),
+            BOQItemEvaluation(item_number=3, description="Installation", quantity=1.0, unit="lot", unit_rate=1.0, total_price=1.0),
+            BOQItemEvaluation(item_number=4, description="Maintenance", quantity=1.0, unit="lot", unit_rate=1.0, total_price=1.0),
+        ]
+        f_qty = check_boq_parity(items_qty, CPCL_EXPECTED_BOQ)
+        types_qty = {f.finding_type for f in f_qty}
+        self.assertIn("QUANTITY_MISMATCH", types_qty)
+
+        # 3. UNIT_MISMATCH
+        items_unit = [
+            BOQItemEvaluation(
+                item_number=1,
+                description="Online Multichannel Water Quality Analyzer Units",
+                quantity=5.0,
+                unit="liters",  # Expected "units"
+                unit_rate=4000000.0,
+                total_price=20000000.0,
+            ),
+            BOQItemEvaluation(item_number=2, description="Submersible Sensor Probes", quantity=5.0, unit="sets", unit_rate=1.0, total_price=5.0),
+            BOQItemEvaluation(item_number=3, description="Installation", quantity=1.0, unit="lot", unit_rate=1.0, total_price=1.0),
+            BOQItemEvaluation(item_number=4, description="Maintenance", quantity=1.0, unit="lot", unit_rate=1.0, total_price=1.0),
+        ]
+        f_unit = check_boq_parity(items_unit, CPCL_EXPECTED_BOQ)
+        types_unit = {f.finding_type for f in f_unit}
+        self.assertIn("UNIT_MISMATCH", types_unit)
+
+        # 4. EXTRA_ITEM
+        items_extra = [
+            BOQItemEvaluation(item_number=1, description="Online Multichannel Water Quality Analyzer Units", quantity=5.0, unit="units", unit_rate=1.0, total_price=5.0),
+            BOQItemEvaluation(item_number=2, description="Submersible Sensor Probes", quantity=5.0, unit="sets", unit_rate=1.0, total_price=5.0),
+            BOQItemEvaluation(item_number=3, description="Installation", quantity=1.0, unit="lot", unit_rate=1.0, total_price=1.0),
+            BOQItemEvaluation(item_number=4, description="Maintenance", quantity=1.0, unit="lot", unit_rate=1.0, total_price=1.0),
+            BOQItemEvaluation(item_number=5, description="Unsolicited Extra Solar Panel Kit", quantity=2.0, unit="sets", unit_rate=500000.0, total_price=1000000.0),
+        ]
+        f_extra = check_boq_parity(items_extra, CPCL_EXPECTED_BOQ)
+        types_extra = {f.finding_type for f in f_extra}
+        self.assertIn("EXTRA_ITEM", types_extra)
+
+        # 5. LINE_TOTAL_MISMATCH
+        doc_arith = {
+            "id": "doc-line-mismatch",
+            "filename": "bid.txt",
+            "content_text": "Item 1: Water Quality Analyzer Units, Qty: 5 units, Unit Rate: INR 40,00,000, Total: INR 9,99,99,999",
+        }
+        items_arith, _, _ = extract_commercial_data_from_document(doc_arith)
+        self.assertFalse(items_arith[0].is_arithmetic_valid)
+        self.assertIn("Line total mismatch", items_arith[0].discrepancy_note)
+
+        # 6. SUBTOTAL_MISMATCH
+        items_sub = [
+            BOQItemEvaluation(item_number=1, description="Item 1", quantity=1.0, unit="units", unit_rate=100.0, total_price=100.0)
+        ]
+        totals_sub = {"subtotal": 500.0}  # Quoted 500 but items sum to 100
+        _, _, _, _, _, f_sub = normalize_commercial_bid(items_sub, totals_sub)
+        types_sub = {f.finding_type for f in f_sub}
+        self.assertIn("SUBTOTAL_MISMATCH", types_sub)
+
+        # 7. GRAND_TOTAL_MISMATCH
+        totals_grand = {
+            "subtotal": 100.0,
+            "taxes": 18.0,
+            "freight": 10.0,
+            "discount": 0.0,
+            "total_bid_value": 999.0,  # 100 + 18 + 10 = 128 != 999
+        }
+        _, _, _, _, _, f_grand = normalize_commercial_bid(items_sub, totals_grand)
+        types_grand = {f.finding_type for f in f_grand}
+        self.assertIn("GRAND_TOTAL_MISMATCH", types_grand)
+
+    def test_17_get_read_only_semantics(self):
+        """17. Verify GET /api/procurements/{id}/financial-evaluation is strictly read-only."""
+        async def _run():
+            from app.db.client import _IN_MEMORY_FINANCIAL_EVALUATIONS
+            payload = create_cpcl_demo_payload()
+            ingest_res = await ingest_procurement(payload)
+            proc_id = ingest_res.procurement_id
+
+            # Ensure financial evaluations store is clean for this proc_id
+            _IN_MEMORY_FINANCIAL_EVALUATIONS.pop(proc_id, None)
+
+            # Call GET before Cover 2 has ever been executed
+            resp = await get_procurement_financial_evaluation_service(proc_id)
+            self.assertEqual(resp.cover2_status, Cover2State.LOCKED)
+            self.assertEqual(resp.total_bidders, 3)
+            self.assertEqual(resp.eligible_bidders_count, 0)
+            self.assertEqual(len(resp.bidder_evaluations), 0)
+
+            # Verify that calling GET performed zero writes to _IN_MEMORY_FINANCIAL_EVALUATIONS
+            self.assertNotIn(proc_id, _IN_MEMORY_FINANCIAL_EVALUATIONS)
+
+        asyncio.run(_run())
+
+    def test_18_grand_total_mismatch_prevents_silent_repair(self):
+        """18. Verify that an irreconcilable total mismatch sets status to REVIEW_REQUIRED without silent repair."""
+        async def _run():
+            sub_item = [
+                BOQItemEvaluation(item_number=1, description="Item", quantity=1.0, unit="lot", unit_rate=1000.0, total_price=1000.0)
+            ]
+            tots = {"subtotal": 1000.0, "taxes": 180.0, "total_bid_value": 50000.0}
+            sub, tax, freight, disc, evaluated, findings = normalize_commercial_bid(sub_item, tots)
+
+            # Verify finding type is GRAND_TOTAL_MISMATCH with HIGH severity
+            gt_finding = next((f for f in findings if f.finding_type == "GRAND_TOTAL_MISMATCH"), None)
+            self.assertIsNotNone(gt_finding)
+            self.assertEqual(gt_finding.severity, "HIGH")
+            self.assertIn("not silently repaired", gt_finding.message)
+
+        asyncio.run(_run())
+
+    def test_19_full_audit_trail_events(self):
+        """19. Verify emission of all required audit events in the Cover 2 lifecycle."""
+        async def _run():
+            payload = create_cpcl_demo_payload()
+            ingest_res = await ingest_procurement(payload)
+            proc_id = ingest_res.procurement_id
+            tender_id = ingest_res.tender_id
+
+            await insert_bid_evaluation(tender_id, {
+                "submission_id": "GEM-SUB-CFT-2026-017",
+                "requirement_results": [{"requirement_id": "REQ-001", "state": "PASS", "mandatory": True}],
+            })
+            await insert_bid_evaluation(tender_id, {
+                "submission_id": "GEM-SUB-APS-2026-017",
+                "requirement_results": [{"requirement_id": "REQ-001", "state": "FAIL", "mandatory": True}],
+            })
+
+            resp = await execute_cover2_financial_evaluation(proc_id)
+            event_names = [a.get("event") for a in resp.audit_trail]
+
+            self.assertIn("COVER_2_OPENING_INITIATED", event_names)
+            self.assertIn("BIDDER_EXCLUDED_FROM_COVER_2", event_names)
+            self.assertIn("BIDDER_UNLOCKED_FOR_COVER_2", event_names)
+            self.assertIn("COVER_2_EVALUATION_COMPLETED", event_names)
+
+        asyncio.run(_run())
+
 
 if __name__ == "__main__":
     unittest.main()
