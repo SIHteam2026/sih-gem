@@ -1,6 +1,6 @@
-use client;
+"use client";
 
-import React, { useEffect, useState, useCallback } from react;
+import React, { useEffect, useState, useCallback } from "react";
 import { List } from lucide-react;
 import { fetchProcurements } from @/services/api;
 import { ProcurementSummaryItem, ProcurementListResponse } from "@/types/procurement";
