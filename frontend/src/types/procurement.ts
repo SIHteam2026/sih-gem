@@ -103,6 +103,20 @@ export interface ProcurementListResponse {
   procurements: ProcurementSummaryItem[];
 }
 
+/**
+ * Workspace card data model for the dashboard UI.
+ * Mirrors the supabase procurement summary with UI‑specific fields.
+ */
+export interface WorkspaceCard {
+  id: string;
+  title: string;
+  organization?: string;
+  status?: ProcurementStatus;
+  thumbnailUrl?: string;
+  updatedAt?: string;
+}
+
+
 export interface ProcurementDetail {
   id: string;
   external_reference: string;

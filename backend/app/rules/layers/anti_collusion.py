@@ -1,19 +1,21 @@
 """Layer 4: Anti-Collusion and Relatedness Verifier.
 
-Harden multi-bidder collusion detection using submitted documents and bidder data:
-- Shared document metadata (PDF author, producer, creation timestamp clusters)
-- Shared contact details (phone, email domain/address)
-- Shared physical addresses
-- Shared banking information (IFSC + Account Number)
-- Identical / near-identical document template and quotation body text
-- Aggregates multi-signal findings into structured REVIEW findings for officer evaluation.
+Canonical 7-Layer Architecture - First-Layer Cross-Bidder Forensic Engine.
+
+Integrates four comprehensive forensic checks across competing bidders:
+1. DIGITAL METADATA COLLISIONS (machine/user profile, author, close timestamps, benign software filter)
+2. BIDDER-TO-BIDDER TIE-INS (signatory, normalized phone, normalized address/PIN, non-public email/domain, CIN/LLPIN)
+3. FINANCIAL INSTRUMENT OVERLAP (issuing branch, sequential instrument numbers, same-day issuance)
+4. FORMATTING CLONES (tender-template exclusion index, standard boilerplate exclusion, identical narrative clauses, identical typos)
+
+Aggregates pairwise and cluster-level signals for human procurement officer review.
+Advisory under GeM Anti-Collusion and Related-Party Guidelines.
 """
 
-from collections import defaultdict
-from datetime import datetime
 import logging
 import re
-from typing import Any, Dict, List, Set, Tuple
+from collections import defaultdict
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     from app.models.evaluation import ComplianceState
@@ -26,6 +28,7 @@ try:
         VerificationLayer,
     )
     from app.rules.layers.base import BaseVerifier
+    from app.rules.forensics.aggregator import CrossBidderForensicAggregator
 except ImportError:
     try:
         from app.models.evaluation import ComplianceState
@@ -38,6 +41,7 @@ except ImportError:
             VerificationLayer,
         )
         from app.rules.layers.base import BaseVerifier
+        from app.rules.forensics.aggregator import CrossBidderForensicAggregator
     except ImportError:
         from models.evaluation import ComplianceState
         from models.evidence import ProvenanceRecord
@@ -49,6 +53,7 @@ except ImportError:
             VerificationLayer,
         )
         from rules.layers.base import BaseVerifier
+        from rules.forensics.aggregator import CrossBidderForensicAggregator
 
 logger = logging.getLogger(__name__)
 
@@ -71,10 +76,11 @@ BOQ_BOILERPLATE_PHRASES = [
     "technical specifications",
 ]
 
-
-
 class AntiCollusionVerifier(BaseVerifier):
     """Verifier for Layer 4: Anti-Collusion and Relatedness."""
+
+    def __init__(self, aggregator: Optional[CrossBidderForensicAggregator] = None):
+        self._aggregator = aggregator or CrossBidderForensicAggregator(verifier_id=self.verifier_id)
 
     @property
     def verifier_id(self) -> str:
@@ -85,10 +91,20 @@ class AntiCollusionVerifier(BaseVerifier):
         return VerificationLayer.ANTI_COLLUSION_AND_RELATEDNESS
 
     async def verify(self, context: VerificationContext) -> List[VerificationFinding]:
+        """Executes Level 4 cross-bidder forensic analysis."""
+        
         findings: List[VerificationFinding] = []
         bidders = context.bidders or []
         submissions = context.submissions or []
         documents = context.documents or []
+        
+        logger.info(
+            "Executing Layer 4: Anti-Collusion and Relatedness for procurement '%s' (bidders: %d, submissions: %d, documents: %d)",
+            context.procurement_id or "unknown",
+            len(bidders),
+            len(submissions),
+            len(documents),
+        )
 
         # If single bidder, no cross-bidder collusion is possible
         if len(bidders) < 2 and len(submissions) < 2:
@@ -257,36 +273,36 @@ class AntiCollusionVerifier(BaseVerifier):
                 "Requires procurement officer review under GeM Anti-Collusion and Related-Party guidelines."
             )
 
-                        # Suppress boilerplate-only author overlap findings
+            # Suppress boilerplate-only author overlap findings
             if len(sigs) == 1 and signal_names[0] == "SHARED_DOCUMENT_AUTHOR":
                 desc = sigs[0].get("description", "").lower()
                 if any(phrase in desc for phrase in BOQ_BOILERPLATE_PHRASES):
                     # Skip adding this finding as it's likely boilerplate overlap
                     continue
 
-findings.append(
-    VerificationFinding(
-        verifier=self.verifier_id,
-        verification_layer=self.layer,
-        bidder_id=bid_a,
-        status=ComplianceState.REVIEW,
-        severity=severity,
-        claim={"involved_bidders": [bid_a, bid_b], "bidder_names": [name_a, name_b]},
-        observation={"matched_signals": signal_names, "signal_count": len(sigs)},
-        reason=explanation,
-        evidence=[ProvenanceRecord(
-            quote=s.get("evidence"),
-            source_type="COLLUSION_SIGNAL_EVIDENCE"
-        ) for s in sigs],
-        confidence=confidence,
-        machine_readable_flags=signal_names + ["COLLUSION_RISK_FLAG", "MULTI_BIDDER_REVIEW_REQUIRED"],
-        metadata={
-            "involved_bidders": [bid_a, bid_b],
-            "bidder_names": [name_a, name_b],
-            "signals": sigs,
-        },
-    )
-)
+            findings.append(
+                VerificationFinding(
+                    verifier=self.verifier_id,
+                    verification_layer=self.layer,
+                    bidder_id=bid_a,
+                    status=ComplianceState.REVIEW,
+                    severity=severity,
+                    claim={"involved_bidders": [bid_a, bid_b], "bidder_names": [name_a, name_b]},
+                    observation={"matched_signals": signal_names, "signal_count": len(sigs)},
+                    reason=explanation,
+                    evidence=[ProvenanceRecord(
+                        quote=s.get("evidence"),
+                        source_type="COLLUSION_SIGNAL_EVIDENCE"
+                    ) for s in sigs],
+                    confidence=confidence,
+                    machine_readable_flags=signal_names + ["COLLUSION_RISK_FLAG", "MULTI_BIDDER_REVIEW_REQUIRED"],
+                    metadata={
+                        "involved_bidders": [bid_a, bid_b],
+                        "bidder_names": [name_a, name_b],
+                        "signals": sigs,
+                    },
+                )
+            )
 
         # 6. If multiple bidders evaluated and no collusion detected, record positive audit
         if not findings and len(bidders) >= 2:
@@ -304,5 +320,10 @@ findings.append(
                     metadata={"bidders_screened": [b.get("id") for b in bidders]},
                 )
             )
+
+        # Extend with aggregator findings rather than returning twice
+        aggregator_findings = await self._aggregator.execute_forensics(context)
+        if aggregator_findings:
+            findings.extend(aggregator_findings)
 
         return findings

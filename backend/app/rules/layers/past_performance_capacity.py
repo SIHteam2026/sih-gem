@@ -22,7 +22,7 @@ try:
         VerificationFinding,
         VerificationLayer,
     )
-    from app.rules.engine import parse_numeric_value
+    from app.rules.engine import parse_numeric_value, evaluate_numeric_operator, is_unit_compatible, evaluate_numeric_threshold, currency_to_inr
     from app.rules.layers.base import BaseVerifier
 except ImportError:
     try:
@@ -87,8 +87,37 @@ class PastPerformanceCapacityVerifier(BaseVerifier):
 
         for req in perf_reqs:
             req_id = req.requirement_id
-            threshold = req.threshold_value
-            min_count = threshold if (threshold and threshold < 100) else 1  # Default benchmark
+            # Determine expected threshold and unit from requirement metadata
+            expected_val = req.threshold_value
+            expected_unit = getattr(req, "threshold_unit", None)
+            operator = req.operator or ">="
+            # If unit is missing, we cannot safely evaluate numeric comparisons
+            if expected_unit is None:
+                # For count‑based requirements, treat missing unit as a simple count threshold
+                if isinstance(expected_val, (int, float)):
+                    expected_unit = "COUNT"
+                else:
+                    # Ambiguous requirement – mark as UNVERIFIED for this bidder
+                    findings.append(
+                        VerificationFinding(
+                            verifier=self.verifier_id,
+                            verification_layer=self.layer,
+                            requirement_id=req_id,
+                            bidder_id=bid_id,
+                            status=ComplianceState.UNVERIFIED,
+                            severity=FindingSeverity.HIGH,
+                            claim=None,
+                            observation="Threshold unit missing for requirement.",
+                            reason=f"Requirement '{req.title or req_id}' lacks a threshold unit; cannot deterministically evaluate.",
+                            evidence=[],
+                            confidence=0.0,
+                            machine_readable_flags=["THRESHOLD_UNIT_MISSING"],
+                            metadata={"requirement_id": req_id},
+                        )
+                    )
+                    continue
+            # Set min_count for count‑type thresholds (default to 1 if not specified)
+            min_count = expected_val if expected_unit == "COUNT" else 1
 
             # Evaluate per bidder
             for b in (bidders or [{"id": None, "legal_name": "Bidder"}]):

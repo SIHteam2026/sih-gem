@@ -225,6 +225,31 @@ def parse_date_value(val: Any) -> Optional[date]:
 # Core Deterministic Evaluation Functions
 # ---------------------------------------------------------------------------
 
+# Additional Helper Utilities for Past Performance Verifier
+
+def normalize_capacity_to_annual(value: float, unit: str) -> float:
+    """Convert capacity per period to an annual amount.
+    Supports month, quarter, and year units. Returns the original value if unit unrecognized.
+    """
+    u = unit.strip().lower()
+    if "month" in u:
+        return value * 12
+    if "quarter" in u or "qtr" in u:
+        return value * 4
+    if "year" in u or "yr" in u:
+        return value
+    return value
+
+def currency_to_inr(value: float, currency: str) -> tuple[float | None, bool]:
+    """Convert a monetary value to INR if the currency is INR.
+    Returns (converted_value, True) for INR, otherwise (None, False).
+    """
+    if not currency:
+        return None, False
+    if currency.strip().upper() in {"INR", "RS", "RUPEES", "₹"}:
+        return value, True
+    return None, False
+
 def evaluate_numeric_operator(
     operator: str,
     expected_val: float,
