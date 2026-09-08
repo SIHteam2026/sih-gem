@@ -55,25 +55,30 @@ export default function LivingContextSection({
   else if (hour >= 21) greeting = "Good night Sir!";
 
   return (
-    <div className={`w-full max-w-[1000px] flex flex-col font-['Stack_Sans_Text',_sans-serif] tracking-tight ${className}`}>
-      {/* 2. Header & Structural Breakdown */}
-      <h1 className="text-[40px] font-medium text-[#111827] leading-tight ml-[24px] mb-[24px]">
-        Opal Workspace
-      </h1>
-
-      <div className="ml-[24px] flex flex-col gap-1">
-        <p className="text-[20px] text-[#111827] font-normal">{greeting}</p>
-        <p className="text-[15px] text-[#6b7280]">{dynamicInsight}</p>
+    <div className={`w-full max-w-[1040px] flex flex-col font-sans tracking-tight ${className}`}>
+      {/* Header & Structural Breakdown */}
+      <div className="mb-6">
+        <h1 className="text-3xl sm:text-4xl font-bold text-[#111827] leading-tight mb-2">
+          Opal Workspace
+        </h1>
+        <p className="text-lg text-[#111827] font-medium">{greeting}</p>
+        <p className="text-sm text-[#6b7280] mt-0.5">{dynamicInsight}</p>
       </div>
 
-      <div className="mt-[64px] ml-[24px] flex items-center gap-[12px] mb-[32px]">
-        <List className="w-[24px] h-[24px] text-[#10b981]" />
-        <h2 className="text-[22px] text-[#10b981] font-normal">Your Projects</h2>
+      <div className="mt-8 flex items-center gap-2.5 mb-6">
+        <List className="w-5 h-5 text-emerald-600" />
+        <h2 className="text-xl font-semibold text-emerald-700">Your Projects</h2>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[24px] ml-[24px]">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {loading ? (
-          <div className="text-sm text-gray-500">Loading projects...</div>
+          <div className="col-span-full py-12 text-center text-sm text-gray-500">
+            Loading projects...
+          </div>
+        ) : procurements.length === 0 ? (
+          <div className="col-span-full p-8 rounded-2xl border border-dashed border-gray-200 text-center text-sm text-gray-500">
+            No projects registered yet. You can ingest sample tenders via the GeM Gateway.
+          </div>
         ) : (
           procurements.map((project) => {
             const statusStr = (project.status || "New").toUpperCase();
@@ -83,23 +88,23 @@ export default function LivingContextSection({
               <Link
                 key={project.id}
                 href={`/workspace/${project.id}`}
-                className="group block bg-white p-[24px] rounded-3xl shadow-[-12px_-12px_24px_-4px_rgba(0,0,0,0.04)] flex flex-col justify-between min-h-[200px] hover:shadow-[-12px_-12px_32px_-2px_rgba(0,0,0,0.07)] transition-shadow"
+                className="group block bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs hover:border-slate-300 hover:shadow-md transition-all flex flex-col justify-between min-h-[200px]"
               >
                 <div>
-                  <h3 className="font-manrope text-[#111827] font-bold text-[19px] tracking-tight leading-[1.3] line-clamp-3 pb-2 group-hover:text-[#163a5f] transition-colors">
+                  <h3 className="font-bold text-[#111827] text-lg tracking-tight leading-snug line-clamp-2 pb-2 group-hover:text-[#163a5f] transition-colors">
                     {project.title}
                   </h3>
-                  <div className="flex items-center -mt-1">
-                    <span className="font-sans px-2 py-0.5 text-[11px] font-medium rounded-full bg-lime-50/50 border border-lime-200/60 text-lime-700">
+                  <div className="flex items-center">
+                    <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-50 border border-emerald-200/70 text-emerald-700">
                       {badgeText}
                     </span>
                   </div>
                 </div>
-                <div className="mt-auto pt-[16px] space-y-1.5">
-                  <p className="font-serif italic text-slate-400 text-[13.5px] truncate">
-                    {project.organization || "Ministry of Health and Family Welfare"}
+                <div className="mt-6 pt-4 border-t border-slate-100 space-y-1">
+                  <p className="text-slate-500 text-xs font-medium truncate">
+                    {project.organization || "Ministry of Petroleum and Natural Gas"}
                   </p>
-                  <p className="font-manrope text-slate-400 text-[13px]">
+                  <p className="text-slate-400 text-xs font-mono">
                     Tender date: {new Date(project.created_at || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '.')}
                   </p>
                 </div>

@@ -68,50 +68,46 @@ export default function Navbar() {
         >
           <Link
             href="/procurements"
-            className={`focus-ring flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            className={`focus-ring flex items-center gap-1 rounded-full px-3.5 py-1 text-xs font-medium transition-all ${
               pathname.startsWith("/procurements") || pathname.startsWith("/tenders") || pathname.startsWith("/submissions")
                 ? "bg-white text-[#111827] shadow-xs"
                 : "text-[#4b5563] hover:text-[#111827]"
             }`}
           >
             <span>Procurements</span>
-            <ChevronDown className="h-3 w-3 opacity-60" />
           </Link>
 
           <Link
             href="/history"
-            className={`focus-ring flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            className={`focus-ring flex items-center gap-1 rounded-full px-3.5 py-1 text-xs font-medium transition-all ${
               pathname === "/history"
                 ? "bg-white text-[#111827] shadow-xs"
                 : "text-[#4b5563] hover:text-[#111827]"
             }`}
           >
-            <span>Activity</span>
-            <ChevronDown className="h-3 w-3 opacity-60" />
+            <span>Audit Trail</span>
           </Link>
 
           <Link
             href="/tender"
-            className={`focus-ring flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            className={`focus-ring flex items-center gap-1 rounded-full px-3.5 py-1 text-xs font-medium transition-all ${
               pathname === "/tender"
                 ? "bg-white text-[#111827] shadow-xs"
                 : "text-[#4b5563] hover:text-[#111827]"
             }`}
           >
-            <span>Insights</span>
-            <ChevronDown className="h-3 w-3 opacity-60" />
+            <span>Quick Audit</span>
           </Link>
 
           <Link
             href="/mock-gem"
-            className={`focus-ring flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            className={`focus-ring flex items-center gap-1 rounded-full px-3.5 py-1 text-xs font-medium transition-all ${
               pathname === "/mock-gem"
-                ? "bg-white text-[#111827] shadow-xs font-mono"
+                ? "bg-white text-[#111827] shadow-xs"
                 : "text-[#4b5563] hover:text-[#111827]"
             }`}
           >
-            <span>More</span>
-            <ChevronDown className="h-3 w-3 opacity-60" />
+            <span>GeM Gateway</span>
           </Link>
         </nav>
 

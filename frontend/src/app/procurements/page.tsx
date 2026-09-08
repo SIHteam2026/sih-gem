@@ -133,10 +133,10 @@ export default function WorkspaceShelfPage() {
         <div className="mb-8 sm:mb-10 flex items-center justify-between">
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#111827]">
-              Opal Workspace
+              Procurements
             </h1>
-            <p className="mt-1 text-xs text-[#64748b]">
-              Showing the latest 5 active procurement workspaces.
+            <p className="mt-1 text-sm text-[#64748b]">
+              All active and registered government procurement cases on GeM.
             </p>
           </div>
 
@@ -144,7 +144,7 @@ export default function WorkspaceShelfPage() {
             type="button"
             onClick={handleRefresh}
             disabled={loading}
-            className="focus-ring inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#64748b] hover:text-[#111827] rounded-md transition-colors disabled:opacity-50 cursor-pointer"
+            className="focus-ring inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-[#64748b] hover:text-[#111827] bg-white border border-slate-200 rounded-lg shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
             aria-label="Refresh workspace"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />

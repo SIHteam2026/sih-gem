@@ -149,13 +149,13 @@ export default function MockGeMSimulatorPage() {
         <div className="text-center space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-semibold uppercase tracking-wider">
             <Building2 className="w-3.5 h-3.5 text-blue-400" />
-            Mock GeM Development Simulator
+            GeM Integration Gateway
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            External Procurement Source Simulator
+            GeM Integration Gateway
           </h1>
           <p className="text-sm sm:text-base text-slate-400 max-w-2xl mx-auto">
-            Simulate incoming procurement packages from an external source (GeM) into OPAL canonical entities without officer-facing file uploads.
+            Simulate and ingest procurement packages from Government e-Marketplace (GeM) into OPAL canonical entities.
           </p>
         </div>
 

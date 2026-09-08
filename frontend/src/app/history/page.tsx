@@ -62,25 +62,25 @@ export default function HistoryPage() {
       <Navbar />
       <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
         {/* Page Header */}
-        <div className="flex flex-col justify-between gap-5 border-b border-[#d9ddd9] pb-8 sm:flex-row sm:items-end">
+        <div className="flex flex-col justify-between gap-5 border-b border-slate-200 pb-8 sm:flex-row sm:items-end">
           <div>
-            <p className="eyebrow font-mono uppercase text-xs tracking-wider text-[#64748b]">
-              Record of activity
+            <p className="font-mono uppercase text-xs font-semibold tracking-wider text-slate-500">
+              Statutory Record of Activity
             </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-[-.035em] text-[#162333] sm:text-4xl">
-              Review history
+            <h1 className="mt-1.5 text-3xl sm:text-4xl font-bold tracking-tight text-[#111827]">
+              Audit Trail & Activity Log
             </h1>
-            <p className="mt-3 max-w-lg text-sm leading-6 text-[#65717b]">
-              A chronological record of the latest 10 completed statutory document checks and procurement workspaces.
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-500">
+              A chronological ledger of completed statutory document verifications, evidence checks, and procurement workspaces.
             </p>
           </div>
           <button
             onClick={load}
             disabled={loading}
-            className="focus-ring inline-flex items-center gap-2 self-start rounded-lg border border-[#cfd5d5] bg-[#fffefa] px-4 py-2.5 text-sm font-medium text-[#334955] transition-colors hover:bg-white disabled:opacity-50 sm:self-auto cursor-pointer"
+            className="focus-ring inline-flex items-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-2xs transition-all hover:bg-slate-50 hover:shadow-xs disabled:opacity-50 sm:self-auto cursor-pointer"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh Log
           </button>
         </div>
 

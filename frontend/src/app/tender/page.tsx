@@ -114,24 +114,25 @@ export default function ReviewPage() {
     <div className="min-h-screen bg-[#f7f6f2]">
       <Navbar />
       <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
-        <div className="flex flex-col justify-between gap-6 border-b border-[#d9ddd9] pb-8 sm:flex-row sm:items-end">
+        <div className="flex flex-col justify-between gap-6 border-b border-slate-200 pb-8 sm:flex-row sm:items-end">
           <div>
-            <p className="eyebrow">New review</p>
-            <h1 className="mt-2 text-3xl font-medium tracking-[-.035em] text-[#162333] sm:text-4xl">
-              Prepare a procurement review
+            <p className="font-mono uppercase text-xs font-semibold tracking-wider text-slate-500">
+              Interactive Scrutiny Tool
+            </p>
+            <h1 className="mt-1.5 text-3xl sm:text-4xl font-bold tracking-tight text-[#111827]">
+              Tender & Bidder Quick Audit
             </h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-[#65717b]">
-              Add the tender specification and multiple bidder evidence files (PDF, CSV, DOCX, XLSX, TXT).
-              Requirements will be extracted and verified against all submitted documents.
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-500">
+              Upload a tender specification and one or more bidder evidence files (PDF, CSV, DOCX, XLSX, TXT) for instant clause extraction, claim grounding, and deterministic verification.
             </p>
           </div>
           {analysis && (
-            <p className="border-l border-[#b9c8d0] pl-4 text-sm leading-5 text-[#36566d]">
-              <span className="block font-medium text-[#163a5f]">
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3.5 text-xs text-slate-700">
+              <span className="block font-bold text-[#163a5f]">
                 {requirements.length} requirements identified
               </span>
-              Choose a requirement to inspect evidence across {bidderFiles.length} bidder document(s).
-            </p>
+              <span>Inspect evidence across {bidderFiles.length} bidder document(s).</span>
+            </div>
           )}
         </div>
 

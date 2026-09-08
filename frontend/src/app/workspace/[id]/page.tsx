@@ -73,78 +73,77 @@ export default function WorkspaceDetailPage() {
     : "";
 
   return (
-    <div className="min-h-screen bg-white font-['Stack_Sans_Text',_sans-serif]">
+    <div className="min-h-screen bg-white font-sans text-[#111827]">
       <Navbar />
 
-      <main className="w-full max-w-[1200px] mx-auto pt-10 pb-16 px-6 md:px-12">
-
+      <main className="w-full max-w-[1100px] mx-auto pt-10 pb-16 px-6 md:px-12">
         {loading && (
-          <p className="text-[14px] text-[#9ca3af]">Loading project workspace…</p>
+          <div className="py-20 text-center text-sm text-slate-400">Loading project workspace…</div>
         )}
         {error && (
-          <p className="text-[14px] text-red-500">{error}</p>
+          <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm">{error}</div>
         )}
 
         {!loading && !error && procurement && (
           <>
             {/* ── PROJECT TITLE ── */}
-            <h1 className="text-[40px] font-medium text-[#111827] leading-tight mb-[20px] tracking-tight max-w-[680px]">
+            <h1 className="text-3xl sm:text-4xl font-bold text-[#111827] leading-tight mb-4 tracking-tight max-w-3xl">
               {procurement.title}
             </h1>
 
             {/* ── AI SUMMARY DESCRIPTION ── */}
-            <p className="text-[15px] text-[#9ca3af] leading-relaxed max-w-[620px] mb-[20px]">
+            <p className="text-sm sm:text-[15px] text-slate-500 leading-relaxed max-w-2xl mb-6">
               {description}
             </p>
 
             {/* ── METADATA + TENDER PILL ROW ── */}
             <div className="flex items-end justify-between pr-0 mb-0">
               {/* Left: ministry + tender date */}
-              <div className="flex flex-col gap-[3px]">
-                <p className="text-[14px] text-[#6b7280] font-normal">
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm text-[#374151] font-medium">
                   {procurement.organization}
                 </p>
-                <p className="text-[13px] text-[#9ca3af]">
+                <p className="text-xs text-slate-400 font-mono">
                   Tender date: {tenderDateStr}
                 </p>
               </div>
 
               {/* Right: Tender pill */}
-              <div className="flex items-center gap-1.5 bg-yellow-100 border border-yellow-200 text-yellow-800 text-[13px] font-medium px-3 py-1 rounded-full shrink-0">
-                <FileText className="w-3.5 h-3.5 text-yellow-600" />
+              <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold px-3 py-1 rounded-full shrink-0 shadow-2xs">
+                <FileText className="w-3.5 h-3.5 text-amber-600" />
                 Tender
               </div>
             </div>
 
             {/* ── HORIZONTAL DIVIDER ── */}
-            <hr className="border-[#f1f5f9] mt-5 mb-8" />
+            <hr className="border-slate-100 mt-6 mb-8" />
 
             {/* ── LOWER TWO-COLUMN SECTION ── */}
             <div className="flex flex-col md:flex-row gap-10 items-start justify-between">
 
               {/* LEFT PANEL — Deadline + Officer action */}
-              <div className="flex flex-col gap-5 min-w-[220px]">
+              <div className="flex flex-col gap-4 min-w-[240px]">
 
                 {/* Deadline string */}
                 {formattedDeadline ? (
                   <div>
-                    <p className="text-[14px] text-[#374151]">
+                    <p className="text-sm text-slate-600">
                       Bidder Submission deadline was
                     </p>
                     <p
-                      className={`font-semibold text-[16px] mt-0.5 ${
-                        isDeadlinePast ? "text-red-600" : "text-[#374151]"
+                      className={`font-bold text-base mt-0.5 ${
+                        isDeadlinePast ? "text-rose-600" : "text-slate-800"
                       }`}
                     >
                       {formattedDeadline}
                     </p>
                   </div>
                 ) : (
-                  <p className="text-[14px] text-[#9ca3af]">No deadline recorded.</p>
+                  <p className="text-xs text-slate-400">No deadline recorded.</p>
                 )}
 
                 {/* Situational message */}
-                <p className="text-[13.5px] text-[#374151] leading-snug max-w-[220px]">
+                <p className="text-xs sm:text-sm text-slate-700 leading-snug max-w-[260px]">
                   {isDeadlinePast
                     ? "Sir, you are clear for the Technical Scrutiny of all the submitted bidders!"
                     : "Sir, the submission deadline has not yet passed. Technical scrutiny is not yet available."}
@@ -154,8 +153,8 @@ export default function WorkspaceDetailPage() {
                 {isDeadlinePast ? (
                   <Link
                     href={`/procurements/${procurement.id}`}
-                    className="inline-flex items-center justify-center font-semibold text-[12px] tracking-wide uppercase text-white px-4 py-2 rounded-md transition-colors"
-                    style={{ backgroundColor: "#61BF03" }}
+                    className="inline-flex items-center justify-center font-bold text-xs tracking-wider uppercase text-white px-5 py-2.5 rounded-xl transition-all shadow-xs hover:shadow-md hover:brightness-105 active:scale-[0.98] w-fit"
+                    style={{ backgroundColor: "#16a34a" }}
                   >
                     Technical Scrutiny
                   </Link>
@@ -163,8 +162,7 @@ export default function WorkspaceDetailPage() {
                   <span
                     aria-disabled="true"
                     title="Deadline has not passed yet"
-                    className="inline-flex items-center justify-center font-semibold text-[12px] tracking-wide uppercase text-white px-4 py-2 rounded-md cursor-not-allowed select-none"
-                    style={{ backgroundColor: "#d1d5db" }}
+                    className="inline-flex items-center justify-center font-bold text-xs tracking-wider uppercase text-white px-5 py-2.5 rounded-xl cursor-not-allowed select-none w-fit bg-slate-300"
                   >
                     Technical Scrutiny
                   </span>
@@ -172,29 +170,29 @@ export default function WorkspaceDetailPage() {
               </div>
 
               {/* RIGHT PANEL — Bidder Submissions */}
-              <div className="w-full max-w-[360px] flex flex-col">
-                <h2 className="font-semibold text-[#111827] text-[15px] mb-3 text-right">
+              <div className="w-full max-w-sm flex flex-col">
+                <h2 className="font-bold text-slate-900 text-sm mb-3 md:text-right">
                   Bidder Submissions
                 </h2>
                 
-                <div className="bg-yellow-50/60 rounded-xl p-5 w-full">
+                <div className="bg-amber-50/70 border border-amber-100/90 rounded-2xl p-5 w-full shadow-xs">
                   {allSubmissions.length === 0 ? (
-                    <p className="text-[13px] text-[#9ca3af]">
+                    <p className="text-xs text-slate-400">
                       No bidder submissions registered yet.
                     </p>
                   ) : (
-                    <ul className="divide-y divide-yellow-100">
+                    <ul className="divide-y divide-amber-100/80">
                       {allSubmissions.map((sub) => (
                         <li
                           key={sub.id}
-                          className="flex items-center justify-between py-3"
+                          className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
                         >
-                          <span className="text-[14px] text-[#111827]">
+                          <span className="text-sm font-medium text-slate-900">
                             {sub.bidder?.legal_name || "Unknown Bidder"}
                           </span>
                           <Link
                             href={`/submissions/${sub.id}`}
-                            className="shrink-0 ml-4 text-orange-400 hover:text-orange-500 transition-colors"
+                            className="shrink-0 ml-4 text-amber-500 hover:text-amber-600 transition-colors p-1"
                             aria-label={`Open submission for ${sub.bidder?.legal_name || sub.id}`}
                           >
                             <FileText className="w-5 h-5" />
