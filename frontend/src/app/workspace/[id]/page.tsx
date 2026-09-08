@@ -62,9 +62,24 @@ export default function WorkspaceDetailPage() {
       })
     : null;
 
+  // Dynamic description summarizing requirements if available
+  const requirementsList = firstTender?.requirements;
+  let dynamicReqSummary = "";
+  if (requirementsList && Array.isArray(requirementsList) && requirementsList.length > 0) {
+    const summaryParts = requirementsList
+      .map((r: any) => r.title || r.category)
+      .filter(Boolean)
+      .slice(0, 5);
+    if (summaryParts.length > 0) {
+      dynamicReqSummary = `Mandatory criteria: ${summaryParts.join(", ")}.`;
+    }
+  }
+
   const description =
     firstTender?.description ||
-    "This procurement workspace contains bid compliance verification records from GeM. Evidence is extracted, requirements are matched, and findings are prepared for officer review.";
+    (dynamicReqSummary
+      ? `Turnkey procurement for ${firstTender?.title || procurement?.title || "this tender"}. ${dynamicReqSummary}`
+      : "This procurement workspace contains bid compliance verification records from GeM. Evidence is extracted, requirements are matched, and findings are prepared for officer review.");
 
   const tenderDateStr = procurement
     ? new Date(procurement.created_at || Date.now())
