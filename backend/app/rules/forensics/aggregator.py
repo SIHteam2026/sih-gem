@@ -241,18 +241,20 @@ class CrossBidderForensicAggregator:
             has_medium = any(s.strength == SignalStrength.MEDIUM for s in sigs)
 
             # Severity and Confidence Calibration with Multi-Signal Reinforcement
+            # Note: Confidence is calibrated as an expert heuristic alignment score [0.0 - 1.0]
+            # reflecting signal strength and cross-category convergence, NOT a mathematically validated probability.
             if has_critical or len(signal_types) >= 3 or (has_high and len(sigs) >= 3):
                 severity = FindingSeverity.CRITICAL
-                confidence = 0.98
+                confidence = 0.95
             elif has_high or len(signal_types) >= 2 or len(sigs) >= 2:
                 severity = FindingSeverity.HIGH
-                confidence = 0.92
+                confidence = 0.88
             elif has_medium:
                 severity = FindingSeverity.MEDIUM
-                confidence = 0.84
+                confidence = 0.78
             else:
                 severity = FindingSeverity.LOW
-                confidence = 0.70
+                confidence = 0.65
 
             # Determine whether this is primarily a related-entity disclosure
             is_related_entity = "RELATED_CORPORATE_ENTITY" in signal_codes and len(sigs) == 1
@@ -312,6 +314,8 @@ class CrossBidderForensicAggregator:
                     "compared_documents": matched_docs,
                     "matched_fields": matched_fields,
                     "confidence": confidence,
+                    "confidence_basis": "HEURISTIC_SIGNAL_CONVERGENCE",
+                    "calibration_notice": "Confidence represents an expert heuristic indicator alignment score, not a frequentist statistical probability.",
                     "signals": [s.model_dump() for s in sigs],
                     "cluster_bidders": cluster_context,
                     "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -356,13 +360,13 @@ class CrossBidderForensicAggregator:
                     claim={"bidder_count": len(all_bidder_ids)},
                     observation="No cross-bidder metadata, contact, address, banking, or formatting linkages detected.",
                     reason=(
-                        f"Multi-bidder cross-forensic screening clear across {len(all_bidder_ids)} competing submissions. "
-                        "Evaluated digital metadata, corporate identity tie-ins, financial instruments, and formatting clones."
+                        f"Multi-bidder cross-forensic screening clear across {len(all_bidder_ids)} competing submissions: "
+                        "no suspicious linkages detected across digital metadata, corporate identity, financial instruments, or narrative formatting."
                     ),
                     confidence=1.0,
                     machine_readable_flags=[
                         "NO_COLLUSION_DETECTED",
-                        "BIDDER_INDEPENDENCE_CONFIRMED",
+                        "NO_SUSPICIOUS_LINKAGE_DETECTED",
                         "FORENSIC_SCREENING_CLEAR",
                     ],
                     metadata={

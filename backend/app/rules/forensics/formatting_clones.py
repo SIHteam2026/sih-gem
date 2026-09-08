@@ -44,6 +44,20 @@ STANDARD_STATUTORY_BOILERPLATE = [
     "manufacturer authorization form maf for tender",
     "duly authorized to sign this authorization on behalf of",
     "commercial bid schedule of rates boq",
+    "commercial bid schedule of rates",
+    "commercial bid and schedule of rates",
+    "schedule of rates boq",
+    "schedule of rates",
+    "bill of quantities",
+    "total evaluated commercial bid price",
+    "online multichannel water quality analyzer units",
+    "submersible sensor probes telemetry modules",
+    "submersible sensor probes and telemetry modules",
+    "installation testing calibration commissioning",
+    "installation testing calibration and commissioning",
+    "comprehensive annual maintenance warranty",
+    "comprehensive annual maintenance and warranty",
+    "freight transit insurance",
     "online water quality monitoring sensor network",
     "turnkey procurement of industrial water quality monitoring",
     "compliance to technical specifications and scope of work",
@@ -188,6 +202,15 @@ def extract_meaningful_paragraphs(
     if not text:
         return results
 
+    # If the document is explicitly a financial schedule / BOQ, standard line item tables must not be treated as narrative proposals
+    doc_type = str(getattr(doc, "document_type", "") or "").upper()
+    fname = str(getattr(doc, "filename", "") or "").lower()
+    is_financial_boq = (
+        doc_type in ("FINANCIAL_BOQ", "BOQ", "PRICE_BID", "SCHEDULE_OF_RATES")
+        or "_boq_" in fname
+        or "commercial_boq" in fname
+    )
+
     # Split into paragraphs or substantive sentences
     raw_paras = re.split(r"\n\s*\n|\.\s+", text)
     for p in raw_paras:
@@ -200,17 +223,22 @@ def extract_meaningful_paragraphs(
             continue
 
         lower_p = target_eval.lower()
+        norm_p = re.sub(r"[^a-z0-9\s]", " ", lower_p)
+        norm_p = re.sub(r"\s+", " ", norm_p).strip()
 
         # 1. Filter out standard statutory boilerplate
-        if any(b in lower_p for b in STANDARD_STATUTORY_BOILERPLATE):
+        if any(b in lower_p for b in STANDARD_STATUTORY_BOILERPLATE) or any(b in norm_p for b in STANDARD_STATUTORY_BOILERPLATE):
             continue
 
         # 2. Filter out tender-provided template text
-        if tender_index.is_phrase_in_tender(target_eval):
+        if tender_index.is_phrase_in_tender(target_eval) or tender_index.is_phrase_in_tender(norm_p):
             continue
 
-        norm_p = re.sub(r"[^a-z0-9\s]", " ", lower_p)
-        norm_p = re.sub(r"\s+", " ", norm_p).strip()
+        # 3. For financial BOQ schedules, suppress standard item pricing lines
+        if is_financial_boq:
+            if any(term in norm_p for term in ("item", "unit rate", "qty", "total inr", "subtotal", "taxes gst", "evaluated commercial bid")):
+                continue
+
         if len(norm_p) >= 35:
             results.append((norm_p, raw_clean[:180]))
 

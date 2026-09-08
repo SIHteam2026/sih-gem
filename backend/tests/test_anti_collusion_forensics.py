@@ -564,7 +564,8 @@ class TestAntiCollusionForensics(unittest.IsolatedAsyncioTestCase):
         pass_findings = [f for f in findings if f.status == ComplianceState.PASS]
         self.assertEqual(len(pass_findings), 1)
         self.assertIn("NO_COLLUSION_DETECTED", pass_findings[0].machine_readable_flags)
-        self.assertIn("BIDDER_INDEPENDENCE_CONFIRMED", pass_findings[0].machine_readable_flags)
+        self.assertIn("NO_SUSPICIOUS_LINKAGE_DETECTED", pass_findings[0].machine_readable_flags)
+        self.assertIn("FORENSIC_SCREENING_CLEAR", pass_findings[0].machine_readable_flags)
 
     # -----------------------------------------------------------------------
     # 7. Human Decision Boundary & Provenance Retention

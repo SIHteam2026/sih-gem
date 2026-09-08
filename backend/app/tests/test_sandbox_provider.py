@@ -28,6 +28,7 @@ def test_sandbox_settings_loading(monkeypatch):
 
 def test_sandbox_settings_missing_base_url(monkeypatch):
     monkeypatch.delenv("SANDBOX_BASE_URL", raising=False)
+    monkeypatch.delenv("SANDBOX_AUTH_BASE_URL", raising=False)
     with pytest.raises(ValueError, match="SANDBOX_BASE_URL environment variable is required"):
         SandboxSettings.load_from_env()
 
