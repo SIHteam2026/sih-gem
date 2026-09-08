@@ -25,6 +25,7 @@ from app.models.financial import (
     BidderFinancialEvaluation,
     CommercialEvaluationStatus,
     Cover2State,
+    FinancialAnomalySignal,
     TechnicalEligibilityState,
 )
 from app.services.financial_evaluation_service import (
@@ -33,10 +34,17 @@ from app.services.financial_evaluation_service import (
     check_boq_parity,
     normalize_commercial_bid,
     calculate_anomaly_signals,
+    detect_pricing_pattern_anomalies,
+    detect_abnormally_low_bid_signals,
     execute_cover2_financial_evaluation,
     get_procurement_financial_evaluation_service,
     CPCL_EXPECTED_BOQ,
+    ALB_ESTIMATE_VARIANCE_THRESHOLD,
 )
+from app.rules.layers.financial_commercial import FinancialCommercialVerifier
+from app.models.verification import VerificationContext
+from app.models.tender_contract import RequirementEvaluationContract, CanonicalEvaluationField, RequirementCategory, EvaluationMode
+from app.models.evaluation import ComplianceState
 from app.api.mock_gem_router import create_cpcl_demo_payload
 from app.services.ingestion_service import ingest_procurement
 from app.db.client import (
@@ -702,6 +710,403 @@ class TestCover2FinancialEvaluation(unittest.TestCase):
             self.assertIn("BIDDER_EXCLUDED_FROM_COVER_2", event_names)
             self.assertIn("BIDDER_UNLOCKED_FOR_COVER_2", event_names)
             self.assertIn("COVER_2_EVALUATION_COMPLETED", event_names)
+
+        asyncio.run(_run())
+
+    def test_20_pricing_multiplier_pattern_detected(self):
+        """20. Verify detection of uniform pricing multiplier pattern (k != 1.0) across multi-item BOQs."""
+        b1 = BidderFinancialEvaluation(
+            procurement_id="p-multi",
+            tender_id="t-multi",
+            bidder_id="bidder-base",
+            bidder_name="Base Systems Ltd",
+            submission_id="sub-base",
+            technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True,
+            evaluated_amount=10000.0,
+            line_items=[
+                BOQItemEvaluation(item_number=1, description="Core Server Unit", quantity=1.0, unit_rate=1000.0, total_price=1000.0),
+                BOQItemEvaluation(item_number=2, description="Network Switch 24P", quantity=1.0, unit_rate=2000.0, total_price=2000.0),
+                BOQItemEvaluation(item_number=3, description="Rack Mount Kit", quantity=1.0, unit_rate=3000.0, total_price=3000.0),
+                BOQItemEvaluation(item_number=4, description="Power Backup 5kVA", quantity=1.0, unit_rate=4000.0, total_price=4000.0),
+            ],
+        )
+        b2 = BidderFinancialEvaluation(
+            procurement_id="p-multi",
+            tender_id="t-multi",
+            bidder_id="bidder-scaled",
+            bidder_name="Scaled Pricing Corp",
+            submission_id="sub-scaled",
+            technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True,
+            evaluated_amount=11500.0,
+            line_items=[
+                # Each item exactly 1.15x of bidder 1
+                BOQItemEvaluation(item_number=1, description="Core Server Unit", quantity=1.0, unit_rate=1150.0, total_price=1150.0),
+                BOQItemEvaluation(item_number=2, description="Network Switch 24P", quantity=1.0, unit_rate=2300.0, total_price=2300.0),
+                BOQItemEvaluation(item_number=3, description="Rack Mount Kit", quantity=1.0, unit_rate=3450.0, total_price=3450.0),
+                BOQItemEvaluation(item_number=4, description="Power Backup 5kVA", quantity=1.0, unit_rate=4600.0, total_price=4600.0),
+            ],
+        )
+
+        signals = detect_pricing_pattern_anomalies([b1, b2])
+        mult_sig = next((s for s in signals if s.signal_type == "PRICING_MULTIPLIER_DETECTED"), None)
+
+        self.assertIsNotNone(mult_sig, "PRICING_MULTIPLIER_DETECTED signal must be emitted")
+        self.assertEqual(mult_sig.severity, "WARNING")
+        self.assertEqual(mult_sig.decision_authority, "HUMAN_PROCUREMENT_OFFICER")
+        self.assertTrue(mult_sig.requires_officer_review)
+        self.assertIn("Base Systems Ltd", mult_sig.bidders_involved)
+        self.assertIn("Scaled Pricing Corp", mult_sig.bidders_involved)
+        self.assertAlmostEqual(mult_sig.metric_value, 0.8696, delta=0.3)  # ratio k around 0.87 or 1.15
+
+    def test_21_identical_pricing_pattern_detected(self):
+        """21. Verify detection of identical unit rates across competitive items (k = 1.0)."""
+        b1 = BidderFinancialEvaluation(
+            procurement_id="p-ident",
+            tender_id="t-ident",
+            bidder_id="bidder-id-1",
+            bidder_name="Vendor One Ltd",
+            submission_id="sub-v1",
+            technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True,
+            evaluated_amount=6000.0,
+            line_items=[
+                BOQItemEvaluation(item_number=1, description="Item A", quantity=1.0, unit_rate=1000.0, total_price=1000.0),
+                BOQItemEvaluation(item_number=2, description="Item B", quantity=1.0, unit_rate=2000.0, total_price=2000.0),
+                BOQItemEvaluation(item_number=3, description="Item C", quantity=1.0, unit_rate=3000.0, total_price=3000.0),
+            ],
+        )
+        b2 = BidderFinancialEvaluation(
+            procurement_id="p-ident",
+            tender_id="t-ident",
+            bidder_id="bidder-id-2",
+            bidder_name="Vendor Two Ltd",
+            submission_id="sub-v2",
+            technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True,
+            evaluated_amount=6000.0,
+            line_items=[
+                BOQItemEvaluation(item_number=1, description="Item A", quantity=1.0, unit_rate=1000.0, total_price=1000.0),
+                BOQItemEvaluation(item_number=2, description="Item B", quantity=1.0, unit_rate=2000.0, total_price=2000.0),
+                BOQItemEvaluation(item_number=3, description="Item C", quantity=1.0, unit_rate=3000.0, total_price=3000.0),
+            ],
+        )
+
+        signals = detect_pricing_pattern_anomalies([b1, b2])
+        ident_sig = next((s for s in signals if s.signal_type == "IDENTICAL_PRICING_PATTERN"), None)
+
+        self.assertIsNotNone(ident_sig, "IDENTICAL_PRICING_PATTERN signal must be emitted")
+        self.assertEqual(ident_sig.severity, "WARNING")
+        self.assertEqual(ident_sig.decision_authority, "HUMAN_PROCUREMENT_OFFICER")
+        self.assertEqual(ident_sig.metric_value, 3.0)
+
+    def test_22_high_vector_correlation_detected(self):
+        """22. Verify detection of high Pearson vector correlation (rho > 0.995)."""
+        b1 = BidderFinancialEvaluation(
+            procurement_id="p-corr",
+            tender_id="t-corr",
+            bidder_id="bidder-c1",
+            bidder_name="Corr Bidder Alpha",
+            submission_id="sub-ca",
+            technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True,
+            evaluated_amount=15000.0,
+            line_items=[
+                BOQItemEvaluation(item_number=1, description="Component 1", quantity=1.0, unit_rate=1000.0, total_price=1000.0),
+                BOQItemEvaluation(item_number=2, description="Component 2", quantity=1.0, unit_rate=2000.0, total_price=2000.0),
+                BOQItemEvaluation(item_number=3, description="Component 3", quantity=1.0, unit_rate=4000.0, total_price=4000.0),
+                BOQItemEvaluation(item_number=4, description="Component 4", quantity=1.0, unit_rate=8000.0, total_price=8000.0),
+            ],
+        )
+        b2 = BidderFinancialEvaluation(
+            procurement_id="p-corr",
+            tender_id="t-corr",
+            bidder_id="bidder-c2",
+            bidder_name="Corr Bidder Beta",
+            submission_id="sub-cb",
+            technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True,
+            evaluated_amount=15500.0,
+            line_items=[
+                # Highly correlated relative price vector
+                BOQItemEvaluation(item_number=1, description="Component 1", quantity=1.0, unit_rate=1050.0, total_price=1050.0),
+                BOQItemEvaluation(item_number=2, description="Component 2", quantity=1.0, unit_rate=2080.0, total_price=2080.0),
+                BOQItemEvaluation(item_number=3, description="Component 3", quantity=1.0, unit_rate=4120.0, total_price=4120.0),
+                BOQItemEvaluation(item_number=4, description="Component 4", quantity=1.0, unit_rate=8250.0, total_price=8250.0),
+            ],
+        )
+
+        signals = detect_pricing_pattern_anomalies([b1, b2])
+        corr_sig = next((s for s in signals if s.signal_type == "HIGH_VECTOR_CORRELATION"), None)
+
+        self.assertIsNotNone(corr_sig, "HIGH_VECTOR_CORRELATION signal must be emitted")
+        self.assertGreater(corr_sig.metric_value, 0.995)
+        self.assertEqual(corr_sig.decision_authority, "HUMAN_PROCUREMENT_OFFICER")
+
+    def test_23_shared_rounding_anomaly_detected(self):
+        """23. Verify detection of shared non-standard decimal rounding across items."""
+        b1 = BidderFinancialEvaluation(
+            procurement_id="p-round",
+            tender_id="t-round",
+            bidder_id="bidder-r1",
+            bidder_name="Decimal Alpha",
+            submission_id="sub-ra",
+            technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True,
+            evaluated_amount=5000.0,
+            line_items=[
+                BOQItemEvaluation(item_number=1, description="Work Component 1", quantity=1.0, unit_rate=1500.77, total_price=1500.77),
+                BOQItemEvaluation(item_number=2, description="Work Component 2", quantity=1.0, unit_rate=2200.33, total_price=2200.33),
+                BOQItemEvaluation(item_number=3, description="Work Component 3", quantity=1.0, unit_rate=3000.0, total_price=3000.0),
+            ],
+        )
+        b2 = BidderFinancialEvaluation(
+            procurement_id="p-round",
+            tender_id="t-round",
+            bidder_id="bidder-r2",
+            bidder_name="Decimal Beta",
+            submission_id="sub-rb",
+            technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True,
+            evaluated_amount=6000.0,
+            line_items=[
+                BOQItemEvaluation(item_number=1, description="Work Component 1", quantity=1.0, unit_rate=1800.77, total_price=1800.77),
+                BOQItemEvaluation(item_number=2, description="Work Component 2", quantity=1.0, unit_rate=2700.33, total_price=2700.33),
+                BOQItemEvaluation(item_number=3, description="Work Component 3", quantity=1.0, unit_rate=4500.0, total_price=4500.0),
+            ],
+        )
+
+        signals = detect_pricing_pattern_anomalies([b1, b2])
+        round_sig = next((s for s in signals if s.signal_type == "SHARED_ROUNDING_ANOMALY"), None)
+
+        self.assertIsNotNone(round_sig, "SHARED_ROUNDING_ANOMALY signal must be emitted")
+        self.assertEqual(round_sig.severity, "INFO")
+        self.assertEqual(round_sig.decision_authority, "HUMAN_PROCUREMENT_OFFICER")
+        self.assertGreaterEqual(round_sig.metric_value, 2.0)
+
+    def test_24_tender_fixed_items_excluded_from_pattern(self):
+        """24. Verify that statutory / tender-fixed items are excluded from cross-bidder pricing patterns."""
+        b1 = BidderFinancialEvaluation(
+            procurement_id="p-fix",
+            tender_id="t-fix",
+            bidder_id="b-fix-1",
+            bidder_name="Fix Test 1",
+            submission_id="sub-fix-1",
+            technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True,
+            evaluated_amount=10000.0,
+            line_items=[
+                BOQItemEvaluation(item_number=1, description="Statutory Labour Cess 1%", quantity=1.0, unit_rate=500.0, total_price=500.0),
+                BOQItemEvaluation(item_number=2, description="Competitive Piping Works", quantity=1.0, unit_rate=2500.0, total_price=2500.0),
+                BOQItemEvaluation(item_number=3, description="Competitive Electrical Cabling", quantity=1.0, unit_rate=7000.0, total_price=7000.0),
+            ],
+        )
+        b2 = BidderFinancialEvaluation(
+            procurement_id="p-fix",
+            tender_id="t-fix",
+            bidder_id="b-fix-2",
+            bidder_name="Fix Test 2",
+            submission_id="sub-fix-2",
+            technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True,
+            evaluated_amount=12000.0,
+            line_items=[
+                # Fixed item has identical rate (statutory requirement), but competitive items vary non-linearly
+                BOQItemEvaluation(item_number=1, description="Statutory Labour Cess 1%", quantity=1.0, unit_rate=500.0, total_price=500.0),
+                BOQItemEvaluation(item_number=2, description="Competitive Piping Works", quantity=1.0, unit_rate=3200.0, total_price=3200.0),
+                BOQItemEvaluation(item_number=3, description="Competitive Electrical Cabling", quantity=1.0, unit_rate=8300.0, total_price=8300.0),
+            ],
+        )
+
+        signals = detect_pricing_pattern_anomalies([b1, b2])
+        # IDENTICAL_PRICING_PATTERN must NOT be emitted because statutory item is excluded
+        ident_sig = next((s for s in signals if s.signal_type == "IDENTICAL_PRICING_PATTERN"), None)
+        self.assertIsNone(ident_sig, "Identical pricing should NOT trigger on statutory/fixed charges")
+
+    def test_25_alb_estimate_variance_above_threshold(self):
+        """25. Verify ALB detection when bid is > 15% below engineer estimate."""
+        b = BidderFinancialEvaluation(
+            procurement_id="p-alb",
+            tender_id="t-alb",
+            bidder_id="b-alb-low",
+            bidder_name="Extreme Low Bidder",
+            submission_id="sub-alb-1",
+            technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True,
+            evaluated_amount=8000000.0,  # 20% below 10M estimate (exceeds 15% threshold)
+        )
+
+        signals = detect_abnormally_low_bid_signals([b], estimated_value=10000000.0)
+        alb_sig = next((s for s in signals if s.signal_type == "UNUSUALLY_LOW_BID"), None)
+
+        self.assertIsNotNone(alb_sig, "UNUSUALLY_LOW_BID must be emitted for 20% variance")
+        self.assertEqual(alb_sig.severity, "WARNING")
+        self.assertEqual(alb_sig.threshold, -15.0)
+        self.assertEqual(alb_sig.metric_value, -20.0)
+        self.assertEqual(alb_sig.decision_authority, "HUMAN_PROCUREMENT_OFFICER")
+        self.assertTrue(alb_sig.requires_officer_review)
+        self.assertIn("1.0 - (8000000.0 / 10000000.0)", alb_sig.calculation_basis)
+
+    def test_26_alb_estimate_variance_below_threshold_compliant(self):
+        """26. Verify compliant bid within 15% of estimate does not trigger UNUSUALLY_LOW_BID."""
+        b = BidderFinancialEvaluation(
+            procurement_id="p-alb-ok",
+            tender_id="t-alb-ok",
+            bidder_id="b-alb-ok",
+            bidder_name="Reasonable Bidder",
+            submission_id="sub-alb-ok",
+            technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True,
+            evaluated_amount=9000000.0,  # 10% below 10M estimate (compliant, < 15%)
+        )
+
+        signals = detect_abnormally_low_bid_signals([b], estimated_value=10000000.0)
+        alb_sig = next((s for s in signals if s.signal_type == "UNUSUALLY_LOW_BID"), None)
+        self.assertIsNone(alb_sig, "Bid within 15% threshold should not be flagged as abnormally low")
+
+    def test_27_missing_engineer_estimate_emits_unavailable_signal(self):
+        """27. Verify that missing engineer estimate emits ENGINEER_ESTIMATE_UNAVAILABLE without crashing."""
+        b = BidderFinancialEvaluation(
+            procurement_id="p-no-est",
+            tender_id="t-no-est",
+            bidder_id="b-no-est",
+            bidder_name="Bidder Without Estimate",
+            submission_id="sub-no-est",
+            technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True,
+            evaluated_amount=5000000.0,
+        )
+
+        signals = detect_abnormally_low_bid_signals([b], estimated_value=None)
+        sig = next((s for s in signals if s.signal_type == "ENGINEER_ESTIMATE_UNAVAILABLE"), None)
+
+        self.assertIsNotNone(sig, "ENGINEER_ESTIMATE_UNAVAILABLE must be emitted")
+        self.assertEqual(sig.severity, "INFO")
+        self.assertEqual(sig.decision_authority, "HUMAN_PROCUREMENT_OFFICER")
+
+    def test_28_small_peer_group_withholds_z_score(self):
+        """28. Verify that small peer group (N < 4) withholds z-score and reports median distance."""
+        b1 = BidderFinancialEvaluation(
+            procurement_id="p-small", tender_id="t-small", bidder_id="b1", bidder_name="Peer 1",
+            submission_id="s1", technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True, evaluated_amount=10000000.0,
+        )
+        b2 = BidderFinancialEvaluation(
+            procurement_id="p-small", tender_id="t-small", bidder_id="b2", bidder_name="Peer 2",
+            submission_id="s2", technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True, evaluated_amount=10200000.0,
+        )
+        b3 = BidderFinancialEvaluation(
+            procurement_id="p-small", tender_id="t-small", bidder_id="b3", bidder_name="Peer 3 (Low)",
+            submission_id="s3", technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True, evaluated_amount=7500000.0,  # 25% below median
+        )
+
+        signals = detect_abnormally_low_bid_signals([b1, b2, b3], estimated_value=10000000.0)
+        med_sig = next((s for s in signals if s.signal_type == "DISTANCE_FROM_MEDIAN"), None)
+
+        self.assertIsNotNone(med_sig, "DISTANCE_FROM_MEDIAN must be emitted")
+        self.assertIn("z-score withheld", med_sig.description)
+        self.assertTrue(med_sig.details.get("z_score_withheld"))
+        self.assertEqual(med_sig.details.get("sample_size"), 3)
+
+    def test_29_large_peer_group_computes_z_score(self):
+        """29. Verify that large peer group (N >= 4) computes and reports z-score."""
+        bids = [
+            BidderFinancialEvaluation(
+                procurement_id="p-lg", tender_id="t-lg", bidder_id=f"b{i}", bidder_name=f"Peer {i}",
+                submission_id=f"s{i}", technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+                is_cover2_unlocked=True, evaluated_amount=amt,
+            )
+            for i, amt in enumerate([10000000.0, 10100000.0, 9900000.0, 10200000.0, 5000000.0], start=1)
+        ]
+
+        signals = detect_abnormally_low_bid_signals(bids, estimated_value=10000000.0)
+        z_sig = next((s for s in signals if s.signal_type == "PEER_GROUP_VARIANCE"), None)
+
+        self.assertIsNotNone(z_sig, "PEER_GROUP_VARIANCE with z-score must be emitted for N=5")
+        self.assertEqual(z_sig.metric_name, "peer_z_score")
+        self.assertLess(z_sig.metric_value, -1.5)
+        self.assertEqual(z_sig.details.get("sample_size"), 5)
+
+    def test_30_raw_material_floor_breach_and_baseline_unavailable(self):
+        """30. Verify raw material floor breach detection and unavailable baseline handling."""
+        b = BidderFinancialEvaluation(
+            procurement_id="p-rm", tender_id="t-rm", bidder_id="b-rm", bidder_name="Sub-Material Co",
+            submission_id="s-rm", technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True, evaluated_amount=38000000.0,
+        )
+
+        # Case A: Authoritative floor provided and breached
+        signals_breach = detect_abnormally_low_bid_signals([b], raw_material_floor=40000000.0)
+        breach_sig = next((s for s in signals_breach if s.signal_type == "RAW_MATERIAL_FLOOR_BREACH"), None)
+        self.assertIsNotNone(breach_sig)
+        self.assertEqual(breach_sig.severity, "CRITICAL")
+        self.assertEqual(breach_sig.metric_value, 2000000.0)  # Deficit of 2M
+        self.assertEqual(breach_sig.decision_authority, "HUMAN_PROCUREMENT_OFFICER")
+
+        # Case B: Authoritative floor unavailable (None)
+        signals_unavail = detect_abnormally_low_bid_signals([b], raw_material_floor=None)
+        unavail_sig = next((s for s in signals_unavail if s.signal_type == "RAW_MATERIAL_BASELINE_UNAVAILABLE"), None)
+        self.assertIsNotNone(unavail_sig)
+        self.assertEqual(unavail_sig.severity, "INFO")
+        self.assertEqual(unavail_sig.decision_authority, "HUMAN_PROCUREMENT_OFFICER")
+
+    def test_31_human_procurement_officer_authority_preserved(self):
+        """31. Verify that all financial anomaly signals preserve human procurement officer decision authority."""
+        b1 = BidderFinancialEvaluation(
+            procurement_id="p-auth", tender_id="t-auth", bidder_id="b1", bidder_name="Auth Bidder 1",
+            submission_id="s1", technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True, evaluated_amount=20000000.0,
+            line_items=[BOQItemEvaluation(item_number=1, description="Item 1", quantity=1.0, unit_rate=100.0, total_price=100.0)],
+        )
+        b2 = BidderFinancialEvaluation(
+            procurement_id="p-auth", tender_id="t-auth", bidder_id="b2", bidder_name="Auth Bidder 2",
+            submission_id="s2", technical_eligibility_status=TechnicalEligibilityState.TECHNICALLY_ELIGIBLE,
+            is_cover2_unlocked=True, evaluated_amount=20050000.0,
+            line_items=[BOQItemEvaluation(item_number=1, description="Item 1", quantity=1.0, unit_rate=100.0, total_price=100.0)],
+        )
+
+        signals = calculate_anomaly_signals([b1, b2], estimated_value=40000000.0)
+        self.assertGreater(len(signals), 0)
+        for s in signals:
+            self.assertEqual(s.decision_authority, "HUMAN_PROCUREMENT_OFFICER")
+
+    def test_32_layer7_verifier_incorporates_commercial_anomalies(self):
+        """32. Verify FinancialCommercialVerifier incorporates commercial anomaly signals into Layer 7 findings."""
+        async def _run():
+            verifier = FinancialCommercialVerifier()
+            req = RequirementEvaluationContract(
+                requirement_id="REQ-COMM-01",
+                category=RequirementCategory.COMMERCIAL,
+                title="Commercial Bid Price Compliance",
+                description="Commercial BoQ Price Evaluation",
+                evaluation_field=CanonicalEvaluationField.COMMERCIAL_PRICE,
+                evaluation_mode=EvaluationMode.DETERMINISTIC,
+            )
+            commercial_sig = FinancialAnomalySignal(
+                signal_type="PRICING_MULTIPLIER_DETECTED",
+                severity="WARNING",
+                description="Uniform pricing multiplier detected across BOQ items.",
+                metric_name="pricing_multiplier_k",
+                metric_value=1.15,
+                bidders_involved=["Alpha Corp", "Beta Corp"],
+                decision_authority="HUMAN_PROCUREMENT_OFFICER",
+            )
+            context = VerificationContext(
+                requirements=[req],
+                bidders=[{"id": "b-alpha", "legal_name": "Alpha Corp"}],
+                extra_context={"commercial_signals": [commercial_sig]},
+            )
+
+            findings = await verifier.verify(context)
+            comm_f = next((f for f in findings if "PRICING_MULTIPLIER_DETECTED" in f.machine_readable_flags), None)
+
+            self.assertIsNotNone(comm_f, "Layer 7 finding must be produced for commercial anomaly")
+            self.assertEqual(comm_f.status, ComplianceState.REVIEW)
+            self.assertEqual(comm_f.metadata.get("decision_authority"), "HUMAN_PROCUREMENT_OFFICER")
+            self.assertIn("OFFICER_REVIEW_REQUIRED", comm_f.machine_readable_flags)
 
         asyncio.run(_run())
 
