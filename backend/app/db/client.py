@@ -281,6 +281,7 @@ async def get_analytics_summary() -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 _LOCAL_STORE_PATH = _DATA_DIR / "procurement_store.json"
+_SEED_STORE_PATH = _DATA_DIR / "procurement_seed.json"
 
 _IN_MEMORY_PROCUREMENTS: Dict[str, Dict[str, Any]] = {}
 _IN_MEMORY_TENDERS: Dict[str, Dict[str, Any]] = {}
@@ -696,11 +697,23 @@ def _prune_old_procurements(max_items: int = 10) -> None:
 
 
 def _load_local_store() -> None:
-    """Loads fallback in-memory records from local disk store if present."""
-    if not _LOCAL_STORE_PATH.exists():
+    """Loads fallback in-memory records from local disk store (procurement_store.json) if present,
+    or initializes from static canonical seed (procurement_seed.json) if the local store does not exist.
+    """
+    target_path: Optional[Path] = None
+    is_seeding: bool = False
+
+    if _LOCAL_STORE_PATH.exists():
+        target_path = _LOCAL_STORE_PATH
+    elif _SEED_STORE_PATH.exists():
+        target_path = _SEED_STORE_PATH
+        is_seeding = True
+
+    if not target_path:
         return
+
     try:
-        with open(_LOCAL_STORE_PATH, "r", encoding="utf-8") as f:
+        with open(target_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             _IN_MEMORY_PROCUREMENTS.update(data.get("procurements", {}))
             _IN_MEMORY_TENDERS.update(data.get("tenders", {}))
@@ -712,8 +725,11 @@ def _load_local_store() -> None:
             _IN_MEMORY_CLARIFICATIONS.update(data.get("clarifications", {}))
             _IN_MEMORY_AUDIT_LOGS.extend(data.get("audit_logs", []))
         _prune_old_procurements(10)
+        if is_seeding:
+            _save_local_store()
+            logger.info("Initialized local runtime procurement store from canonical seed (%s).", _SEED_STORE_PATH.name)
     except Exception as e:
-        logger.warning("Failed to load local procurement store: %s", e)
+        logger.warning("Failed to load procurement store from %s: %s", target_path, e)
 
 
 def _save_local_store() -> None:

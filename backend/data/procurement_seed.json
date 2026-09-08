@@ -1,0 +1,1462 @@
+{
+  "procurements": {
+    "e8bdd443-64af-48da-8209-33c520a71857": {
+      "id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "source_system": "MOCK_GEM",
+      "external_reference": "DEMO/CPCL/WQM/2026/017",
+      "title": "Supply and commissioning of industrial water quality monitoring units",
+      "organization": "Chennai Petroleum Corporation Limited (CPCL)",
+      "status": "READY",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:55.201696+00:00"
+    }
+  },
+  "tenders": {
+    "4ebcb335-5695-4515-beab-8013a383895b": {
+      "id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_reference": "CPCL/WQM/2026/RFP-017",
+      "title": "RFP for Industrial Water Quality Monitoring Sensor Network",
+      "description": "Turnkey procurement of online water quality sensors and analyzer units with mandatory GST, >=20% Local Content, >=Rs 10 Cr Turnover, and OEM MAF.",
+      "estimated_value": 45000000.0,
+      "category": "INDUSTRIAL_EQUIPMENT",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    }
+  },
+  "bidders": {
+    "426642c8-2cb9-42c2-8001-7ae16b52e132": {
+      "id": "426642c8-2cb9-42c2-8001-7ae16b52e132",
+      "legal_name": "HydroTech Analytics India Pvt Ltd",
+      "gstin": "33AAACH123411Z9",
+      "pan": "AAACH12341",
+      "email": "bids@hydrotech.co.in",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "fd913285-c7c8-406d-ac81-d7e39d924d0e": {
+      "id": "fd913285-c7c8-406d-ac81-d7e39d924d0e",
+      "legal_name": "AquaPure Monitoring Systems & Instrumentation Ltd",
+      "gstin": "27BBBCA987622Z4",
+      "pan": "BBBCA98762",
+      "email": "tenders@aquapure.in",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "1ad00706-18fe-4e75-b933-38b3e102cba9": {
+      "id": "1ad00706-18fe-4e75-b933-38b3e102cba9",
+      "legal_name": "CleanFlow Environmental Technologies Pvt Ltd",
+      "gstin": "33AABCC5544R1Z2",
+      "pan": "AABCC5544R",
+      "email": "tenders@cleanflow.co.in",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    }
+  },
+  "submissions": {
+    "4931440c-8b3f-4fab-8ece-20d7f7c109ba": {
+      "id": "4931440c-8b3f-4fab-8ece-20d7f7c109ba",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bidder_id": "426642c8-2cb9-42c2-8001-7ae16b52e132",
+      "external_submission_reference": "GEM-SUB-HTA-2026-017",
+      "submitted_at": "2026-09-01T10:30:00+00:00",
+      "status": "SUBMITTED",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "a9445755-04eb-43b8-9dc3-6168cdc3d62b": {
+      "id": "a9445755-04eb-43b8-9dc3-6168cdc3d62b",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bidder_id": "fd913285-c7c8-406d-ac81-d7e39d924d0e",
+      "external_submission_reference": "GEM-SUB-APS-2026-017",
+      "submitted_at": "2026-09-01T11:15:00+00:00",
+      "status": "SUBMITTED",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "77cd805e-4c78-45f5-a2fb-b261d77f8907": {
+      "id": "77cd805e-4c78-45f5-a2fb-b261d77f8907",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bidder_id": "1ad00706-18fe-4e75-b933-38b3e102cba9",
+      "external_submission_reference": "GEM-SUB-CFT-2026-017",
+      "submitted_at": "2026-09-01T10:45:00+00:00",
+      "status": "SUBMITTED",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    }
+  },
+  "documents": {
+    "d3d0306f-9b2d-4082-abb8-6dd45cc46b65": {
+      "id": "d3d0306f-9b2d-4082-abb8-6dd45cc46b65",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": null,
+      "filename": "RFP_Specification_WQM_2026_017.pdf",
+      "document_type": "TENDER_SPECIFICATION",
+      "mime_type": "application/pdf",
+      "file_size": 3240000,
+      "storage_path": "mock_storage/tenders/RFP_Specification_WQM_2026_017.pdf",
+      "content_text": "Chennai Petroleum Corporation Limited (CPCL) - Notice Inviting Tender (NIT)\nClause 1: Bidder must have active GSTIN registration.\nClause 2: Minimum local content under Make in India policy shall be 20.0%.\nClause 3: Average annual financial turnover over past 3 years shall be greater than or equal to Rs. 10.0 Crores.\nClause 4: Bidder must submit valid OEM Manufacturer Authorization Form (MAF).",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "64093155-c287-4891-ae4a-b407741dd894": {
+      "id": "64093155-c287-4891-ae4a-b407741dd894",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "4931440c-8b3f-4fab-8ece-20d7f7c109ba",
+      "filename": "HydroTech_GST_Registration.pdf",
+      "document_type": "GST_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 450000,
+      "storage_path": "mock_storage/submissions/HTA_GST.pdf",
+      "content_text": "Government of India - GST Registration Certificate (Form GST REG-06)\nGSTIN: 33AAACH123411Z9\nLegal Name: HydroTech Analytics India Pvt Ltd\nTrade Name: HydroTech Analytics\nStatus: ACTIVE\nDate of Registration: 01/07/2017\nPrincipal Place of Business: Guindy Industrial Estate, Chennai, Tamil Nadu - 600032",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "5d2a01e9-e055-4a57-8273-796e08b14c4a": {
+      "id": "5d2a01e9-e055-4a57-8273-796e08b14c4a",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "4931440c-8b3f-4fab-8ece-20d7f7c109ba",
+      "filename": "HydroTech_MII_LocalContent_Declaration.pdf",
+      "document_type": "LOCAL_CONTENT_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 520000,
+      "storage_path": "mock_storage/submissions/HTA_MII.pdf",
+      "content_text": "Make in India (MII) Local Content Declaration & Certificate\nUnder Public Procurement (Preference to Make in India) Order 2017\nWe hereby certify and declare that the Local Content for Model WQ-900 Industrial Online Water Quality Monitoring Units is 27.5%.\nLocation of local value addition: Chennai, Tamil Nadu, India.",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "7de9b22c-4775-4fb1-899e-b1cf03b4139d": {
+      "id": "7de9b22c-4775-4fb1-899e-b1cf03b4139d",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "4931440c-8b3f-4fab-8ece-20d7f7c109ba",
+      "filename": "HydroTech_CA_Turnover_Certificate.pdf",
+      "document_type": "TURNOVER_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 680000,
+      "storage_path": "mock_storage/submissions/HTA_Turnover.pdf",
+      "content_text": "Chartered Accountant Certificate of Annual Financial Turnover\nUDIN: 24089123AAAAAA1001\nThis is to certify that average annual turnover of M/s HydroTech Analytics India Pvt Ltd for the past 3 financial years (FY 2022-23, FY 2023-24, FY 2024-25) is INR 14.50 Crores (INR 145000000).",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "2c2cc9c6-00a4-43dd-ba48-29ba16a5741d": {
+      "id": "2c2cc9c6-00a4-43dd-ba48-29ba16a5741d",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "4931440c-8b3f-4fab-8ece-20d7f7c109ba",
+      "filename": "HydroTech_OEM_Authorization_WQM.pdf",
+      "document_type": "OEM_AUTHORIZATION",
+      "mime_type": "application/pdf",
+      "file_size": 890000,
+      "storage_path": "mock_storage/submissions/HTA_OEM.pdf",
+      "content_text": "Manufacturer Authorization Form (MAF)\nTo: Chennai Petroleum Corporation Limited (CPCL)\nWe, Global Sensors GmbH (OEM), hereby authorize M/s HydroTech Analytics India Pvt Ltd as our authorized distributor and service partner for Model WQ-900 water quality monitoring analyzers with full warranty support.",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "ae6cd9ba-ab94-44cf-bcf9-cc0230597310": {
+      "id": "ae6cd9ba-ab94-44cf-bcf9-cc0230597310",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "4931440c-8b3f-4fab-8ece-20d7f7c109ba",
+      "filename": "HydroTech_Commercial_BOQ_Bid.pdf",
+      "document_type": "FINANCIAL_BOQ",
+      "mime_type": "application/pdf",
+      "file_size": 480000,
+      "storage_path": "C:\\Users\\shiba\\OneDrive\\Desktop\\sih-gem\\backend\\data\\sample_documents\\HydroTech_Commercial_BOQ_Bid.pdf",
+      "content_text": "COMMERCIAL BID & SCHEDULE OF RATES (BOQ)\nTender Reference: CPCL/WQM/2026/RFP-017\nBidder: HydroTech Analytics India Pvt Ltd\n\nItem 1: Online Multichannel Water Quality Analyzer Units (Model WQ-900), Qty: 5 units, Unit Rate: INR 48,00,000, Total: INR 2,40,00,000\nItem 2: Submersible Sensor Probes & Telemetry Modules, Qty: 5 sets, Unit Rate: INR 15,00,000, Total: INR 75,00,000\nItem 3: Installation, Testing, Calibration & Commissioning, Qty: 1 lot, Unit Rate: INR 25,00,000, Total: INR 25,00,000\nItem 4: 2-Year Comprehensive Annual Maintenance & Warranty, Qty: 1 lot, Unit Rate: INR 40,00,000, Total: INR 40,00,000\n\nSubtotal: INR 3,80,00,000\nTaxes (GST @ 18%): INR 68,40,000\nFreight & Transit Insurance: INR 4,50,000\nDiscount: INR 0\nTotal Evaluated Commercial Bid Price: INR 4,52,90,000",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "a4244ef6-8517-4200-a1e8-a77d83bae86f": {
+      "id": "a4244ef6-8517-4200-a1e8-a77d83bae86f",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "a9445755-04eb-43b8-9dc3-6168cdc3d62b",
+      "filename": "AquaPure_GST_Registration.pdf",
+      "document_type": "GST_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 420000,
+      "storage_path": "mock_storage/submissions/APS_GST.pdf",
+      "content_text": "Government of India - GST Registration Certificate\nGSTIN: 27BBBCA987622Z4\nLegal Name: AquaPure Monitoring Systems & Instrumentation Ltd\nStatus: ACTIVE",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "476a9f0b-2c6a-4fa7-9b39-553d4d0103fb": {
+      "id": "476a9f0b-2c6a-4fa7-9b39-553d4d0103fb",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "a9445755-04eb-43b8-9dc3-6168cdc3d62b",
+      "filename": "AquaPure_MII_Declaration.pdf",
+      "document_type": "LOCAL_CONTENT_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 510000,
+      "storage_path": "mock_storage/submissions/APS_MII.pdf",
+      "content_text": "Make in India Self-Declaration:\nWe hereby declare that our offered sensor units contain 27.0% local content.",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "1265080c-5369-4693-8b1a-a910e43f08fc": {
+      "id": "1265080c-5369-4693-8b1a-a910e43f08fc",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "a9445755-04eb-43b8-9dc3-6168cdc3d62b",
+      "filename": "AquaPure_MII_Auditor_Certificate.pdf",
+      "document_type": "OTHER",
+      "mime_type": "application/pdf",
+      "file_size": 510000,
+      "storage_path": "mock_storage/submissions/APS_MII_Cert.pdf",
+      "content_text": "CA Auditor Certificate:\nUpon audit, the local content for AquaPure is verified as 14.0%.",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "de1df51a-92e6-49d1-841c-86729457c719": {
+      "id": "de1df51a-92e6-49d1-841c-86729457c719",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "a9445755-04eb-43b8-9dc3-6168cdc3d62b",
+      "filename": "AquaPure_Financial_Turnover_Audited.pdf",
+      "document_type": "TURNOVER_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 1560000,
+      "storage_path": "mock_storage/submissions/APS_Turnover.pdf",
+      "content_text": "CA Certified Turnover Certificate:\nThe average annual turnover of AquaPure Monitoring Systems over the past 3 financial years is INR 6.50 Crores (INR 65000000).",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "13ffe196-bc43-411e-bb2c-f66f1cf90e8a": {
+      "id": "13ffe196-bc43-411e-bb2c-f66f1cf90e8a",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "a9445755-04eb-43b8-9dc3-6168cdc3d62b",
+      "filename": "AquaPure_Commercial_BOQ_Bid.pdf",
+      "document_type": "FINANCIAL_BOQ",
+      "mime_type": "application/pdf",
+      "file_size": 410000,
+      "storage_path": "C:\\Users\\shiba\\OneDrive\\Desktop\\sih-gem\\backend\\data\\sample_documents\\AquaPure_Commercial_BOQ_Bid.pdf",
+      "content_text": "COMMERCIAL BID & SCHEDULE OF RATES (BOQ)\nTender Reference: CPCL/WQM/2026/RFP-017\nBidder: AquaPure Monitoring Systems & Instrumentation Ltd\n\nItem 1: Online Multichannel Water Quality Analyzer Units, Qty: 5 units, Unit Rate: INR 42,00,000, Total: INR 2,10,00,000\nItem 2: Submersible Sensor Probes & Telemetry Modules, Qty: 5 sets, Unit Rate: INR 14,00,000, Total: INR 70,00,000\nItem 3: Installation, Testing, Calibration & Commissioning, Qty: 1 lot, Unit Rate: INR 20,00,000, Total: INR 20,00,000\nItem 4: 2-Year Comprehensive Annual Maintenance & Warranty, Qty: 1 lot, Unit Rate: INR 35,00,000, Total: INR 35,00,000\n\nSubtotal: INR 3,35,00,000\nTaxes (GST @ 18%): INR 60,30,000\nFreight & Transit Insurance: INR 3,00,000\nDiscount: INR 3,30,000\nTotal Evaluated Commercial Bid Price: INR 3,95,00,000",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "af351d36-cea4-4c29-b812-874f2e87737d": {
+      "id": "af351d36-cea4-4c29-b812-874f2e87737d",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "77cd805e-4c78-45f5-a2fb-b261d77f8907",
+      "filename": "CleanFlow_GST_Registration.pdf",
+      "document_type": "GST_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 430000,
+      "storage_path": "mock_storage/submissions/CFT_GST.pdf",
+      "content_text": "Government of India - GST Registration Certificate (Form GST REG-06)\nGSTIN: 33AABCC5544R1Z2\nLegal Name: CleanFlow Environmental Technologies Pvt Ltd\nTrade Name: CleanFlow Technologies\nStatus: ACTIVE\nPrincipal Place of Business: Tidel Park, Chennai, Tamil Nadu - 600113",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "80e337de-5cfa-4c37-9e75-60f5d4f6357b": {
+      "id": "80e337de-5cfa-4c37-9e75-60f5d4f6357b",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "77cd805e-4c78-45f5-a2fb-b261d77f8907",
+      "filename": "CleanFlow_MII_Declaration.pdf",
+      "document_type": "LOCAL_CONTENT_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 510000,
+      "storage_path": "mock_storage/submissions/CFT_MII.pdf",
+      "content_text": "Make in India (MII) Local Content Undertaking:\nUnder Public Procurement (Preference to Make in India) Order 2017\nWe hereby confirm that the local content for our offered water quality monitoring units is 32.0%.\nLocation of value addition: Ambattur Industrial Estate, Chennai.",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "c2026ec0-c6c3-4ef9-b617-9417781e50a8": {
+      "id": "c2026ec0-c6c3-4ef9-b617-9417781e50a8",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "77cd805e-4c78-45f5-a2fb-b261d77f8907",
+      "filename": "CleanFlow_CA_Turnover_Certificate.pdf",
+      "document_type": "TURNOVER_CERTIFICATE",
+      "mime_type": "application/pdf",
+      "file_size": 670000,
+      "storage_path": "mock_storage/submissions/CFT_Turnover.pdf",
+      "content_text": "Statutory Auditor Turnover Certificate\nUDIN: 24098765BBBBBB2002\nThis is to certify that average annual turnover of M/s CleanFlow Environmental Technologies Pvt Ltd for the preceding 3 financial years is INR 12.80 Crores (INR 128000000).",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "7387b533-6d7f-4828-bd09-a043f5b20c8e": {
+      "id": "7387b533-6d7f-4828-bd09-a043f5b20c8e",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "77cd805e-4c78-45f5-a2fb-b261d77f8907",
+      "filename": "CleanFlow_OEM_Authorization.pdf",
+      "document_type": "OEM_AUTHORIZATION",
+      "mime_type": "application/pdf",
+      "file_size": 860000,
+      "storage_path": "mock_storage/submissions/CFT_OEM.pdf",
+      "content_text": "Manufacturer Authorization Form (MAF)\nTo: Chennai Petroleum Corporation Limited (CPCL)\nWe, HydroSensor Corp (OEM), confirm that CleanFlow Environmental Technologies Pvt Ltd is our certified and authorized distributor for online water quality analyzers.",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    },
+    "307db573-8474-40ca-ad3f-673120b3c38b": {
+      "id": "307db573-8474-40ca-ad3f-673120b3c38b",
+      "procurement_id": "e8bdd443-64af-48da-8209-33c520a71857",
+      "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+      "bid_submission_id": "77cd805e-4c78-45f5-a2fb-b261d77f8907",
+      "filename": "CleanFlow_Commercial_BOQ_Bid.pdf",
+      "document_type": "FINANCIAL_BOQ",
+      "mime_type": "application/pdf",
+      "file_size": 490000,
+      "storage_path": "C:\\Users\\shiba\\OneDrive\\Desktop\\sih-gem\\backend\\data\\sample_documents\\CleanFlow_Commercial_BOQ_Bid.pdf",
+      "content_text": "COMMERCIAL BID & SCHEDULE OF RATES (BOQ)\nTender Reference: CPCL/WQM/2026/RFP-017\nBidder: CleanFlow Environmental Technologies Pvt Ltd\n\nItem 1: Online Multichannel Water Quality Analyzer Units, Qty: 5 units, Unit Rate: INR 44,00,000, Total: INR 2,20,00,000\nItem 2: Submersible Sensor Probes & Telemetry Modules, Qty: 5 sets, Unit Rate: INR 13,50,000, Total: INR 67,50,000\nItem 3: Installation, Testing, Calibration & Commissioning, Qty: 1 lot, Unit Rate: INR 22,50,000, Total: INR 22,50,000\nItem 4: 2-Year Comprehensive Annual Maintenance & Warranty, Qty: 1 lot, Unit Rate: INR 35,00,000, Total: INR 35,00,000\n\nSubtotal: INR 3,45,00,000\nTaxes (GST @ 18%): INR 62,10,000\nFreight & Transit Insurance: INR 3,50,000\nDiscount: INR 0\nTotal Evaluated Commercial Bid Price: INR 4,10,60,000",
+      "created_at": "2026-09-08T04:58:50.421201+00:00",
+      "updated_at": "2026-09-08T04:58:50.421201+00:00"
+    }
+  },
+  "requirements": {
+    "4ebcb335-5695-4515-beab-8013a383895b": [
+      {
+        "requirement_id": "REQ-001",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "GST_AND_TAX",
+        "title": "GST Registration & Filing",
+        "description": "The bidder must possess a valid and active GST Registration Certificate with latest GSTR-3B filing.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "gstin_active",
+          "operator": "==",
+          "threshold_value": "ACTIVE",
+          "unit": "STATUS",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS",
+          "msme_exemption_applicable": false,
+          "startup_exemption_applicable": false
+        },
+        "evidence_required": [
+          "Active GSTIN Certificate",
+          "GSTR-3B receipts for last 3 months"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "GST_CERTIFICATE",
+            "description": "Active GSTIN Certificate and latest GSTR-3B return receipts",
+            "mandatory": true,
+            "issuing_authority": "Goods and Services Tax Network (GSTN)"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 1,
+          "clause_number": "Clause 1.1",
+          "section_title": "Statutory & Tax Compliance",
+          "verbatim_quote": "The bidder must possess a valid and active GST Registration Certificate under the Central Goods and Services Tax Act."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-002",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "PAN_IDENTITY",
+        "title": "PAN Card & Corporate Registration",
+        "description": "The bidder must submit a valid Permanent Account Number (PAN) and Certificate of Incorporation.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "pan_valid",
+          "operator": "==",
+          "threshold_value": "VALID",
+          "unit": "STATUS",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "PAN Card copy",
+          "Certificate of Incorporation / Partnership Deed"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "PAN_CARD",
+            "description": "Permanent Account Number card",
+            "mandatory": true,
+            "issuing_authority": "Income Tax Department, Government of India"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 1,
+          "clause_number": "Clause 1.2",
+          "section_title": "Statutory & Tax Compliance",
+          "verbatim_quote": "Bidder shall submit valid Permanent Account Number (PAN) issued by Income Tax Department."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-003",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "FINANCIAL_TURNOVER",
+        "title": "Average Annual Financial Turnover",
+        "description": "The bidder shall have an average annual financial turnover of not less than INR 5.0 Crores during the last three completed financial years.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "annual_turnover",
+          "operator": ">=",
+          "threshold_value": 50000000.0,
+          "unit": "INR",
+          "currency": "INR",
+          "period_years": 3.0,
+          "period_description": "last three completed financial years",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": false,
+          "target_entity": "ALL_BIDDERS",
+          "msme_exemption_applicable": true,
+          "startup_exemption_applicable": true,
+          "exemption_notes": "Micro and Small Enterprises (MSEs) registered under Udyam and DPIIT-recognized Startups are exempt from financial turnover criteria."
+        },
+        "evidence_required": [
+          "Audited Balance Sheets and P&L Statements",
+          "CA Turnover Certificate with UDIN"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "CA_TURNOVER_CERTIFICATE",
+            "description": "Turnover certificate certified by practicing CA with valid UDIN",
+            "mandatory": true,
+            "issuing_authority": "Practicing Chartered Accountant"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 2,
+          "clause_number": "Clause 2.1",
+          "section_title": "Financial Standing",
+          "verbatim_quote": "The bidder shall have an average annual financial turnover of not less than INR 5.0 Crores during the last three completed financial years."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-004",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "PAST_EXPERIENCE",
+        "title": "Past Similar Work Experience",
+        "description": "The bidder must have successfully executed at least 2 contracts for supply and commissioning of continuous water quality or effluent monitoring systems in the last 5 years, each contract value not less than INR 1.0 Crore.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "executed_contracts_count",
+          "operator": ">=",
+          "threshold_value": 2.0,
+          "unit": "COUNT",
+          "period_years": 5.0,
+          "period_description": "last 5 years",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS",
+          "msme_exemption_applicable": false,
+          "startup_exemption_applicable": false
+        },
+        "evidence_required": [
+          "Work Completion Certificates",
+          "Copies of Purchase Orders"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "COMPLETION_CERTIFICATE",
+            "description": "Satisfactory work completion certificates from end-users",
+            "mandatory": true,
+            "issuing_authority": "Client / PSU Project Authority"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 2,
+          "clause_number": "Clause 2.2",
+          "section_title": "Past Technical Experience",
+          "verbatim_quote": "Bidder must have successfully executed at least 2 contracts for supply and commissioning of continuous water quality systems in the last 5 years."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-005",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "OEM_AUTHORIZATION",
+        "title": "Manufacturer Authorization Form (MAF)",
+        "description": "Bidder must submit a valid Manufacturer Authorization Form (MAF) from the sensor and analyzer OEM.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "oem_authorization",
+          "operator": "==",
+          "threshold_value": "AUTHORIZED",
+          "unit": "STATUS",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "Manufacturer Authorization Form (MAF)"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "OEM_AUTHORIZATION",
+            "description": "Official MAF certificate signed by authorized OEM executive",
+            "mandatory": true,
+            "issuing_authority": "Original Equipment Manufacturer"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.1",
+          "section_title": "Technical Specifications & OEM Support",
+          "verbatim_quote": "If the bidder is not an OEM, an authentic Manufacturer Authorization Form (MAF) specific to this tender must be submitted."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-006",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "LOCAL_CONTENT_MII",
+        "title": "Make in India (MII) Local Content Preference",
+        "description": "Minimum 20% local content is mandatory under Public Procurement (Preference to Make in India) Order.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "local_content_percentage",
+          "operator": ">=",
+          "threshold_value": 20.0,
+          "unit": "PERCENT",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "Self-declaration of local content percentage and location of value addition"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "LOCAL_CONTENT_DECLARATION",
+            "description": "Self-declaration of local content percentage on company letterhead",
+            "mandatory": true,
+            "issuing_authority": "Authorized Bidder Signatory"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.2",
+          "section_title": "Statutory Local Content Mandate",
+          "verbatim_quote": "Minimum 20% local content is mandatory under Make in India guidelines."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-007",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "LEGAL_AND_DEBARMENT",
+        "title": "Non-Blacklisting & Non-Debarment Undertaking",
+        "description": "The bidder must not be debarred, blacklisted, or under holiday listing by any Central/State Government or PSU.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "debarment_status",
+          "operator": "==",
+          "threshold_value": "CLEAR",
+          "unit": "STATUS",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "Self-undertaking on non-debarment"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "NON_DEBARMENT_UNDERTAKING",
+            "description": "Notarized declaration of non-debarment",
+            "mandatory": true,
+            "issuing_authority": "Authorized Signatory / Notary Public"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.3",
+          "section_title": "Governance & Legal Compliance",
+          "verbatim_quote": "The bidder must not be under debarment or holiday listing by any Central/State Govt or PSU."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-008",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "DELIVERY_AND_SLA",
+        "title": "Comprehensive OEM Onsite Warranty",
+        "description": "The supplier shall provide comprehensive onsite warranty of not less than 24 months from the date of successful commissioning.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "warranty_period_months",
+          "operator": ">=",
+          "threshold_value": 24.0,
+          "unit": "MONTHS",
+          "period_years": 2.0,
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "Warranty Undertaking from OEM/Bidder"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "WARRANTY_UNDERTAKING",
+            "description": "24-month OEM comprehensive onsite warranty certificate",
+            "mandatory": true,
+            "issuing_authority": "OEM / Prime Bidder"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.4",
+          "section_title": "Service Level Agreement & Warranty",
+          "verbatim_quote": "Comprehensive onsite warranty of not less than 24 months from commissioning date."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-009",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "PAST_EXPERIENCE",
+        "title": "Industrial Capability Clause",
+        "description": "Bidder should have adequate experience and satisfactory reputation in similar industrial domains.",
+        "mandatory": false,
+        "is_ambiguous": true,
+        "ambiguity_reason": "The clause relies on vague subjective terms ('adequate experience' and 'satisfactory reputation') without establishing quantifiable threshold values or objective parameters.",
+        "structured_condition": {
+          "field_name": "adequate_experience",
+          "operator": "==",
+          "threshold_value": null,
+          "unit": null,
+          "is_quantifiable": false
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [],
+        "evidence_specs": [],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.5",
+          "section_title": "General Quality Criteria",
+          "verbatim_quote": "Bidder should have adequate experience and satisfactory reputation in similar industrial domains."
+        },
+        "ambiguity": {
+          "is_ambiguous": true,
+          "ambiguity_type": "VAGUE_TERMINOLOGY",
+          "ambiguity_reason": "Vague subjective terms without quantifiable thresholds."
+        }
+      }
+    ],
+    "CPCL/WQM/2026/RFP-017": [
+      {
+        "requirement_id": "REQ-001",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "GST_AND_TAX",
+        "title": "GST Registration & Filing",
+        "description": "The bidder must possess a valid and active GST Registration Certificate with latest GSTR-3B filing.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "gstin_active",
+          "operator": "==",
+          "threshold_value": "ACTIVE",
+          "unit": "STATUS",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS",
+          "msme_exemption_applicable": false,
+          "startup_exemption_applicable": false
+        },
+        "evidence_required": [
+          "Active GSTIN Certificate",
+          "GSTR-3B receipts for last 3 months"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "GST_CERTIFICATE",
+            "description": "Active GSTIN Certificate and latest GSTR-3B return receipts",
+            "mandatory": true,
+            "issuing_authority": "Goods and Services Tax Network (GSTN)"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 1,
+          "clause_number": "Clause 1.1",
+          "section_title": "Statutory & Tax Compliance",
+          "verbatim_quote": "The bidder must possess a valid and active GST Registration Certificate under the Central Goods and Services Tax Act."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-002",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "PAN_IDENTITY",
+        "title": "PAN Card & Corporate Registration",
+        "description": "The bidder must submit a valid Permanent Account Number (PAN) and Certificate of Incorporation.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "pan_valid",
+          "operator": "==",
+          "threshold_value": "VALID",
+          "unit": "STATUS",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "PAN Card copy",
+          "Certificate of Incorporation / Partnership Deed"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "PAN_CARD",
+            "description": "Permanent Account Number card",
+            "mandatory": true,
+            "issuing_authority": "Income Tax Department, Government of India"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 1,
+          "clause_number": "Clause 1.2",
+          "section_title": "Statutory & Tax Compliance",
+          "verbatim_quote": "Bidder shall submit valid Permanent Account Number (PAN) issued by Income Tax Department."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-003",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "FINANCIAL_TURNOVER",
+        "title": "Average Annual Financial Turnover",
+        "description": "The bidder shall have an average annual financial turnover of not less than INR 5.0 Crores during the last three completed financial years.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "annual_turnover",
+          "operator": ">=",
+          "threshold_value": 50000000.0,
+          "unit": "INR",
+          "currency": "INR",
+          "period_years": 3.0,
+          "period_description": "last three completed financial years",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": false,
+          "target_entity": "ALL_BIDDERS",
+          "msme_exemption_applicable": true,
+          "startup_exemption_applicable": true,
+          "exemption_notes": "Micro and Small Enterprises (MSEs) registered under Udyam and DPIIT-recognized Startups are exempt from financial turnover criteria."
+        },
+        "evidence_required": [
+          "Audited Balance Sheets and P&L Statements",
+          "CA Turnover Certificate with UDIN"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "CA_TURNOVER_CERTIFICATE",
+            "description": "Turnover certificate certified by practicing CA with valid UDIN",
+            "mandatory": true,
+            "issuing_authority": "Practicing Chartered Accountant"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 2,
+          "clause_number": "Clause 2.1",
+          "section_title": "Financial Standing",
+          "verbatim_quote": "The bidder shall have an average annual financial turnover of not less than INR 5.0 Crores during the last three completed financial years."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-004",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "PAST_EXPERIENCE",
+        "title": "Past Similar Work Experience",
+        "description": "The bidder must have successfully executed at least 2 contracts for supply and commissioning of continuous water quality or effluent monitoring systems in the last 5 years, each contract value not less than INR 1.0 Crore.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "executed_contracts_count",
+          "operator": ">=",
+          "threshold_value": 2.0,
+          "unit": "COUNT",
+          "period_years": 5.0,
+          "period_description": "last 5 years",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS",
+          "msme_exemption_applicable": false,
+          "startup_exemption_applicable": false
+        },
+        "evidence_required": [
+          "Work Completion Certificates",
+          "Copies of Purchase Orders"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "COMPLETION_CERTIFICATE",
+            "description": "Satisfactory work completion certificates from end-users",
+            "mandatory": true,
+            "issuing_authority": "Client / PSU Project Authority"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 2,
+          "clause_number": "Clause 2.2",
+          "section_title": "Past Technical Experience",
+          "verbatim_quote": "Bidder must have successfully executed at least 2 contracts for supply and commissioning of continuous water quality systems in the last 5 years."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-005",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "OEM_AUTHORIZATION",
+        "title": "Manufacturer Authorization Form (MAF)",
+        "description": "Bidder must submit a valid Manufacturer Authorization Form (MAF) from the sensor and analyzer OEM.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "oem_authorization",
+          "operator": "==",
+          "threshold_value": "AUTHORIZED",
+          "unit": "STATUS",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "Manufacturer Authorization Form (MAF)"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "OEM_AUTHORIZATION",
+            "description": "Official MAF certificate signed by authorized OEM executive",
+            "mandatory": true,
+            "issuing_authority": "Original Equipment Manufacturer"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.1",
+          "section_title": "Technical Specifications & OEM Support",
+          "verbatim_quote": "If the bidder is not an OEM, an authentic Manufacturer Authorization Form (MAF) specific to this tender must be submitted."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-006",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "LOCAL_CONTENT_MII",
+        "title": "Make in India (MII) Local Content Preference",
+        "description": "Minimum 20% local content is mandatory under Public Procurement (Preference to Make in India) Order.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "local_content_percentage",
+          "operator": ">=",
+          "threshold_value": 20.0,
+          "unit": "PERCENT",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "Self-declaration of local content percentage and location of value addition"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "LOCAL_CONTENT_DECLARATION",
+            "description": "Self-declaration of local content percentage on company letterhead",
+            "mandatory": true,
+            "issuing_authority": "Authorized Bidder Signatory"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.2",
+          "section_title": "Statutory Local Content Mandate",
+          "verbatim_quote": "Minimum 20% local content is mandatory under Make in India guidelines."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-007",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "LEGAL_AND_DEBARMENT",
+        "title": "Non-Blacklisting & Non-Debarment Undertaking",
+        "description": "The bidder must not be debarred, blacklisted, or under holiday listing by any Central/State Government or PSU.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "debarment_status",
+          "operator": "==",
+          "threshold_value": "CLEAR",
+          "unit": "STATUS",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "Self-undertaking on non-debarment"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "NON_DEBARMENT_UNDERTAKING",
+            "description": "Notarized declaration of non-debarment",
+            "mandatory": true,
+            "issuing_authority": "Authorized Signatory / Notary Public"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.3",
+          "section_title": "Governance & Legal Compliance",
+          "verbatim_quote": "The bidder must not be under debarment or holiday listing by any Central/State Govt or PSU."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-008",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "DELIVERY_AND_SLA",
+        "title": "Comprehensive OEM Onsite Warranty",
+        "description": "The supplier shall provide comprehensive onsite warranty of not less than 24 months from the date of successful commissioning.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "warranty_period_months",
+          "operator": ">=",
+          "threshold_value": 24.0,
+          "unit": "MONTHS",
+          "period_years": 2.0,
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "Warranty Undertaking from OEM/Bidder"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "WARRANTY_UNDERTAKING",
+            "description": "24-month OEM comprehensive onsite warranty certificate",
+            "mandatory": true,
+            "issuing_authority": "OEM / Prime Bidder"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.4",
+          "section_title": "Service Level Agreement & Warranty",
+          "verbatim_quote": "Comprehensive onsite warranty of not less than 24 months from commissioning date."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-009",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "PAST_EXPERIENCE",
+        "title": "Industrial Capability Clause",
+        "description": "Bidder should have adequate experience and satisfactory reputation in similar industrial domains.",
+        "mandatory": false,
+        "is_ambiguous": true,
+        "ambiguity_reason": "The clause relies on vague subjective terms ('adequate experience' and 'satisfactory reputation') without establishing quantifiable threshold values or objective parameters.",
+        "structured_condition": {
+          "field_name": "adequate_experience",
+          "operator": "==",
+          "threshold_value": null,
+          "unit": null,
+          "is_quantifiable": false
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [],
+        "evidence_specs": [],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.5",
+          "section_title": "General Quality Criteria",
+          "verbatim_quote": "Bidder should have adequate experience and satisfactory reputation in similar industrial domains."
+        },
+        "ambiguity": {
+          "is_ambiguous": true,
+          "ambiguity_type": "VAGUE_TERMINOLOGY",
+          "ambiguity_reason": "Vague subjective terms without quantifiable thresholds."
+        }
+      }
+    ],
+    "DEMO/CPCL/WQM/2026/017": [
+      {
+        "requirement_id": "REQ-001",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "GST_AND_TAX",
+        "title": "GST Registration & Filing",
+        "description": "The bidder must possess a valid and active GST Registration Certificate with latest GSTR-3B filing.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "gstin_active",
+          "operator": "==",
+          "threshold_value": "ACTIVE",
+          "unit": "STATUS",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS",
+          "msme_exemption_applicable": false,
+          "startup_exemption_applicable": false
+        },
+        "evidence_required": [
+          "Active GSTIN Certificate",
+          "GSTR-3B receipts for last 3 months"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "GST_CERTIFICATE",
+            "description": "Active GSTIN Certificate and latest GSTR-3B return receipts",
+            "mandatory": true,
+            "issuing_authority": "Goods and Services Tax Network (GSTN)"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 1,
+          "clause_number": "Clause 1.1",
+          "section_title": "Statutory & Tax Compliance",
+          "verbatim_quote": "The bidder must possess a valid and active GST Registration Certificate under the Central Goods and Services Tax Act."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-002",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "PAN_IDENTITY",
+        "title": "PAN Card & Corporate Registration",
+        "description": "The bidder must submit a valid Permanent Account Number (PAN) and Certificate of Incorporation.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "pan_valid",
+          "operator": "==",
+          "threshold_value": "VALID",
+          "unit": "STATUS",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "PAN Card copy",
+          "Certificate of Incorporation / Partnership Deed"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "PAN_CARD",
+            "description": "Permanent Account Number card",
+            "mandatory": true,
+            "issuing_authority": "Income Tax Department, Government of India"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 1,
+          "clause_number": "Clause 1.2",
+          "section_title": "Statutory & Tax Compliance",
+          "verbatim_quote": "Bidder shall submit valid Permanent Account Number (PAN) issued by Income Tax Department."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-003",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "FINANCIAL_TURNOVER",
+        "title": "Average Annual Financial Turnover",
+        "description": "The bidder shall have an average annual financial turnover of not less than INR 5.0 Crores during the last three completed financial years.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "annual_turnover",
+          "operator": ">=",
+          "threshold_value": 50000000.0,
+          "unit": "INR",
+          "currency": "INR",
+          "period_years": 3.0,
+          "period_description": "last three completed financial years",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": false,
+          "target_entity": "ALL_BIDDERS",
+          "msme_exemption_applicable": true,
+          "startup_exemption_applicable": true,
+          "exemption_notes": "Micro and Small Enterprises (MSEs) registered under Udyam and DPIIT-recognized Startups are exempt from financial turnover criteria."
+        },
+        "evidence_required": [
+          "Audited Balance Sheets and P&L Statements",
+          "CA Turnover Certificate with UDIN"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "CA_TURNOVER_CERTIFICATE",
+            "description": "Turnover certificate certified by practicing CA with valid UDIN",
+            "mandatory": true,
+            "issuing_authority": "Practicing Chartered Accountant"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 2,
+          "clause_number": "Clause 2.1",
+          "section_title": "Financial Standing",
+          "verbatim_quote": "The bidder shall have an average annual financial turnover of not less than INR 5.0 Crores during the last three completed financial years."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-004",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "PAST_EXPERIENCE",
+        "title": "Past Similar Work Experience",
+        "description": "The bidder must have successfully executed at least 2 contracts for supply and commissioning of continuous water quality or effluent monitoring systems in the last 5 years, each contract value not less than INR 1.0 Crore.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "executed_contracts_count",
+          "operator": ">=",
+          "threshold_value": 2.0,
+          "unit": "COUNT",
+          "period_years": 5.0,
+          "period_description": "last 5 years",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS",
+          "msme_exemption_applicable": false,
+          "startup_exemption_applicable": false
+        },
+        "evidence_required": [
+          "Work Completion Certificates",
+          "Copies of Purchase Orders"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "COMPLETION_CERTIFICATE",
+            "description": "Satisfactory work completion certificates from end-users",
+            "mandatory": true,
+            "issuing_authority": "Client / PSU Project Authority"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 2,
+          "clause_number": "Clause 2.2",
+          "section_title": "Past Technical Experience",
+          "verbatim_quote": "Bidder must have successfully executed at least 2 contracts for supply and commissioning of continuous water quality systems in the last 5 years."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-005",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "OEM_AUTHORIZATION",
+        "title": "Manufacturer Authorization Form (MAF)",
+        "description": "Bidder must submit a valid Manufacturer Authorization Form (MAF) from the sensor and analyzer OEM.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "oem_authorization",
+          "operator": "==",
+          "threshold_value": "AUTHORIZED",
+          "unit": "STATUS",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "Manufacturer Authorization Form (MAF)"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "OEM_AUTHORIZATION",
+            "description": "Official MAF certificate signed by authorized OEM executive",
+            "mandatory": true,
+            "issuing_authority": "Original Equipment Manufacturer"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.1",
+          "section_title": "Technical Specifications & OEM Support",
+          "verbatim_quote": "If the bidder is not an OEM, an authentic Manufacturer Authorization Form (MAF) specific to this tender must be submitted."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-006",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "LOCAL_CONTENT_MII",
+        "title": "Make in India (MII) Local Content Preference",
+        "description": "Minimum 20% local content is mandatory under Public Procurement (Preference to Make in India) Order.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "local_content_percentage",
+          "operator": ">=",
+          "threshold_value": 20.0,
+          "unit": "PERCENT",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "Self-declaration of local content percentage and location of value addition"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "LOCAL_CONTENT_DECLARATION",
+            "description": "Self-declaration of local content percentage on company letterhead",
+            "mandatory": true,
+            "issuing_authority": "Authorized Bidder Signatory"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.2",
+          "section_title": "Statutory Local Content Mandate",
+          "verbatim_quote": "Minimum 20% local content is mandatory under Make in India guidelines."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-007",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "LEGAL_AND_DEBARMENT",
+        "title": "Non-Blacklisting & Non-Debarment Undertaking",
+        "description": "The bidder must not be debarred, blacklisted, or under holiday listing by any Central/State Government or PSU.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "debarment_status",
+          "operator": "==",
+          "threshold_value": "CLEAR",
+          "unit": "STATUS",
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "Self-undertaking on non-debarment"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "NON_DEBARMENT_UNDERTAKING",
+            "description": "Notarized declaration of non-debarment",
+            "mandatory": true,
+            "issuing_authority": "Authorized Signatory / Notary Public"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.3",
+          "section_title": "Governance & Legal Compliance",
+          "verbatim_quote": "The bidder must not be under debarment or holiday listing by any Central/State Govt or PSU."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-008",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "DELIVERY_AND_SLA",
+        "title": "Comprehensive OEM Onsite Warranty",
+        "description": "The supplier shall provide comprehensive onsite warranty of not less than 24 months from the date of successful commissioning.",
+        "mandatory": true,
+        "structured_condition": {
+          "field_name": "warranty_period_months",
+          "operator": ">=",
+          "threshold_value": 24.0,
+          "unit": "MONTHS",
+          "period_years": 2.0,
+          "is_quantifiable": true
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [
+          "Warranty Undertaking from OEM/Bidder"
+        ],
+        "evidence_specs": [
+          {
+            "document_type": "WARRANTY_UNDERTAKING",
+            "description": "24-month OEM comprehensive onsite warranty certificate",
+            "mandatory": true,
+            "issuing_authority": "OEM / Prime Bidder"
+          }
+        ],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.4",
+          "section_title": "Service Level Agreement & Warranty",
+          "verbatim_quote": "Comprehensive onsite warranty of not less than 24 months from commissioning date."
+        },
+        "is_ambiguous": false,
+        "ambiguity": {
+          "is_ambiguous": false,
+          "ambiguity_type": "NONE"
+        }
+      },
+      {
+        "requirement_id": "REQ-009",
+        "tender_id": "4ebcb335-5695-4515-beab-8013a383895b",
+        "category": "PAST_EXPERIENCE",
+        "title": "Industrial Capability Clause",
+        "description": "Bidder should have adequate experience and satisfactory reputation in similar industrial domains.",
+        "mandatory": false,
+        "is_ambiguous": true,
+        "ambiguity_reason": "The clause relies on vague subjective terms ('adequate experience' and 'satisfactory reputation') without establishing quantifiable threshold values or objective parameters.",
+        "structured_condition": {
+          "field_name": "adequate_experience",
+          "operator": "==",
+          "threshold_value": null,
+          "unit": null,
+          "is_quantifiable": false
+        },
+        "applicability": {
+          "applies_to_all": true,
+          "target_entity": "ALL_BIDDERS"
+        },
+        "evidence_required": [],
+        "evidence_specs": [],
+        "source_provenance": {
+          "page_number": 3,
+          "clause_number": "Clause 3.5",
+          "section_title": "General Quality Criteria",
+          "verbatim_quote": "Bidder should have adequate experience and satisfactory reputation in similar industrial domains."
+        },
+        "ambiguity": {
+          "is_ambiguous": true,
+          "ambiguity_type": "VAGUE_TERMINOLOGY",
+          "ambiguity_reason": "Vague subjective terms without quantifiable thresholds."
+        }
+      }
+    ]
+  },
+  "financial_evaluations": {},
+  "clarifications": {},
+  "audit_logs": []
+}
