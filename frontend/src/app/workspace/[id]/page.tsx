@@ -8,15 +8,6 @@ import Navbar from "@/components/Navbar";
 import { fetchProcurementDetail } from "@/services/api";
 import { ProcurementDetail, SubmissionSummary } from "@/types/procurement";
 
-/**
- * WorkspaceDetailPage
- *
- * Premium high-fidelity project detail view matching the Opal reference design.
- * Reads procurement ID from URL, loads data via existing fetchProcurementDetail API,
- * renders deadline logic, bidder submissions list, and action panel.
- *
- * No backend or schema changes — pure presentation layer.
- */
 export default function WorkspaceDetailPage() {
   const params = useParams();
   const id = typeof params?.id === "string" ? params.id : "";
@@ -47,7 +38,7 @@ export default function WorkspaceDetailPage() {
     loadData();
   }, [loadData]);
 
-  // Derive all bidder submissions from nested tenders
+  // Collect all bidder submissions from nested tenders
   const allSubmissions: SubmissionSummary[] = [];
   if (procurement?.tenders) {
     for (const tender of procurement.tenders) {
@@ -59,11 +50,9 @@ export default function WorkspaceDetailPage() {
     }
   }
 
-  // Derive deadline from tender created_at — use first tender if available
+  // Deadline from first tender created_at as proxy
   const firstTender = procurement?.tenders?.[0];
-  const deadlineDate = firstTender?.created_at
-    ? new Date(firstTender.created_at)
-    : null;
+  const deadlineDate = firstTender?.created_at ? new Date(firstTender.created_at) : null;
   const isDeadlinePast = deadlineDate ? deadlineDate < new Date() : false;
   const formattedDeadline = deadlineDate
     ? deadlineDate.toLocaleDateString("en-GB", {
@@ -73,121 +62,135 @@ export default function WorkspaceDetailPage() {
       })
     : null;
 
-  // Description from first tender if available
   const description =
     firstTender?.description ||
     "This procurement workspace contains bid compliance verification records from GeM. Evidence is extracted, requirements are matched, and findings are prepared for officer review.";
 
+  const tenderDateStr = procurement
+    ? new Date(procurement.created_at || Date.now())
+        .toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+        .replace(/\//g, ".")
+    : "";
+
   return (
-    <div className="min-h-screen bg-white font-sans">
+    <div className="min-h-screen bg-white font-['Stack_Sans_Text',_sans-serif]">
       <Navbar />
 
-      <main className="max-w-[1000px] mx-auto px-6 pt-10 pb-16">
+      <main className="w-full max-w-[1000px] mx-auto pt-10 pb-16">
 
-        {/* Back link */}
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 mb-8 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Workspace
-        </Link>
+        {/* Back link — same left margin as dashboard title */}
+        <div className="ml-[24px] mb-8">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-[13px] text-[#9ca3af] hover:text-[#6b7280] transition-colors tracking-tight"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back to Workspace
+          </Link>
+        </div>
 
         {loading && (
-          <div className="text-sm text-slate-400 py-12 text-center">
-            Loading project workspace…
-          </div>
+          <p className="ml-[24px] text-[14px] text-[#9ca3af]">Loading project workspace…</p>
         )}
-
         {error && (
-          <div className="text-sm text-red-500 py-12 text-center">{error}</div>
+          <p className="ml-[24px] text-[14px] text-red-500">{error}</p>
         )}
 
         {!loading && !error && procurement && (
           <>
-            {/* ── TOP SECTION ─────────────────────────────────────────────── */}
-            <div className="flex items-start justify-between gap-4 mb-1">
-              {/* Title */}
-              <h1 className="font-manrope font-bold text-[#111827] text-[28px] leading-tight tracking-tight max-w-[600px]">
-                {procurement.title}
-              </h1>
+            {/* ── PROJECT TITLE ── same size/weight/margin as "Opal Workspace" */}
+            <h1 className="text-[40px] font-medium text-[#111827] leading-tight ml-[24px] mb-[20px] tracking-tight max-w-[680px]">
+              {procurement.title}
+            </h1>
 
-              {/* Tender pill tag */}
-              <div className="shrink-0 flex items-center gap-1.5 bg-yellow-100 border border-yellow-200 text-yellow-800 font-sans text-[13px] font-medium px-3 py-1 rounded-full mt-1">
+            {/* ── AI SUMMARY DESCRIPTION ── lighter color, same left margin */}
+            <p className="ml-[24px] text-[15px] text-[#9ca3af] leading-relaxed max-w-[620px] mb-[20px]">
+              {description}
+            </p>
+
+            {/* ── METADATA + TENDER PILL ROW ── */}
+            {/* Ministry + Tender date left-aligned; Tender pill far right */}
+            <div className="ml-[24px] flex items-end justify-between pr-0 mb-0">
+              {/* Left: ministry + tender date */}
+              <div className="flex flex-col gap-[3px]">
+                <p className="text-[14px] text-[#6b7280] font-normal">
+                  {procurement.organization}
+                </p>
+                <p className="text-[13px] text-[#9ca3af]">
+                  Tender date: {tenderDateStr}
+                </p>
+              </div>
+
+              {/* Right: Tender pill — vertically centered with the two metadata lines */}
+              <div className="flex items-center gap-1.5 bg-yellow-100 border border-yellow-200 text-yellow-800 text-[13px] font-medium px-3 py-1 rounded-full shrink-0">
                 <FileText className="w-3.5 h-3.5 text-yellow-600" />
                 Tender
               </div>
             </div>
 
-            {/* Description paragraph */}
-            <p className="font-sans text-[14px] text-[#4b5563] leading-relaxed mt-4 max-w-[620px]">
-              {description}
-            </p>
+            {/* ── HORIZONTAL DIVIDER ── */}
+            <hr className="border-[#f1f5f9] mt-5 mb-8 ml-[24px]" />
 
-            {/* Metadata line */}
-            <div className="mt-5 font-serif text-slate-400 text-[13.5px] space-y-[3px]">
-              <p className="italic">{procurement.organization}</p>
-              <p>
-                Tender date:{" "}
-                {new Date(procurement.created_at || Date.now()).toLocaleDateString("en-GB", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                }).replace(/\//g, ".")}
-              </p>
-            </div>
-
-            {/* Divider */}
-            <hr className="border-[#f1f5f9] mt-7 mb-8" />
-
-            {/* ── LOWER TWO-COLUMN SECTION ─────────────────────────────────── */}
-            <div className="flex flex-col md:flex-row gap-10 items-start">
+            {/* ── LOWER TWO-COLUMN SECTION ── */}
+            <div className="ml-[24px] flex flex-col md:flex-row gap-10 items-start">
 
               {/* LEFT PANEL — Deadline + Officer action */}
               <div className="flex flex-col gap-5 min-w-[220px]">
 
-                {/* Deadline indicator */}
+                {/* Deadline string */}
                 {formattedDeadline ? (
                   <div>
-                    <p className="font-manrope text-[14px] text-[#374151]">
+                    <p className="text-[14px] text-[#374151]">
                       Bidder Submission deadline was
                     </p>
                     <p
-                      className={`font-manrope font-bold text-[16px] mt-0.5 ${
-                        isDeadlinePast ? "text-red-600" : "text-[#16a34a]"
+                      className={`font-semibold text-[16px] mt-0.5 ${
+                        isDeadlinePast ? "text-red-600" : "text-[#374151]"
                       }`}
                     >
                       {formattedDeadline}
                     </p>
                   </div>
                 ) : (
-                  <p className="font-manrope text-[14px] text-slate-400">
-                    No deadline recorded.
-                  </p>
+                  <p className="text-[14px] text-[#9ca3af]">No deadline recorded.</p>
                 )}
 
-                {/* Situational greeting box */}
-                <div>
-                  <p className="font-sans text-[13.5px] text-[#374151] leading-snug mb-4">
-                    Sir, you are clear for the Technical Scrutiny of all the submitted bidders!
-                  </p>
+                {/* Situational message */}
+                <p className="text-[13.5px] text-[#374151] leading-snug max-w-[220px]">
+                  {isDeadlinePast
+                    ? "Sir, you are clear for the Technical Scrutiny of all the submitted bidders!"
+                    : "Sir, the submission deadline has not yet passed. Technical scrutiny is not yet available."}
+                </p>
+
+                {/* Technical Scrutiny button — green if deadline past, gray if not */}
+                {isDeadlinePast ? (
                   <Link
                     href={`/procurements/${procurement.id}`}
-                    className="inline-flex items-center gap-2 bg-[#4ade80] hover:bg-[#22c55e] text-white font-manrope font-bold text-[12px] tracking-wide uppercase px-4 py-2 rounded-md transition-colors"
+                    className="inline-flex items-center justify-center font-semibold text-[12px] tracking-wide uppercase text-white px-4 py-2 rounded-md transition-colors"
+                    style={{ backgroundColor: "#61BF03" }}
                   >
                     Technical Scrutiny
                   </Link>
-                </div>
+                ) : (
+                  <span
+                    aria-disabled="true"
+                    title="Deadline has not passed yet"
+                    className="inline-flex items-center justify-center font-semibold text-[12px] tracking-wide uppercase text-white px-4 py-2 rounded-md cursor-not-allowed select-none"
+                    style={{ backgroundColor: "#d1d5db" }}
+                  >
+                    Technical Scrutiny
+                  </span>
+                )}
               </div>
 
-              {/* RIGHT PANEL — Bidder Submissions container */}
+              {/* RIGHT PANEL — Bidder Submissions */}
               <div className="flex-1 bg-yellow-50/60 rounded-xl p-6">
-                <h2 className="font-manrope font-semibold text-[#111827] text-[15px] mb-4">
+                <h2 className="font-semibold text-[#111827] text-[15px] mb-4">
                   Bidder Submissions
                 </h2>
 
                 {allSubmissions.length === 0 ? (
-                  <p className="font-sans text-[13px] text-slate-400">
+                  <p className="text-[13px] text-[#9ca3af]">
                     No bidder submissions registered yet.
                   </p>
                 ) : (
@@ -197,13 +200,13 @@ export default function WorkspaceDetailPage() {
                         key={sub.id}
                         className="flex items-center justify-between py-3"
                       >
-                        <span className="font-manrope text-[14px] text-[#111827]">
+                        <span className="text-[14px] text-[#111827]">
                           {sub.bidder?.legal_name || "Unknown Bidder"}
                         </span>
                         <Link
                           href={`/submissions/${sub.id}`}
-                          className="shrink-0 ml-4 text-orange-400 hover:text-orange-600 transition-colors"
-                          aria-label={`Open submission file for ${sub.bidder?.legal_name || sub.id}`}
+                          className="shrink-0 ml-4 text-orange-400 hover:text-orange-500 transition-colors"
+                          aria-label={`Open submission for ${sub.bidder?.legal_name || sub.id}`}
                         >
                           <FileText className="w-5 h-5" />
                         </Link>
@@ -212,6 +215,7 @@ export default function WorkspaceDetailPage() {
                   </ul>
                 )}
               </div>
+
             </div>
           </>
         )}
