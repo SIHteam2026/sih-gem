@@ -36,6 +36,8 @@ def test_sandbox_settings_missing_base_url(monkeypatch):
 def provider(monkeypatch):
     monkeypatch.setenv("SANDBOX_BASE_URL", "https://api.sandbox.co.in")
     monkeypatch.setenv("SANDBOX_API_KEY", "api_key")
+    monkeypatch.setenv("SANDBOX_API_SECRET", "api_secret")
+    monkeypatch.setenv("SANDBOX_AUTH_TOKEN", "auth_token")
     monkeypatch.setenv("SANDBOX_TIMEOUT_SECONDS", "1") # low timeout for tests
     monkeypatch.setenv("SANDBOX_RETRY_COUNT", "0") # no retries for tests
     return SandboxGovProvider()

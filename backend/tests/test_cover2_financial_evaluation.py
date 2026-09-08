@@ -53,8 +53,8 @@ from app.db.client import (
     get_procurement_financial_evaluation,
 )
 from app.api.procurement_router import (
-    evaluate_procurement_financial_endpoint,
-    get_procurement_financial_endpoint,
+    open_cover2_financial_evaluation_endpoint,
+    get_financial_review_endpoint,
 )
 
 
@@ -461,13 +461,21 @@ class TestCover2FinancialEvaluation(unittest.TestCase):
             ingest_res = await ingest_procurement(payload)
             proc_id = ingest_res.procurement_id
 
+            # Transition to TECHNICAL_REVIEW for Cover 2 eligibility
+            from app.models.procurement import ProcurementStatus
+            from app.services.procurement_lifecycle_service import transition_procurement_state
+            await transition_procurement_state(proc_id, ProcurementStatus.TECHNICAL_REVIEW)
+
             # Call API POST endpoint
-            post_resp = await evaluate_procurement_financial_endpoint(proc_id)
+            from app.models.financial import Cover2RunRequest
+            post_resp = await open_cover2_financial_evaluation_endpoint(
+                proc_id, payload=Cover2RunRequest(force=True)
+            )
             self.assertEqual(post_resp.procurement_id, proc_id)
             self.assertIn(post_resp.cover2_status, (Cover2State.EVALUATED, Cover2State.REVIEW_REQUIRED))
 
             # Call API GET endpoint
-            get_resp = await get_procurement_financial_endpoint(proc_id)
+            get_resp = await get_financial_review_endpoint(proc_id)
             self.assertEqual(get_resp.procurement_id, proc_id)
             self.assertEqual(get_resp.cover2_status, post_resp.cover2_status)
             self.assertEqual(len(get_resp.bidder_evaluations), len(post_resp.bidder_evaluations))
