@@ -1,13 +1,10 @@
-import HomeShell from "@/components/HomeShell";
-import HomeHero from "@/components/HomeHero";
-import OfficerContextPanel from "@/components/OfficerContextPanel";
+import HomeShell from @/components/HomeShell;
+import LivingContextSection from @/components/LivingContextSection;
 
 export default function Home() {
   return (
-    <HomeShell
-      heroSlot={<HomeHero />}
-      contextSlot={<OfficerContextPanel />}
-    />
+    <HomeShell>
+      <LivingContextSection />
+    </HomeShell>
   );
 }
-
