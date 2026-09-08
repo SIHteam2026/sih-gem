@@ -36,7 +36,7 @@ try:
         extract_text_from_pdf,
     )
     from app.extractors.gemini_gst import extract_gst_fields
-    from app.api.gov_fetcher import verify_gstin_external
+    from app.api.gov_fetcher import verify_gstin_external, verify_pan_external
     from app.rules.gst_rules import evaluate_gst
     from app.db.client import (
         get_supabase_client,
@@ -1122,6 +1122,35 @@ async def extract_documents_endpoint(
         "documents": results,
     }
 
+
+@app.post("/api/verify/pan")
+async def verify_pan(
+    pan: str = Form(...),
+    name_as_per_pan: str = Form(""),
+    date_of_birth: str = Form("")
+):
+    """
+    Verifies a PAN against the official Sandbox PAN public verification API.
+    Does not perform extraction, assumes explicit input.
+    """
+    try:
+        gov_registry_data = await verify_pan_external(pan, name_as_per_pan=name_as_per_pan, date_of_birth=date_of_birth)
+        return {
+            "pan": pan,
+            "external_verification": gov_registry_data
+        }
+    except (httpx.HTTPError, httpx.RequestError) as http_err:
+        logger.error("External PAN HTTP error: %s", http_err)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"External Government API connection error: {str(http_err)}",
+        )
+    except Exception as fetch_err:
+        logger.error("External PAN unexpected error: %s", fetch_err)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"External Government API error: {str(fetch_err)}",
+        )
 
 @app.post("/api/verify/gst")
 async def verify_gst(file: UploadFile = File(...)):

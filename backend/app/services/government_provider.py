@@ -57,7 +57,10 @@ class SandboxGovProvider:
                 self._token_expiry = now + timedelta(hours=23)
         except Exception as exc:
             logger.error(f"Failed to obtain Sandbox auth token: {exc}")
-            raise
+            # Do not raise; allow request to proceed without token; auth errors will be handled per request
+            self._access_token = None
+            self._token_expiry = None
+            return
 
     async def _make_request(self, url: str, api_key: str, payload: Dict[str, Any]) -> GovVerificationResult:
         """Execute a POST request to a Sandbox endpoint with token handling.
@@ -108,13 +111,14 @@ class SandboxGovProvider:
                     response = await client.post(url, json=payload, headers=headers)
 
                     if response.status_code in (401, 403):
-                        # Possibly token expired; retry once after refresh
-                        if attempt == 0:
+                        # Possibly token expired; retry if we have remaining attempts
+                        if attempt < retry_count:
                             self._access_token = None
                             self._token_expiry = None
                             await self._ensure_token()
                             headers["Authorization"] = self._access_token or ""
                             continue
+                        # No more retries – report authentication error
                         return GovVerificationResult(
                             verification_type=verification_type,
                             identifier=identifier,
@@ -191,6 +195,14 @@ class SandboxGovProvider:
                     outcome=ProviderOutcome.REQUEST_ERROR,
                     reason=f"Unexpected error: {str(exc)}",
                 )
+        # end of for loop – if we exit without returning, treat as service unavailable
+        return GovVerificationResult(
+            verification_type=verification_type,
+            identifier=identifier,
+            environment=self.environment,
+            outcome=ProviderOutcome.SERVICE_UNAVAILABLE,
+            reason="Maximum retries exhausted without a successful response",
+        )
 
     def _parse_success_response(self, v_type: VerificationType, identifier: str, res_json: dict) -> GovVerificationResult:
         outer_data = res_json.get("data", {})
@@ -198,6 +210,16 @@ class SandboxGovProvider:
             inner_data = outer_data.get("data", outer_data)
         else:
             inner_data = {}
+
+        # Sandbox commonly uses 'transaction_id' or 'reference_id' at the root or within data
+        provider_reference = (
+            res_json.get("transaction_id") 
+            or res_json.get("reference_id") 
+            or outer_data.get("transaction_id") 
+            or outer_data.get("reference_id")
+            or inner_data.get("transaction_id")
+            or inner_data.get("reference_id")
+        )
 
         if v_type == VerificationType.GSTIN:
             raw_status = (
@@ -215,7 +237,8 @@ class SandboxGovProvider:
                 environment=self.environment,
                 outcome=outcome,
                 status=normalized_status,
-                raw_data=inner_data
+                raw_data=inner_data,
+                provider_reference=provider_reference
             )
         else: # PAN
             raw_status = inner_data.get("status") or inner_data.get("pan_status")
@@ -230,7 +253,8 @@ class SandboxGovProvider:
                 environment=self.environment,
                 outcome=outcome,
                 status=normalized_status,
-                raw_data=inner_data
+                raw_data=inner_data,
+                provider_reference=provider_reference
             )
 
     async def verify_gstin(self, gstin: str, bidder_id: Optional[str] = None) -> GovVerificationResult:
@@ -248,7 +272,15 @@ class SandboxGovProvider:
         result.bidder_id = bidder_id
         return result
 
-    async def verify_pan(self, pan: str, bidder_id: Optional[str] = None) -> GovVerificationResult:
+    async def verify_pan(
+        self, 
+        pan: str, 
+        name_as_per_pan: Optional[str] = None, 
+        date_of_birth: Optional[str] = None, 
+        consent: str = "Y", 
+        reason: str = "Identity Verification for Procurement", 
+        bidder_id: Optional[str] = None
+    ) -> GovVerificationResult:
         cleaned_pan = (pan or "").strip().upper()
         if not cleaned_pan:
              return GovVerificationResult(
@@ -258,7 +290,22 @@ class SandboxGovProvider:
                 reason="PAN is missing or empty"
             )
         
-        payload = {"pan": cleaned_pan}
+        if not name_as_per_pan or not date_of_birth:
+             return GovVerificationResult(
+                verification_type=VerificationType.PAN,
+                environment=self.environment,
+                outcome=ProviderOutcome.SERVICE_UNAVAILABLE, # Map missing required id data to an unverified equivalent (SERVICE_UNAVAILABLE is mapped to UNVERIFIED later)
+                reason=f"Missing required identity information for PAN verification (name_as_per_pan, date_of_birth)."
+            )
+
+        payload = {
+            "@entity": "in.co.sandbox.kyc.pan_verification.request",
+            "pan": cleaned_pan,
+            "name_as_per_pan": name_as_per_pan,
+            "date_of_birth": date_of_birth,
+            "consent": consent,
+            "reason": reason
+        }
         result = await self._make_request(self.pan_endpoint, self.settings.api_key, payload)
         result.bidder_id = bidder_id
         return result

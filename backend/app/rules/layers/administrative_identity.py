@@ -237,16 +237,19 @@ class AdministrativeIdentityVerifier(BaseVerifier):
                         )
 
             # 4. External Authoritative / Sandbox Verification
-            ext_verifs = context.external_verifications or {}
-            # Match by bidder_id, gstin, pan, or requirement_id
-            matched_ext = ext_verifs.get(bidder_id) or (ext_verifs.get(gstin) if gstin else None) or (ext_verifs.get(pan) if pan else None)
-            
-            if matched_ext:
-                ext_status = str(matched_ext.get("status", "")).upper()
-                ext_gov_name = str(matched_ext.get("legal_name") or matched_ext.get("taxpayer_name") or "").strip().upper()
+            from app.services.government_provider import SandboxGovProvider
+            from app.models.government import ProviderOutcome
+            sandbox_provider = SandboxGovProvider()
+
+            # Process GSTIN verification
+            if gstin and is_valid_gst:
+                gst_result = await sandbox_provider.verify_gstin(gstin, bidder_id=bidder_id)
                 
-                if ext_status in ("ACTIVE", "VERIFIED", "SUCCESS", "EXTERNALLY_VERIFIED"):
-                    # Check name match
+                if gst_result.outcome == ProviderOutcome.VERIFIED:
+                    ext_gov_name = ""
+                    if gst_result.raw_data:
+                        ext_gov_name = str(gst_result.raw_data.get("legalName") or gst_result.raw_data.get("tradeName") or "").strip().upper()
+                        
                     score = SequenceMatcher(None, legal_name.upper(), ext_gov_name).ratio() if ext_gov_name else 1.0
                     if score < 0.85 and ext_gov_name:
                         findings.append(
@@ -261,7 +264,7 @@ class AdministrativeIdentityVerifier(BaseVerifier):
                                 reason=f"Authoritative Registry Name Discrepancy: Bidder profile name '{legal_name}' differs from government record '{ext_gov_name}' (match score {score:.2f} < 0.85).",
                                 confidence=0.95,
                                 machine_readable_flags=["REGISTRY_NAME_MISMATCH", "IDENTITY_REVIEW_REQUIRED"],
-                                metadata={"declared_name": legal_name, "registry_name": ext_gov_name, "score": score},
+                                metadata={"declared_name": legal_name, "registry_name": ext_gov_name, "score": score, "provider_reference": gst_result.provider_reference},
                             )
                         )
                     else:
@@ -277,10 +280,10 @@ class AdministrativeIdentityVerifier(BaseVerifier):
                                 reason=f"Authoritative Registry Verification Succeeded: GSTIN '{gstin}' is active and matches '{ext_gov_name or legal_name}'.",
                                 confidence=1.0,
                                 machine_readable_flags=["EXTERNALLY_VERIFIED", "ACTIVE_REGISTRATION"],
-                                metadata={"gstin": gstin, "registry_data": matched_ext},
+                                metadata={"gstin": gstin, "registry_data": gst_result.raw_data, "provider_reference": gst_result.provider_reference},
                             )
                         )
-                elif ext_status in ("CANCELLED", "SUSPENDED", "INACTIVE", "FAILED"):
+                elif gst_result.outcome == ProviderOutcome.INVALID:
                     findings.append(
                         VerificationFinding(
                             verifier=self.verifier_id,
@@ -289,14 +292,14 @@ class AdministrativeIdentityVerifier(BaseVerifier):
                             status=ComplianceState.FAIL,
                             severity=FindingSeverity.CRITICAL,
                             claim={"gstin": gstin},
-                            observation=f"REGISTRY_STATUS_{ext_status}",
-                            reason=f"Authoritative Registry Invalidation: Government registration for '{gstin}' is '{ext_status}'.",
+                            observation=f"REGISTRY_STATUS_{gst_result.status}",
+                            reason=f"Authoritative Registry Invalidation: Government registration for '{gstin}' is '{gst_result.status}'.",
                             confidence=1.0,
                             machine_readable_flags=["REGISTRY_STATUS_INACTIVE", "STATUTORY_DISQUALIFICATION_SIGNAL"],
-                            metadata={"gstin": gstin, "registry_status": ext_status},
+                            metadata={"gstin": gstin, "registry_status": gst_result.status, "provider_reference": gst_result.provider_reference},
                         )
                     )
-                elif ext_status in ("UNAVAILABLE", "ERROR", "SERVICE_UNAVAILABLE", "TIMEOUT"):
+                else: # NOT_CONFIGURED, SERVICE_UNAVAILABLE, AUTHENTICATION_ERROR, etc.
                     findings.append(
                         VerificationFinding(
                             verifier=self.verifier_id,
@@ -306,10 +309,65 @@ class AdministrativeIdentityVerifier(BaseVerifier):
                             severity=FindingSeverity.HIGH,
                             claim={"gstin": gstin},
                             observation=IdentityVerificationStatus.SERVICE_UNAVAILABLE.value,
-                            reason=f"Authoritative Registry Service Unavailable: External portal timeout or gateway error for '{gstin}'. Verification incomplete.",
+                            reason=f"Authoritative Registry Service Unavailable: {gst_result.reason}. Verification incomplete.",
                             confidence=0.8,
                             machine_readable_flags=["EXTERNAL_SERVICE_UNAVAILABLE", "UNVERIFIED_STATUTORY_RECORD"],
-                            metadata={"gstin": gstin, "error": matched_ext.get("error")},
+                            metadata={"gstin": gstin, "error": gst_result.reason, "provider_reference": gst_result.provider_reference},
+                        )
+                    )
+
+            # Process PAN verification
+            if pan and is_valid_pan:
+                dob = str(b.get("date_of_incorporation") or b.get("date_of_birth") or "").strip()
+                # Ensure we have date format if required by sandbox, but passing what we have.
+                pan_result = await sandbox_provider.verify_pan(pan, name_as_per_pan=legal_name, date_of_birth=dob, bidder_id=bidder_id)
+                
+                if pan_result.outcome == ProviderOutcome.VERIFIED:
+                    findings.append(
+                        VerificationFinding(
+                            verifier=self.verifier_id,
+                            verification_layer=self.layer,
+                            bidder_id=bidder_id,
+                            status=ComplianceState.PASS,
+                            severity=FindingSeverity.INFO,
+                            claim={"pan": pan, "legal_name": legal_name},
+                            observation=IdentityVerificationStatus.EXTERNALLY_VERIFIED.value,
+                            reason=f"Authoritative Registry Verification Succeeded: PAN '{pan}' is valid.",
+                            confidence=1.0,
+                            machine_readable_flags=["EXTERNALLY_VERIFIED", "ACTIVE_REGISTRATION"],
+                            metadata={"pan": pan, "registry_data": pan_result.raw_data, "provider_reference": pan_result.provider_reference},
+                        )
+                    )
+                elif pan_result.outcome == ProviderOutcome.INVALID:
+                    findings.append(
+                        VerificationFinding(
+                            verifier=self.verifier_id,
+                            verification_layer=self.layer,
+                            bidder_id=bidder_id,
+                            status=ComplianceState.FAIL,
+                            severity=FindingSeverity.CRITICAL,
+                            claim={"pan": pan},
+                            observation=f"REGISTRY_STATUS_{pan_result.status}",
+                            reason=f"Authoritative Registry Invalidation: Government registration for '{pan}' is '{pan_result.status}'.",
+                            confidence=1.0,
+                            machine_readable_flags=["REGISTRY_STATUS_INACTIVE", "STATUTORY_DISQUALIFICATION_SIGNAL"],
+                            metadata={"pan": pan, "registry_status": pan_result.status, "provider_reference": pan_result.provider_reference},
+                        )
+                    )
+                else: # NOT_CONFIGURED, SERVICE_UNAVAILABLE, AUTHENTICATION_ERROR, etc.
+                    findings.append(
+                        VerificationFinding(
+                            verifier=self.verifier_id,
+                            verification_layer=self.layer,
+                            bidder_id=bidder_id,
+                            status=ComplianceState.UNVERIFIED,
+                            severity=FindingSeverity.HIGH,
+                            claim={"pan": pan},
+                            observation=IdentityVerificationStatus.SERVICE_UNAVAILABLE.value,
+                            reason=f"Authoritative Registry Service Unavailable: {pan_result.reason}. Verification incomplete.",
+                            confidence=0.8,
+                            machine_readable_flags=["EXTERNAL_SERVICE_UNAVAILABLE", "UNVERIFIED_STATUTORY_RECORD"],
+                            metadata={"pan": pan, "error": pan_result.reason, "provider_reference": pan_result.provider_reference},
                         )
                     )
 

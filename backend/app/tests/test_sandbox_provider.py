@@ -80,7 +80,7 @@ async def test_verify_pan_success(provider):
     }
     
     with patch("httpx.AsyncClient.post", return_value=mock_response):
-        result = await provider.verify_pan("ABCDE1234F")
+        result = await provider.verify_pan("ABCDE1234F", name_as_per_pan="TEST", date_of_birth="01/01/2000")
         
         assert result.outcome == ProviderOutcome.VERIFIED
         assert result.verification_type == VerificationType.PAN
