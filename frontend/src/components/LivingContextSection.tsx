@@ -28,6 +28,28 @@ export default function LivingContextSection({
 }) {
   const [procurements, setProcurements] = useState<ProcurementSummaryItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [typedGreeting, setTypedGreeting] = useState<string>("");
+  const [isTypingComplete, setIsTypingComplete] = useState<boolean>(false);
+
+  const fullGreeting = "Welcome to OPAL Workspace!";
+
+  // Autocomplete typing animation
+  useEffect(() => {
+    let currentIdx = 0;
+    setTypedGreeting("");
+    setIsTypingComplete(false);
+
+    const typingInterval = setInterval(() => {
+      currentIdx++;
+      setTypedGreeting(fullGreeting.slice(0, currentIdx));
+      if (currentIdx >= fullGreeting.length) {
+        setIsTypingComplete(true);
+        clearInterval(typingInterval);
+      }
+    }, 45);
+
+    return () => clearInterval(typingInterval);
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -47,37 +69,49 @@ export default function LivingContextSection({
 
   const dynamicInsight = getDynamicInsights(procurements);
 
-  // Time based greeting
+  // Time based subtitle greeting
   const hour = new Date().getHours();
-  let greeting = "Welcome again Sir!";
-  if (hour < 12) greeting = "Good morning Sir!";
-  else if (hour >= 17 && hour < 21) greeting = "Good evening Sir!";
-  else if (hour >= 21) greeting = "Good night Sir!";
+  let timeOfDay = "Welcome Sir!";
+  if (hour < 12) timeOfDay = "Good morning Sir!";
+  else if (hour >= 17 && hour < 21) timeOfDay = "Good evening Sir!";
+  else if (hour >= 21) timeOfDay = "Good night Sir!";
 
   return (
-    <div className={`w-full max-w-5xl mx-auto flex flex-col font-sans tracking-tight ${className}`}>
-      {/* Header & Structural Breakdown */}
-      <div className="mb-6">
-        <h1 className="text-3xl sm:text-4xl font-bold text-[#111827] leading-tight mb-2">
-          Opal Workspace
+    <div className={`w-full max-w-4xl mx-auto flex flex-col font-sans tracking-tight text-center ${className}`}>
+      {/* ── CENTER ALIGNED HEADER & ANIMATED GREETING ── */}
+      <div className="mb-10 text-center space-y-3 pt-2">
+        <div className="inline-flex items-center justify-center gap-2 px-3.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-xs font-semibold shadow-2xs">
+          <span>{timeOfDay}</span>
+        </div>
+
+        {/* Animated Autocomplete Heading */}
+        <h1 className="text-3xl sm:text-5xl font-bold text-[#111827] leading-tight tracking-tight min-h-[48px] sm:min-h-[60px] flex items-center justify-center">
+          <span>{typedGreeting}</span>
+          {!isTypingComplete && (
+            <span className="inline-block w-1 h-8 sm:h-10 ml-1 bg-emerald-600 animate-pulse align-middle" />
+          )}
         </h1>
-        <p className="text-lg text-[#111827] font-medium">{greeting}</p>
-        <p className="text-sm text-[#6b7280] mt-0.5">{dynamicInsight}</p>
+
+        <p className="text-sm sm:text-base text-slate-500 max-w-xl mx-auto leading-relaxed">
+          {dynamicInsight}
+        </p>
       </div>
 
-      <div className="mt-8 flex items-center gap-2.5 mb-6">
+      {/* ── SECTION TITLE ── */}
+      <div className="flex items-center justify-center gap-2.5 mb-8">
         <List className="w-5 h-5 text-emerald-600" />
-        <h2 className="text-xl font-semibold text-emerald-700">Your Projects</h2>
+        <h2 className="text-xl font-bold text-slate-900 tracking-tight">Your Projects</h2>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* ── CENTERED PROJECTS GRID ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
         {loading ? (
-          <div className="col-span-full py-12 text-center text-sm text-gray-500">
-            Loading projects...
+          <div className="col-span-full py-14 text-center text-sm text-slate-400">
+            Loading procurement projects…
           </div>
         ) : procurements.length === 0 ? (
-          <div className="col-span-full p-8 rounded-2xl border border-dashed border-gray-200 text-center text-sm text-gray-500">
-            No projects registered yet. You can ingest sample tenders via the GeM Gateway.
+          <div className="col-span-full p-10 rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 text-center text-sm text-slate-500">
+            No active projects registered. You can simulate and ingest sample tenders via the GeM Gateway.
           </div>
         ) : (
           procurements.map((project) => {
@@ -88,13 +122,13 @@ export default function LivingContextSection({
               <Link
                 key={project.id}
                 href={`/workspace/${project.id}`}
-                className="group block bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs hover:border-slate-300 hover:shadow-md transition-all flex flex-col justify-between min-h-[200px]"
+                className="group block bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-md transition-all flex flex-col justify-between min-h-[200px]"
               >
                 <div>
                   <h3 className="font-bold text-[#111827] text-lg tracking-tight leading-snug line-clamp-2 pb-2 group-hover:text-[#163a5f] transition-colors">
                     {project.title}
                   </h3>
-                  <div className="flex items-center">
+                  <div className="flex items-center mt-1">
                     <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-50 border border-emerald-200/70 text-emerald-700">
                       {badgeText}
                     </span>

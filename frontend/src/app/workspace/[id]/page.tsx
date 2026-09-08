@@ -86,39 +86,40 @@ export default function WorkspaceDetailPage() {
 
         {!loading && !error && procurement && (
           <>
-            {/* ── CENTER-ALIGNED HEADER PORTION ── */}
-            <div className="text-center max-w-3xl mx-auto space-y-4 mb-8">
-              {/* Project Title */}
-              <h1 className="text-3xl sm:text-4xl font-bold text-[#111827] leading-tight tracking-tight">
-                {procurement.title}
-              </h1>
+            {/* ── PROJECT TITLE ── */}
+            <h1 className="text-3xl sm:text-4xl font-bold text-[#111827] leading-tight mb-4 tracking-tight max-w-3xl">
+              {procurement.title}
+            </h1>
 
-              {/* AI Summary Description */}
-              <p className="text-sm sm:text-[15px] text-slate-500 leading-relaxed max-w-2xl mx-auto">
-                {description}
-              </p>
+            {/* ── AI SUMMARY DESCRIPTION ── */}
+            <p className="text-sm sm:text-[15px] text-slate-500 leading-relaxed max-w-2xl mb-6">
+              {description}
+            </p>
 
-              {/* Metadata + Tender Pill Row */}
-              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                <span className="text-sm text-[#374151] font-medium">
+            {/* ── METADATA + TENDER PILL ROW ── */}
+            <div className="flex items-end justify-between pr-0 mb-0">
+              {/* Left: ministry + tender date */}
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm text-[#374151] font-medium">
                   {procurement.organization}
-                </span>
-                <span className="text-slate-300">•</span>
-                <span className="text-xs text-slate-400 font-mono">
+                </p>
+                <p className="text-xs text-slate-400 font-mono">
                   Tender date: {tenderDateStr}
-                </span>
-                <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold px-3 py-1 rounded-full shadow-2xs">
-                  <FileText className="w-3.5 h-3.5 text-amber-600" />
-                  Tender
-                </div>
+                </p>
+              </div>
+
+              {/* Right: Tender pill */}
+              <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold px-3 py-1 rounded-full shrink-0 shadow-2xs">
+                <FileText className="w-3.5 h-3.5 text-amber-600" />
+                Tender
               </div>
             </div>
 
             {/* ── HORIZONTAL DIVIDER ── */}
-            <hr className="border-slate-100 mb-10 max-w-4xl mx-auto" />
+            <hr className="border-slate-100 mt-6 mb-8" />
 
             {/* ── LOWER TWO-COLUMN SECTION ── */}
-            <div className="max-w-4xl mx-auto flex flex-col md:flex-row gap-10 items-start justify-between">
+            <div className="flex flex-col md:flex-row gap-10 items-start justify-between">
 
               {/* LEFT PANEL — Deadline + Officer action */}
               <div className="flex flex-col gap-4 min-w-[240px]">
