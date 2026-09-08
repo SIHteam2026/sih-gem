@@ -659,9 +659,11 @@ def get_canonical_cpcl_requirements(tender_id: str = "DEMO/CPCL/WQM/2026/017") -
     ]
 
 
-def _prune_old_procurements(max_items: int = 10) -> None:
-    """Retains only the latest `max_items` procurements (by created_at) and deletes older ones automatically."""
-    global _IN_MEMORY_PROCUREMENTS, _IN_MEMORY_TENDERS, _IN_MEMORY_SUBMISSIONS, _IN_MEMORY_DOCUMENTS, _IN_MEMORY_REQUIREMENTS
+def _prune_old_procurements(max_items: int = 7) -> None:
+    """Retains only the latest `max_items` procurements (by created_at) and deletes older ones automatically.
+    Default max_items=7 ensures at most 2 active officer cases + 5 logs are kept.
+    """
+    global _IN_MEMORY_PROCUREMENTS, _IN_MEMORY_TENDERS, _IN_MEMORY_SUBMISSIONS, _IN_MEMORY_DOCUMENTS, _IN_MEMORY_REQUIREMENTS, _IN_MEMORY_FINANCIAL_EVALUATIONS, _IN_MEMORY_CLARIFICATIONS
     if len(_IN_MEMORY_PROCUREMENTS) <= max_items:
         return
 
@@ -694,6 +696,107 @@ def _prune_old_procurements(max_items: int = 10) -> None:
         d_id: d for d_id, d in _IN_MEMORY_DOCUMENTS.items()
         if d.get("procurement_id") in keep_proc_ids or d.get("tender_id") in keep_tender_ids
     }
+    _IN_MEMORY_REQUIREMENTS = {
+        t_id: reqs for t_id, reqs in _IN_MEMORY_REQUIREMENTS.items()
+        if t_id in keep_proc_ids or t_id in keep_tender_ids
+    }
+    _IN_MEMORY_FINANCIAL_EVALUATIONS = {
+        f_id: f for f_id, f in _IN_MEMORY_FINANCIAL_EVALUATIONS.items()
+        if f_id in keep_proc_ids
+    }
+    _IN_MEMORY_CLARIFICATIONS = {
+        c_id: c for c_id, c in _IN_MEMORY_CLARIFICATIONS.items()
+        if isinstance(c, dict) and c.get("procurement_id") in keep_proc_ids
+    }
+
+
+async def clear_procurement_logs_db(keep_active_count: int = 2) -> Dict[str, Any]:
+    """Clears all audit logs and prunes historical procurements beyond the latest `keep_active_count` active ones.
+    Removes them from in-memory stores, local persistence store, and Supabase database.
+    """
+    global _IN_MEMORY_PROCUREMENTS, _IN_MEMORY_TENDERS, _IN_MEMORY_SUBMISSIONS, _IN_MEMORY_DOCUMENTS, _IN_MEMORY_REQUIREMENTS, _IN_MEMORY_FINANCIAL_EVALUATIONS, _IN_MEMORY_CLARIFICATIONS, _IN_MEMORY_AUDIT_LOGS
+
+    cleared_logs_count = len(_IN_MEMORY_AUDIT_LOGS)
+    _IN_MEMORY_AUDIT_LOGS.clear()
+
+    sorted_procs = sorted(
+        _IN_MEMORY_PROCUREMENTS.values(),
+        key=lambda x: x.get("created_at") or "",
+        reverse=True,
+    )
+
+    keep_procs = sorted_procs[:keep_active_count]
+    keep_proc_ids = {p["id"] for p in keep_procs if p.get("id")}
+    pruned_count = max(0, len(_IN_MEMORY_PROCUREMENTS) - len(keep_procs))
+
+    _IN_MEMORY_PROCUREMENTS = {p["id"]: p for p in keep_procs if p.get("id")}
+
+    keep_tender_ids = set()
+    _IN_MEMORY_TENDERS = {
+        t_id: t for t_id, t in _IN_MEMORY_TENDERS.items()
+        if t.get("procurement_id") in keep_proc_ids or not t.get("procurement_id")
+    }
+    for t_id, t in _IN_MEMORY_TENDERS.items():
+        keep_tender_ids.add(t_id)
+        if t.get("external_reference"):
+            keep_tender_ids.add(t["external_reference"])
+
+    _IN_MEMORY_SUBMISSIONS = {
+        s_id: s for s_id, s in _IN_MEMORY_SUBMISSIONS.items()
+        if s.get("procurement_id") in keep_proc_ids or s.get("tender_id") in keep_tender_ids
+    }
+    _IN_MEMORY_DOCUMENTS = {
+        d_id: d for d_id, d in _IN_MEMORY_DOCUMENTS.items()
+        if d.get("procurement_id") in keep_proc_ids or d.get("tender_id") in keep_tender_ids
+    }
+    _IN_MEMORY_REQUIREMENTS = {
+        t_id: reqs for t_id, reqs in _IN_MEMORY_REQUIREMENTS.items()
+        if t_id in keep_proc_ids or t_id in keep_tender_ids
+    }
+    _IN_MEMORY_FINANCIAL_EVALUATIONS = {
+        f_id: f for f_id, f in _IN_MEMORY_FINANCIAL_EVALUATIONS.items()
+        if f_id in keep_proc_ids
+    }
+    _IN_MEMORY_CLARIFICATIONS = {
+        c_id: c for c_id, c in _IN_MEMORY_CLARIFICATIONS.items()
+        if isinstance(c, dict) and c.get("procurement_id") in keep_proc_ids
+    }
+
+    _save_local_store()
+
+    try:
+        db_client = get_supabase_client()
+        await asyncio.to_thread(
+            lambda: db_client.table("audit_logs").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+        )
+    except Exception as exc:
+        logger.debug("Non-blocking Supabase audit logs cleanup: %s", exc)
+
+    return {
+        "status": "SUCCESS",
+        "message": f"Cleared {cleared_logs_count} audit records and {pruned_count} historical procurement logs.",
+        "cleared_logs_count": cleared_logs_count,
+        "pruned_procurements_count": pruned_count,
+        "retained_active_procurements": len(keep_procs),
+    }
+
+    _save_local_store()
+
+    try:
+        db_client = get_supabase_client()
+        await asyncio.to_thread(
+            lambda: db_client.table("audit_logs").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+        )
+    except Exception as exc:
+        logger.debug("Non-blocking Supabase audit logs cleanup: %s", exc)
+
+    return {
+        "status": "SUCCESS",
+        "message": f"Cleared {cleared_logs_count} audit records and {pruned_count} historical procurement logs.",
+        "cleared_logs_count": cleared_logs_count,
+        "pruned_procurements_count": pruned_count,
+        "retained_active_procurements": len(keep_procs),
+    }
 
 
 def _load_local_store() -> None:
@@ -724,7 +827,7 @@ def _load_local_store() -> None:
             _IN_MEMORY_FINANCIAL_EVALUATIONS.update(data.get("financial_evaluations", {}))
             _IN_MEMORY_CLARIFICATIONS.update(data.get("clarifications", {}))
             _IN_MEMORY_AUDIT_LOGS.extend(data.get("audit_logs", []))
-        _prune_old_procurements(10)
+        _prune_old_procurements(7)
         if is_seeding:
             _save_local_store()
             logger.info("Initialized local runtime procurement store from canonical seed (%s).", _SEED_STORE_PATH.name)
@@ -735,7 +838,7 @@ def _load_local_store() -> None:
 def _save_local_store() -> None:
     """Persists fallback in-memory records to local disk store."""
     try:
-        _prune_old_procurements(10)
+        _prune_old_procurements(7)
         _DATA_DIR.mkdir(parents=True, exist_ok=True)
         payload = {
             "procurements": _IN_MEMORY_PROCUREMENTS,

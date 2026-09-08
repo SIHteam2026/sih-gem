@@ -132,11 +132,14 @@ export default function WorkspaceShelfPage() {
         {/* Large Clean Page Title */}
         <div className="mb-8 sm:mb-10 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#111827]">
+            <p className="font-mono uppercase text-xs font-semibold tracking-wider text-slate-500">
+              Opal Workspace
+            </p>
+            <h1 className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight text-[#111827]">
               Procurements
             </h1>
             <p className="mt-1 text-sm text-[#64748b]">
-              All active and registered government procurement cases on GeM.
+              Active government procurement cases registered for officer review (latest 2 displayed).
             </p>
           </div>
 
@@ -212,30 +215,43 @@ export default function WorkspaceShelfPage() {
           </div>
         )}
 
-        {/* Desktop 2-Column Grid / Tablet & Mobile Responsive Cards */}
+        {/* Desktop 2-Column Grid (Latest 2 Procurements for the Officer) */}
         {!loading && !error && procurements.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-            {procurements.map((item) => {
-              const id = item.id || item.procurement_id || item.external_reference;
-              const decision = id ? decisions[id] : null;
-              const cardState = deriveProjectState(item, decision);
-              const loadedDate = formatLoadedDate(item.created_at || item.updated_at);
-              const department = item.organization || item.source_system || "Government Organization";
-              const title = item.title || item.external_reference || "Procurement Project";
+          <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+              {procurements.slice(0, 2).map((item) => {
+                const id = item.id || item.procurement_id || item.external_reference;
+                const decision = id ? decisions[id] : null;
+                const cardState = deriveProjectState(item, decision);
+                const loadedDate = formatLoadedDate(item.created_at || item.updated_at);
+                const department = item.organization || item.source_system || "Government Organization";
+                const title = item.title || item.external_reference || "Procurement Project";
 
-              return (
-                <ProjectCard
-                  key={id}
-                  id={id}
-                  title={title}
-                  department={department}
-                  loadedDate={loadedDate}
-                  state={cardState}
-                  reference={item.external_reference}
-                  onOpen={() => router.push(`/procurements/${encodeURIComponent(id)}`)}
-                />
-              );
-            })}
+                return (
+                  <ProjectCard
+                    key={id}
+                    id={id}
+                    title={title}
+                    department={department}
+                    loadedDate={loadedDate}
+                    state={cardState}
+                    reference={item.external_reference}
+                    onOpen={() => router.push(`/procurements/${encodeURIComponent(id)}`)}
+                  />
+                );
+              })}
+            </div>
+
+            <div className="mt-8 flex items-center justify-between border-t border-slate-200/80 pt-5 text-xs text-slate-500">
+              <span>Displaying {Math.min(procurements.length, 2)} active officer cases.</span>
+              <Link
+                href="/history"
+                className="inline-flex items-center gap-1 font-semibold text-[#163a5f] hover:text-[#0f2842] hover:underline"
+              >
+                <span>View Historical Logs & Audit Trail</span>
+                <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            </div>
           </div>
         )}
       </main>

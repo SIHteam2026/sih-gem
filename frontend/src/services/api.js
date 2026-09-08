@@ -866,6 +866,29 @@ export async function fetchProcurements(limit = 50, offset = 0) {
 export const fetchProcurementList = fetchProcurements;
 
 /**
+ * Clears out all historical audit logs and prunes older procurements beyond the active officer cases.
+ * 
+ * @param {number} [keepActiveCount=2] - Number of active procurements to retain for the officer.
+ * @returns {Promise<any>}
+ */
+export async function clearProcurementLogs(keepActiveCount = 2) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/procurements/logs?keep_active_count=${keepActiveCount}`, {
+      method: 'DELETE',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    return await handleApiResponse(response, 'Failed to clear logs');
+  } catch (error) {
+    throw normalizeNetworkError(error, 'Failed to clear logs');
+  }
+}
+
+export const clearLogs = clearProcurementLogs;
+
+/**
  * Fetches single procurement workspace detail.
  * 
  * @param {string} procurementId - Procurement UUID.
@@ -1099,6 +1122,8 @@ const api = {
   ingestMockGeMZip,
   fetchProcurements,
   fetchProcurementList: fetchProcurements,
+  clearProcurementLogs,
+  clearLogs: clearProcurementLogs,
   fetchProcurementDetail,
   fetchTenderDetail,
   fetchSubmissionDetail,
