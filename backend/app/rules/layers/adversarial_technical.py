@@ -26,6 +26,8 @@ try:
     )
     from app.rules.engine import parse_numeric_value
     from app.rules.layers.base import BaseVerifier
+    from app.models.technical_matrix import TechnicalMatrix, TechnicalParameter
+    from app.services.adversarial_prompt_service import adversarial_gemini_client
 except ImportError:
     try:
         from app.models.evaluation import ComplianceState
@@ -39,6 +41,8 @@ except ImportError:
         )
         from app.rules.engine import parse_numeric_value
         from app.rules.layers.base import BaseVerifier
+        from app.models.technical_matrix import TechnicalMatrix, TechnicalParameter
+        from app.services.adversarial_prompt_service import adversarial_gemini_client
     except ImportError:
         from models.evaluation import ComplianceState
         from models.evidence import BidderClaim, EvidenceObservation, ProvenanceRecord
@@ -51,6 +55,8 @@ except ImportError:
         )
         from rules.engine import parse_numeric_value
         from rules.layers.base import BaseVerifier
+        from models.technical_matrix import TechnicalMatrix, TechnicalParameter
+        from services.adversarial_prompt_service import adversarial_gemini_client
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +97,28 @@ class AdversarialTechnicalVerifier(BaseVerifier):
     @property
     def layer(self) -> VerificationLayer:
         return VerificationLayer.ADVERSARIAL_TECHNICAL
+        
+    def _extract_technical_matrix(self, requirements: List[RequirementEvaluationContract], tender_id: str) -> TechnicalMatrix:
+        """Dynamically extracts a technical matrix from canonical requirements deterministically."""
+        parameters = []
+        for req in requirements:
+            # Check if this is a technical requirement, SLA or quantifiable parameter
+            if req.is_quantifiable or req.category in ["TECHNICAL_SPECIFICATION", "DELIVERY_AND_SLA", "WARRANTY", "LOCAL_CONTENT_MII"]:
+                param = TechnicalParameter(
+                    requirement_id=req.requirement_id,
+                    parameter=req.evaluation_field or req.category or "TECHNICAL_REQ",
+                    requirement_text=req.description or req.title,
+                    required_value=req.threshold_value,
+                    operator=req.operator,
+                    unit=req.threshold_unit,
+                    mandatory=req.mandatory,
+                    evidence_expected=[e.document_description for e in req.evidence_contracts] if req.evidence_contracts else [],
+                    source_document=req.provenance.document_id,
+                    source_page=req.provenance.page_number,
+                    ambiguity_flag=req.ambiguity.is_ambiguous
+                )
+                parameters.append(param)
+        return TechnicalMatrix(tender_id=tender_id, parameters=parameters)
 
     async def verify(self, context: VerificationContext) -> List[VerificationFinding]:
         findings: List[VerificationFinding] = []
@@ -98,10 +126,17 @@ class AdversarialTechnicalVerifier(BaseVerifier):
         claims = context.claims or []
         observations = context.observations or []
 
+        # Generate technical matrix dynamically based on deterministic logic
+        tender_id = context.tender_id or "UNKNOWN_TENDER"
+        tech_matrix = self._extract_technical_matrix(requirements, tender_id)
+        
+        # Attach tech matrix to context if requested?
+        # Not standard, but we could put it in findings metadata
+
         # Map requirements by ID
         req_map: Dict[str, RequirementEvaluationContract] = {r.requirement_id: r for r in requirements}
 
-        # Check all claims for adversarial wording patterns
+        # Check all claims for adversarial wording patterns (Deterministic)
         for claim in claims:
             statement = str(claim.raw_statement or claim.claimed_value or "")
             req_id = claim.requirement_id
@@ -171,7 +206,7 @@ class AdversarialTechnicalVerifier(BaseVerifier):
                     )
                 )
 
-            # 3. Evasive Technical Statement Check
+            # 3. Evasive Technical Statement Check (Deterministic fallback before LLM)
             evasive_match = EVASIVE_STATEMENT_REGEX.search(statement)
             if evasive_match:
                 matched_phrase = evasive_match.group(0)
@@ -199,11 +234,8 @@ class AdversarialTechnicalVerifier(BaseVerifier):
 
             # 4. "Will comply" promise without supporting evidence
             if WILL_COMPLY_PROMISE_REGEX.search(statement) and req_contract:
-                # Check if requirement specifically requires test certificate or authoritative proof
                 req_desc_upper = req_contract.description.upper()
                 needs_proof = any(w in req_desc_upper for w in ("CERTIFICATE", "TEST REPORT", "NABL", "AUTHORIZATION", "ATTACH", "SUBMIT"))
-                
-                # Check if matching observation exists
                 matching_obs = [o for o in observations if o.requirement_id == req_id and (not o.bidder_id or o.bidder_id == bidder_id)]
                 if needs_proof and not matching_obs:
                     findings.append(
@@ -228,8 +260,7 @@ class AdversarialTechnicalVerifier(BaseVerifier):
                         )
                     )
 
-        # 5. Technical Parameter & Warranty Contradiction Check
-        # Cross-examine claims vs observations for the same requirement
+        # 5. Technical Parameter & Warranty Contradiction Check (Deterministic)
         for req_id, req in req_map.items():
             req_claims = [c for c in claims if c.requirement_id == req_id]
             req_obs = [o for o in observations if o.requirement_id == req_id]
@@ -239,67 +270,136 @@ class AdversarialTechnicalVerifier(BaseVerifier):
                     if c.bidder_id and o.bidder_id and c.bidder_id != o.bidder_id:
                         continue
                     
-                    # Numeric comparison (e.g. Local Content % or Warranty duration)
                     c_num, c_unit = parse_numeric_value(c.claimed_value)
                     o_num, o_unit = parse_numeric_value(o.observed_value)
 
                     if c_num is not None and o_num is not None:
-                        # Check warranty contradiction
                         is_warranty = req.evaluation_field == CanonicalEvaluationField.WARRANTY_MONTHS or "WARRANTY" in req.description.upper()
-                        if is_warranty:
-                            if c_num > o_num:
-                                findings.append(
-                                    VerificationFinding(
-                                        verifier=self.verifier_id,
-                                        verification_layer=self.layer,
-                                        requirement_id=req_id,
-                                        bidder_id=c.bidder_id,
-                                        submission_id=c.bid_submission_id,
-                                        status=ComplianceState.REVIEW,
-                                        severity=FindingSeverity.HIGH,
-                                        claim={"warranty_claimed": c.claimed_value, "source": c.source_document},
-                                        observation={"warranty_verified": o.observed_value, "source": o.source_document},
-                                        reason=(
-                                            f"Warranty Term Contradiction: Bidder declaration claims {c.claimed_value} warranty in '{c.source_document}', "
-                                            f"but supporting manufacturer / OEM certificate in '{o.source_document}' only provides {o.observed_value} warranty."
-                                        ),
-                                        evidence=[
-                                            ProvenanceRecord(document_name=c.source_document, page_number=c.page_number, quote=c.raw_statement, raw_value=c.claimed_value),
-                                            ProvenanceRecord(document_name=o.source_document, page_number=o.page_number, quote=o.source_quote, raw_value=o.observed_value),
-                                        ],
-                                        confidence=0.95,
-                                        machine_readable_flags=["WARRANTY_TERMS_CONTRADICTION", "EVIDENCE_CONTRADICTION_FLAG"],
-                                        metadata={"claimed_val": c_num, "observed_val": o_num, "variance": c_num - o_num},
-                                    )
+                        if is_warranty and c_num > o_num:
+                            findings.append(
+                                VerificationFinding(
+                                    verifier=self.verifier_id,
+                                    verification_layer=self.layer,
+                                    requirement_id=req_id,
+                                    bidder_id=c.bidder_id,
+                                    submission_id=c.bid_submission_id,
+                                    status=ComplianceState.REVIEW,
+                                    severity=FindingSeverity.HIGH,
+                                    claim={"warranty_claimed": c.claimed_value, "source": c.source_document},
+                                    observation={"warranty_verified": o.observed_value, "source": o.source_document},
+                                    reason=(
+                                        f"Warranty Term Contradiction: Bidder declaration claims {c.claimed_value} warranty in '{c.source_document}', "
+                                        f"but supporting manufacturer / OEM certificate in '{o.source_document}' only provides {o.observed_value} warranty."
+                                    ),
+                                    evidence=[
+                                        ProvenanceRecord(document_name=c.source_document, page_number=c.page_number, quote=c.raw_statement, raw_value=c.claimed_value),
+                                        ProvenanceRecord(document_name=o.source_document, page_number=o.page_number, quote=o.source_quote, raw_value=o.observed_value),
+                                    ],
+                                    confidence=0.95,
+                                    machine_readable_flags=["WARRANTY_TERMS_CONTRADICTION", "EVIDENCE_CONTRADICTION_FLAG"],
+                                    metadata={"claimed_val": c_num, "observed_val": o_num, "variance": c_num - o_num},
                                 )
+                            )
 
-                        # Check local content percentage contradiction
                         is_lc = req.evaluation_field == CanonicalEvaluationField.LOCAL_CONTENT_PERCENTAGE or "LOCAL CONTENT" in req.description.upper()
-                        if is_lc:
-                            if c_num != o_num:
-                                findings.append(
-                                    VerificationFinding(
-                                        verifier=self.verifier_id,
-                                        verification_layer=self.layer,
-                                        requirement_id=req_id,
-                                        bidder_id=c.bidder_id,
-                                        submission_id=c.bid_submission_id,
-                                        status=ComplianceState.REVIEW,
-                                        severity=FindingSeverity.HIGH,
-                                        claim={"local_content_declared": f"{c_num}%", "source": c.source_document},
-                                        observation={"local_content_verified": f"{o_num}%", "source": o.source_document},
-                                        reason=(
-                                            f"Local Content Percentage Discrepancy: Bidder self-declaration asserts {c_num}% local content in '{c.source_document}', "
-                                            f"while CA audit certificate in '{o.source_document}' calculates {o_num}%."
-                                        ),
-                                        evidence=[
-                                            ProvenanceRecord(document_name=c.source_document, page_number=c.page_number, quote=c.raw_statement, raw_value=c.claimed_value),
-                                            ProvenanceRecord(document_name=o.source_document, page_number=o.page_number, quote=o.source_quote, raw_value=o.observed_value),
-                                        ],
-                                        confidence=0.98,
-                                        machine_readable_flags=["LOCAL_CONTENT_CONTRADICTION", "DISCREPANCY_FLAG"],
-                                        metadata={"declared_pct": c_num, "verified_pct": o_num, "delta": c_num - o_num},
-                                    )
+                        if is_lc and c_num != o_num:
+                            findings.append(
+                                VerificationFinding(
+                                    verifier=self.verifier_id,
+                                    verification_layer=self.layer,
+                                    requirement_id=req_id,
+                                    bidder_id=c.bidder_id,
+                                    submission_id=c.bid_submission_id,
+                                    status=ComplianceState.REVIEW,
+                                    severity=FindingSeverity.HIGH,
+                                    claim={"local_content_declared": f"{c_num}%", "source": c.source_document},
+                                    observation={"local_content_verified": f"{o_num}%", "source": o.source_document},
+                                    reason=(
+                                        f"Local Content Percentage Discrepancy: Bidder self-declaration asserts {c_num}% local content in '{c.source_document}', "
+                                        f"while CA audit certificate in '{o.source_document}' calculates {o_num}%."
+                                    ),
+                                    evidence=[
+                                        ProvenanceRecord(document_name=c.source_document, page_number=c.page_number, quote=c.raw_statement, raw_value=c.claimed_value),
+                                        ProvenanceRecord(document_name=o.source_document, page_number=o.page_number, quote=o.source_quote, raw_value=o.observed_value),
+                                    ],
+                                    confidence=0.98,
+                                    machine_readable_flags=["LOCAL_CONTENT_CONTRADICTION", "DISCREPANCY_FLAG"],
+                                    metadata={"declared_pct": c_num, "verified_pct": o_num, "delta": c_num - o_num},
                                 )
+                            )
+
+        # 6. LLM-Based Semantic Contradiction / Evasive Language Detection
+        # Only check where we have sufficient evidence and claims
+        checked_reqs = set()
+        for req_id, req in req_map.items():
+            # Skip if we already flagged deterministic contradiction for this req
+            if any(f.requirement_id == req_id for f in findings):
+                continue
+            
+            req_claims = [c for c in claims if c.requirement_id == req_id]
+            req_obs = [o for o in observations if o.requirement_id == req_id]
+            if not req_claims and not req_obs:
+                continue
+
+            bidder_id = req_claims[0].bidder_id if req_claims else req_obs[0].bidder_id
+            submission_id = req_claims[0].bid_submission_id if req_claims else req_obs[0].bid_submission_id
+
+            c_texts = [str(c.raw_statement or c.claimed_value) for c in req_claims]
+            o_texts = [str(o.source_quote or o.observed_value) for o in req_obs]
+            
+            llm_result = adversarial_gemini_client.analyze_contradiction(
+                requirement_text=req.description,
+                bidder_claims=c_texts,
+                evidence_quotes=o_texts,
+                requirement_id=req_id
+            )
+
+            if llm_result:
+                if llm_result.status == "CONTRADICTION":
+                    for detail in llm_result.details:
+                        findings.append(
+                            VerificationFinding(
+                                verifier=self.verifier_id,
+                                verification_layer=self.layer,
+                                requirement_id=req_id,
+                                bidder_id=bidder_id,
+                                submission_id=submission_id,
+                                status=ComplianceState.REVIEW,
+                                severity=FindingSeverity.HIGH,
+                                claim=detail.statement,
+                                observation="LLM Identified Contradiction/Evasion",
+                                reason=detail.reason,
+                                evidence=[
+                                    ProvenanceRecord(
+                                        document_name="LLM_ANALYSIS",
+                                        source_type="ADVERSARIAL",
+                                        quote=ref
+                                    ) for ref in detail.evidence_refs
+                                ],
+                                confidence=0.85,
+                                machine_readable_flags=[f"LLM_SEMANTIC_{llm_result.type or 'CONTRADICTION'}"],
+                                metadata={"llm_type": llm_result.type, "statement": detail.statement}
+                            )
+                        )
+                elif llm_result.status == "INSUFFICIENT_EVIDENCE":
+                    # Only flag UNVERIFIED if mandatory
+                    if req.mandatory:
+                        findings.append(
+                            VerificationFinding(
+                                verifier=self.verifier_id,
+                                verification_layer=self.layer,
+                                requirement_id=req_id,
+                                bidder_id=bidder_id,
+                                submission_id=submission_id,
+                                status=ComplianceState.UNVERIFIED,
+                                severity=FindingSeverity.MEDIUM,
+                                claim="Various claims submitted",
+                                observation="Evidence insufficient",
+                                reason="Supplied evidence cannot establish the relationship to the claim.",
+                                evidence=[],
+                                confidence=0.80,
+                                machine_readable_flags=["LLM_INSUFFICIENT_EVIDENCE"],
+                            )
+                        )
 
         return findings
