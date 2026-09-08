@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { List } from lucide-react;
-import { fetchProcurements } from @/services/api;
+import { List } from "lucide-react";
+import { fetchProcurements } from "@/services/api";
 import { ProcurementSummaryItem, ProcurementListResponse } from "@/types/procurement";
 
 // Dynamic insights logic based on Supabase procurements
 function getDynamicInsights(procurements: ProcurementSummaryItem[]): string {
-  if (!procurements || procurements.length === 0) return No active projects at the moment.;
+  if (!procurements || procurements.length === 0) return "No active projects at the moment.";
   
   const newCount = procurements.filter(p => {
     const s = (p.status || ").toUpperCase();
