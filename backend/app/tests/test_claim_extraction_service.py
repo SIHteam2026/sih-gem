@@ -1,6 +1,13 @@
 import json
-import uuid
+from pathlib import Path
+import sys
 from typing import Dict, Any
+import uuid
+
+# Ensure backend directory is in sys.path
+_backend_dir = str(Path(__file__).resolve().parent.parent.parent)
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
 
 try:
     from app.models.procurement import Document, DocumentType

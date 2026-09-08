@@ -134,6 +134,7 @@ LEGAL_PROCUREMENT_TRANSITIONS: Dict[ProcurementStatus, Set[ProcurementStatus]] =
     ProcurementStatus.CLARIFICATION_OPEN: {
         ProcurementStatus.RE_EVALUATION_RUNNING,
         ProcurementStatus.TECHNICAL_REVIEW,
+        ProcurementStatus.TECHNICAL_FREEZE,
         ProcurementStatus.TECHNICAL_SCRUTINY_RUNNING,
         ProcurementStatus.FAILED,
     },
@@ -599,17 +600,42 @@ async def get_procurement_technical_review_service(
         fail_count = machine_summary.get(ComplianceState.FAIL.value, 0)
         review_count = machine_summary.get(ComplianceState.REVIEW.value, 0) + machine_summary.get(ComplianceState.UNVERIFIED.value, 0)
 
-        # Populate requirement-level matrix
+        # Populate requirement-level matrix and gather bidder-specific blockers
+        bidder_blockers: List[str] = []
+        bidder_unresolved_c: List[str] = []
+        bidder_pending_re_eval = False
+
+        for c in clarification_records:
+            if c.get("bidder_id") == b_id:
+                c_st = c.get("status")
+                c_id_val = c.get("id", "")
+                if c_st in (ClarificationStatus.OPEN.value, ClarificationStatus.RESPONDED.value, ClarificationStatus.UNDER_REVIEW.value, ClarificationStatus.REQUIRES_FURTHER_CLARIFICATION.value):
+                    bidder_unresolved_c.append(c_id_val)
+                    if c_st == ClarificationStatus.RESPONDED.value:
+                        bidder_pending_re_eval = True
+                    bidder_blockers.append(f"Unresolved clarification on requirement {c.get('requirement_id')}")
+
         for r_res in eval_res.get("requirement_results", []):
             req_id = getattr(r_res, "requirement_id", None) or (r_res.get("requirement_id") if isinstance(r_res, dict) else None)
             st_val = getattr(r_res, "state", None) or (r_res.get("state") if isinstance(r_res, dict) else None)
             st_str = st_val.value if hasattr(st_val, "value") else str(st_val or "UNVERIFIED")
+            is_mand = getattr(r_res, "mandatory", True) if hasattr(r_res, "mandatory") else True
+            reason_str = getattr(r_res, "reason", "") or (r_res.get("reason", "") if isinstance(r_res, dict) else "")
+
             if req_id:
                 req_compliance_by_bidder.setdefault(req_id, {})[b_id] = st_str
+
+            if is_mand and st_str in ("FAIL", "REVIEW", "UNVERIFIED"):
+                bidder_blockers.append(f"{req_id} [{st_str}]: {reason_str or 'Mandatory requirement not satisfied'}")
 
             # Extract findings from requirement evaluations
             c_findings = getattr(r_res, "contradiction_findings", []) or (r_res.get("contradiction_findings", []) if isinstance(r_res, dict) else [])
             for c_f in c_findings:
+                # Find associated clarification if any
+                matching_c = next((c for c in clarification_records if c.get("bidder_id") == b_id and c.get("requirement_id") == req_id), None)
+                c_id_linked = matching_c.get("id") if matching_c else None
+                c_st_linked = matching_c.get("status") if matching_c else None
+
                 finding_summaries.append(
                     OfficerFindingSummary(
                         finding_id=str(uuid.uuid4()),
@@ -622,6 +648,9 @@ async def get_procurement_technical_review_service(
                         evidence_pointer=getattr(c_f, "evidence_pointer", None),
                         source_reference=req_id,
                         requires_clarification=True,
+                        is_blocking=is_mand,
+                        clarification_id=c_id_linked,
+                        clarification_status=c_st_linked,
                     )
                 )
 
@@ -633,13 +662,19 @@ async def get_procurement_technical_review_service(
         elif review_count > 0 or bidder_has_open_c:
             compliance_status = "REVIEW"
             is_eligible = False
-        elif pass_count > 0:
+        elif pass_count > 0 and len(bidder_blockers) == 0:
             compliance_status = "PASS"
             is_eligible = True
             qualified_bidder_names.append(b_name)
         else:
             compliance_status = "UNVERIFIED"
             is_eligible = False
+
+        if not is_eligible and len(bidder_blockers) == 0:
+            bidder_blockers.append(f"Technical verification {compliance_status}: Officer review or re-evaluation required")
+
+        is_bidder_blocking = len(bidder_blockers) > 0 or not is_eligible
+        officer_action_needed = (compliance_status in ("REVIEW", "UNVERIFIED")) or len(bidder_unresolved_c) > 0
 
         bidder_summaries.append(
             OfficerBidderTechnicalSummary(
@@ -654,6 +689,11 @@ async def get_procurement_technical_review_service(
                 findings_count=len([f for f in finding_summaries if f.bidder_id == b_id]),
                 has_open_clarifications=bidder_has_open_c,
                 is_technically_eligible=is_eligible,
+                is_blocking=is_bidder_blocking,
+                officer_action_required=officer_action_needed,
+                blockers=bidder_blockers,
+                unresolved_clarifications=bidder_unresolved_c,
+                pending_re_evaluation=bidder_pending_re_eval,
                 summary_notes=f"Passed {pass_count} criteria, {fail_count} failed, {review_count} require review.",
             )
         )
@@ -688,25 +728,27 @@ async def get_procurement_technical_review_service(
         disqualified_bidders=disqualified_bidder_names,
     )
 
-    # Cover 2 Readiness Evaluation
-    blockers: List[str] = []
+    # Cover 2 & Freeze Blocker Evaluation
+    global_blockers: List[str] = []
     warnings: List[str] = []
 
     if not all_frozen:
-        blockers.append("Technical Freeze (Cover 1) must be applied to all submissions before opening Cover 2.")
+        global_blockers.append("Technical Freeze (Cover 1) must be applied to all submissions before opening Cover 2.")
 
     if open_clarifications_count > 0:
-        blockers.append(f"There are {open_clarifications_count} unresolved clarification(s) pending.")
+        global_blockers.append(f"There are {open_clarifications_count} unresolved clarification(s) pending.")
 
     eligible_bidders = [b.legal_name for b in bidder_summaries if b.is_technically_eligible]
     if len(eligible_bidders) == 0:
         warnings.append("Zero bidders currently meet all technical qualification criteria.")
 
-    is_cover2_ready = (len(blockers) == 0 and len(eligible_bidders) > 0)
+    # Freeze readiness check
+    can_freeze = (len(all_submissions) > 0 and open_clarifications_count == 0)
+    is_cover2_ready = (all_frozen and open_clarifications_count == 0 and len(eligible_bidders) > 0)
 
     cover2_summary = Cover2ReadinessSummary(
         is_ready=is_cover2_ready,
-        blockers=blockers,
+        blockers=global_blockers,
         warnings=warnings,
         eligible_bidder_count=len(eligible_bidders),
         eligible_bidders=eligible_bidders,
@@ -727,6 +769,12 @@ async def get_procurement_technical_review_service(
         title=proc.get("title", "Procurement Workspace"),
         status=proc_status,
         total_bidders=len(all_submissions),
+        qualified_bidders_count=len(qualified_bidder_names),
+        excluded_bidders_count=len(disqualified_bidder_names),
+        review_required_bidders_count=len([b for b in bidder_summaries if b.compliance_status in ("REVIEW", "UNVERIFIED")]),
+        unresolved_blockers=global_blockers,
+        can_freeze=can_freeze,
+        can_open_cover2=is_cover2_ready,
         bidders=bidder_summaries,
         requirements=req_summaries,
         key_findings=finding_summaries,
@@ -791,3 +839,78 @@ async def evaluate_cover2_gate_service(
         decision_authority="HUMAN_PROCUREMENT_OFFICER",
         evaluated_at=now_dt,
     )
+
+
+# ---------------------------------------------------------------------------
+# Procurement-Level Technical Freeze Hardening
+# ---------------------------------------------------------------------------
+async def freeze_procurement_technical_service(
+    procurement_id: str,
+    actor: str = "PROCUREMENT_OFFICER",
+    reason: Optional[str] = None,
+) -> ProcurementTechnicalReviewResponse:
+    """Applies technical freeze across all submissions in a procurement workspace after verifying canonical blockers."""
+    proc = await get_procurement_detail_db(procurement_id)
+    if not proc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Procurement workspace '{procurement_id}' not found.",
+        )
+
+    review_rep = await get_procurement_technical_review_service(procurement_id)
+
+    # Idempotency check: if already frozen, return existing state
+    if review_rep.status == ProcurementStatus.TECHNICAL_FREEZE and review_rep.freeze_status.is_frozen:
+        return review_rep
+
+    # Validate prerequisites
+    if not review_rep.can_freeze:
+        reasons = []
+        if review_rep.cover2_readiness.open_clarifications_count > 0:
+            reasons.append(f"{review_rep.cover2_readiness.open_clarifications_count} open clarification(s) must be resolved")
+        if review_rep.total_bidders == 0:
+            reasons.append("No bidder submissions found to freeze")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot freeze procurement '{procurement_id}': " + "; ".join(reasons or ["Prerequisites not met"]),
+        )
+
+    # Freeze all submissions
+    now_iso = datetime.now(timezone.utc).isoformat()
+    freeze_note = reason or "Cover 1 Technical Freeze applied by officer."
+
+    tenders = proc.get("tenders", []) or []
+    for t in tenders:
+        for s in (t.get("submissions", []) or []):
+            s_id = s.get("id")
+            if s_id:
+                await update_submission_freeze_db(
+                    submission_id=s_id,
+                    technical_freeze_status=TechnicalFreezeStatus.FROZEN.value,
+                    is_locked=True,
+                    frozen_at=now_iso,
+                    frozen_by=actor,
+                    freeze_reason=freeze_note,
+                )
+
+    # Transition procurement state
+    await transition_procurement_state(
+        procurement_id=procurement_id,
+        target_status=ProcurementStatus.TECHNICAL_FREEZE,
+        actor=actor,
+        reason=freeze_note,
+        metadata={"frozen_submissions_count": review_rep.total_bidders},
+    )
+
+    await insert_audit_log_db({
+        "event_type": "TECHNICAL_FREEZE_APPLIED",
+        "procurement_id": procurement_id,
+        "actor": actor,
+        "details": {
+            "submissions_frozen": review_rep.total_bidders,
+            "reason": freeze_note,
+            "timestamp": now_iso,
+        },
+    })
+
+    return await get_procurement_technical_review_service(procurement_id)

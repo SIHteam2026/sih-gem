@@ -536,13 +536,18 @@ class OfficerBidderTechnicalSummary(BaseModel):
     legal_name: str = Field(..., description="Corporate registered name.")
     submission_id: str = Field(..., description="Bid submission UUID.")
     technical_freeze_status: TechnicalFreezeStatus = Field(default=TechnicalFreezeStatus.NOT_FROZEN, description="Technical Freeze status.")
-    compliance_status: str = Field(..., description="Overall compliance recommendation: PASS, FAIL, REVIEW, UNVERIFIED.")
+    compliance_status: str = Field(..., description="Overall compliance recommendation: PASS, FAIL, REVIEW, UNVERIFIED, NOT_APPLICABLE.")
     passed_requirements_count: int = Field(default=0, description="Number of passed requirements.")
     failed_requirements_count: int = Field(default=0, description="Number of failed requirements.")
     review_requirements_count: int = Field(default=0, description="Number of requirements needing review.")
     findings_count: int = Field(default=0, description="Total forensic findings associated with bidder.")
     has_open_clarifications: bool = Field(default=False, description="Whether bidder has pending/unresolved clarifications.")
     is_technically_eligible: bool = Field(default=False, description="Whether bidder currently qualifies technically.")
+    is_blocking: bool = Field(default=False, description="Whether this bidder has blocking issues preventing qualification.")
+    officer_action_required: bool = Field(default=False, description="Whether officer action is required to resolve bidder findings.")
+    blockers: List[str] = Field(default_factory=list, description="List of concrete blocker descriptions for this bidder.")
+    unresolved_clarifications: List[str] = Field(default_factory=list, description="IDs of active/open clarifications for this bidder.")
+    pending_re_evaluation: bool = Field(default=False, description="Whether a clarification response is awaiting re-evaluation.")
     summary_notes: Optional[str] = Field(default=None, description="Key takeaway notes for the officer.")
 
 
@@ -568,6 +573,9 @@ class OfficerFindingSummary(BaseModel):
     evidence_pointer: Optional[str] = Field(default=None, description="Document/page pointer if available.")
     source_reference: Optional[str] = Field(default=None, description="Tender clause / external reference.")
     requires_clarification: bool = Field(default=False, description="Whether this finding warrants a clarification.")
+    is_blocking: bool = Field(default=False, description="Whether this finding represents a mandatory qualification blocker.")
+    clarification_id: Optional[str] = Field(default=None, description="Associated clarification UUID if opened.")
+    clarification_status: Optional[str] = Field(default=None, description="Status of associated clarification.")
 
 
 class OfficerClarificationSummary(BaseModel):
@@ -618,6 +626,12 @@ class ProcurementTechnicalReviewResponse(BaseModel):
     title: str = Field(..., description="Procurement workspace title.")
     status: ProcurementStatus = Field(..., description="Current procurement lifecycle status.")
     total_bidders: int = Field(default=0, description="Total participating bidders.")
+    qualified_bidders_count: int = Field(default=0, description="Number of technically qualified bidders.")
+    excluded_bidders_count: int = Field(default=0, description="Number of technically excluded bidders.")
+    review_required_bidders_count: int = Field(default=0, description="Number of bidders requiring officer review.")
+    unresolved_blockers: List[str] = Field(default_factory=list, description="Procurement-level technical blockers.")
+    can_freeze: bool = Field(default=False, description="Whether procurement satisfies technical prerequisites to freeze.")
+    can_open_cover2: bool = Field(default=False, description="Whether procurement meets prerequisites for Cover 2 opening.")
     bidders: List[OfficerBidderTechnicalSummary] = Field(default_factory=list, description="Bidder compliance summaries.")
     requirements: List[OfficerRequirementSummary] = Field(default_factory=list, description="Requirement matrix summaries.")
     key_findings: List[OfficerFindingSummary] = Field(default_factory=list, description="Consolidated multi-layer forensic findings.")
