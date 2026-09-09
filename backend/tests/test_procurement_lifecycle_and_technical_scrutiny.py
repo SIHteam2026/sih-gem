@@ -11,7 +11,7 @@ Verifies:
 8. Audit trail logging across all lifecycle actions.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -77,6 +77,7 @@ def setup_lifecycle_test_workspace():
         "estimated_value": 7500000.0,
         "category": "GOODS",
         "status": "READY",
+        "submission_deadline": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
