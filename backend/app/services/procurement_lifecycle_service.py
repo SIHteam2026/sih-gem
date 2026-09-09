@@ -1,6 +1,6 @@
-﻿"""Canonical Procurement Lifecycle & Technical Scrutiny Orchestration Service.
+"""Canonical Procurement Lifecycle & Technical Scrutiny Orchestration Service.
 
-Integrates the multi-layer verification pipeline (L1-L7) into an authoritative officer-facing
+Integrates the multi-layer verification pipeline (L1-L6) into an authoritative officer-facing
 backend workflow with deterministic state transitions, audit logging, and Cover 2 readiness gating.
 """
 
@@ -292,7 +292,7 @@ async def run_technical_scrutiny_command(
     force: bool = False,
     notes: Optional[str] = None,
 ) -> TechnicalScrutinyRunResponse:
-    """Executes the single authoritative Technical Scrutiny pipeline (L1-L7) across all submissions."""
+    """Executes the single authoritative Technical Scrutiny pipeline (L1-L6) across all submissions."""
     start_time = time.perf_counter()
     proc = await get_procurement_detail_db(procurement_id)
     if not proc:
@@ -307,12 +307,31 @@ async def run_technical_scrutiny_command(
     except ValueError:
         current_status = ProcurementStatus.IMPORTED
 
+    # Check Submission Deadline
+    tenders = proc.get("tenders", []) or []
+    if tenders:
+        # Check first tender's deadline
+        submission_deadline = tenders[0].get("submission_deadline")
+        if not submission_deadline:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Technical scrutiny cannot be executed: the submission deadline is not established."
+            )
+        
+        # Parse and compare
+        deadline_dt = datetime.fromisoformat(submission_deadline.replace('Z', '+00:00'))
+        if datetime.now(timezone.utc) < deadline_dt and not force:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Technical scrutiny is locked: the submission deadline has not yet passed."
+            )
+
     # Transition to TECHNICAL_SCRUTINY_RUNNING
     await transition_procurement_state(
         procurement_id=procurement_id,
         target_status=ProcurementStatus.TECHNICAL_SCRUTINY_RUNNING,
         actor=actor,
-        reason=notes or "Initiating authoritative technical scrutiny pipeline (L1-L7).",
+        reason=notes or "Initiating authoritative technical scrutiny pipeline (L1-L6).",
     )
 
     await insert_audit_log_db({
@@ -388,7 +407,7 @@ async def run_technical_scrutiny_command(
             all_claims.extend(extracted.get("claims", []))
             all_observations.extend(extracted.get("observations", []))
 
-    # Execute Canonical Verification Engine across full context (L1-L7)
+    # Execute Canonical Verification Engine across full context (L1-L6)
     v_context = VerificationContext(
         procurement_id=procurement_id,
         tender_id=tender_ids[0] if tender_ids else "TENDER-DEFAULT",
@@ -481,12 +500,12 @@ async def run_technical_scrutiny_command(
     })
 
     executed_layers = [
+        VerificationLayer.INGESTION_AND_DOCUMENT_INTEGRITY.value,
         VerificationLayer.ADMINISTRATIVE_AND_IDENTITY.value,
         VerificationLayer.CORPORATE_EXISTENCE_AND_RISK.value,
         VerificationLayer.ANTI_COLLUSION_AND_RELATEDNESS.value,
         VerificationLayer.ADVERSARIAL_TECHNICAL.value,
         VerificationLayer.PAST_PERFORMANCE_AND_CAPACITY.value,
-        VerificationLayer.FINANCIAL_AND_COMMERCIAL.value,
     ]
 
     return TechnicalScrutinyRunResponse(

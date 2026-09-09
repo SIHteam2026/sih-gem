@@ -97,3 +97,20 @@ export async function saveOfficerObservation(payload: OfficerObservationPayload)
     throw new Error(`Persistence failed: ${resp.status} ${err}`);
   }
 }
+
+export async function runTechnicalScrutiny(procurementId: string): Promise<any> {
+  const resp = await fetch(`${API_BASE_URL}/api/procurements/${encodeURIComponent(procurementId)}/technical-scrutiny/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ actor: "PROCUREMENT_OFFICER" })
+  });
+  if (!resp.ok) {
+    let errMsg = `Failed to run technical scrutiny: ${resp.status}`;
+    try {
+      const errBody = await resp.json();
+      errMsg = errBody.detail || errBody.message || errMsg;
+    } catch (e) {}
+    throw new Error(errMsg);
+  }
+  return resp.json();
+}

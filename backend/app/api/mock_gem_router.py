@@ -199,6 +199,7 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
             description="Turnkey procurement of online water quality sensors and analyzer units with mandatory GST, >=20% Local Content, >=Rs 10 Cr Turnover, and OEM MAF.",
             estimated_value=45000000.0,
             category="INDUSTRIAL_EQUIPMENT",
+            submission_deadline=datetime(2026, 9, 2, 18, 0, tzinfo=timezone.utc),
             documents=[
                 IngestionDocumentInput(
                     filename="RFP_Specification_WQM_2026_017.pdf",

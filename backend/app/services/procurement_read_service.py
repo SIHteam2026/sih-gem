@@ -109,6 +109,7 @@ def _map_tender(tender_data: dict) -> TenderSummaryResponse:
         description=tender_data.get("description"),
         estimated_value=tender_data.get("estimated_value"),
         category=tender_data.get("category"),
+        submission_deadline=tender_data.get("submission_deadline"),
         status=str(tender_data.get("status", "READY")),
         requirement_count=tender_data.get("requirement_count", 0),
         document_count=len(mapped_docs) if mapped_docs else tender_data.get("document_count", 0),

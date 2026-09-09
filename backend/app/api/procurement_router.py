@@ -592,7 +592,7 @@ async def freeze_procurement_endpoint(
     "/procurements/{procurement_id}/technical-scrutiny/run",
     response_model=TechnicalScrutinyRunResponse,
     summary="Run Authoritative Technical Scrutiny Pipeline",
-    description="Executes the canonical multi-layer verification engine (L1-L7) across all submission evidence.",
+    description="Executes the canonical multi-layer verification engine (L1-L6) across all submission evidence.",
 )
 async def run_technical_scrutiny_endpoint(
     procurement_id: str,

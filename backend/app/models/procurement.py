@@ -1,4 +1,4 @@
-﻿"""Canonical Procurement Data Models.
+"""Canonical Procurement Data Models.
 
 Defines persistent Pydantic domain schemas for the OPAL procurement ingestion foundation:
 Procurement -> Tender -> Bidder -> BidSubmission -> Documents.
@@ -261,6 +261,7 @@ class IngestionTenderInfo(BaseModel):
     description: Optional[str] = Field(None, description="Scope of work or tender summary.")
     estimated_value: Optional[float] = Field(None, description="Estimated budget in INR.")
     category: Optional[str] = Field(None, description="Procurement category.")
+    submission_deadline: Optional[datetime] = Field(None, description="Bidder submission deadline.")
     documents: List[IngestionDocumentInput] = Field(default_factory=list, description="Tender specification documents.")
 
 
@@ -378,6 +379,7 @@ class TenderSummaryResponse(BaseModel):
     description: Optional[str] = Field(None, description="Scope of work or summary.")
     estimated_value: Optional[float] = Field(None, description="Estimated budget in INR.")
     category: Optional[str] = Field(None, description="Procurement category.")
+    submission_deadline: Optional[datetime] = Field(None, description="Bidder submission deadline.")
     status: str = Field(default="READY", description="Tender status.")
     requirement_count: int = Field(default=0, description="Extracted requirement criteria count.")
     document_count: int = Field(default=0, description="Tender specification document count.")
@@ -447,6 +449,7 @@ class TenderWorkspaceDetailResponse(BaseModel):
     description: Optional[str] = Field(None, description="Tender description.")
     estimated_value: Optional[float] = Field(None, description="Estimated budget in INR.")
     category: Optional[str] = Field(None, description="Procurement category.")
+    submission_deadline: Optional[datetime] = Field(None, description="Bidder submission deadline.")
     status: str = Field(default="READY", description="Processing status.")
     requirement_count: int = Field(default=0, description="Total requirement criteria.")
     document_count: int = Field(default=0, description="Tender specification documents.")

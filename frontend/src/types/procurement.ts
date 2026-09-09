@@ -65,6 +65,7 @@ export interface TenderSummary {
   estimated_value?: number | null;
   category?: string | null;
   status: string;
+  submission_deadline?: string | null;
   requirement_count: number;
   document_count: number;
   bidder_count: number;

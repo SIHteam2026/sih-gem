@@ -22,23 +22,29 @@ import ProjectCard from "@/components/procurement/ProjectCard";
  * - 'DRAFT': The project has review/progress activity (e.g. status is 'PROCESSING',
  *    or an officer review decision / notes are recorded, or post-ingestion progress activity exists),
  *    but final review is in draft / not complete.
+ * - 'UNDER PROCESS': The project is actively being processed by the system.
  * - 'NEW': The project has been loaded/ingested into the workspace (e.g. status is 'IMPORTED',
- *    or newly ingested 'READY' case awaiting initial officer review activity).
+ *    or newly ingested case awaiting initial officer review activity).
  */
 export function deriveProjectState(
   procurement: ProcurementSummaryItem,
   officerDecision?: OfficerDecision | null
-): "NEW" | "DRAFT" {
+): "NEW" | "UNDER PROCESS" | "ALMOST COMPLETED" {
   // If officer review activity is recorded (decision or notes present)
   if (officerDecision && (officerDecision.decision || officerDecision.notes)) {
-    return "DRAFT";
+    return "ALMOST COMPLETED";
   }
 
   const status = (procurement.status || "").toUpperCase();
 
   // Active pipeline processing represents in-flight review activity
   if (status === "PROCESSING" || status === "IN_PROGRESS" || status === "ANALYZING") {
-    return "DRAFT";
+    return "UNDER PROCESS";
+  }
+
+  // If status is READY, it has been processed and is awaiting review
+  if (status === "READY") {
+    return "ALMOST COMPLETED";
   }
 
   // If status is IMPORTED, it has been loaded but not yet processed/reviewed
@@ -46,7 +52,7 @@ export function deriveProjectState(
     return "NEW";
   }
 
-  // For READY status: if updated_at is distinctly after created_at (> 2 minutes),
+  // For other statuses: if updated_at is distinctly after created_at (> 2 minutes),
   // indicating progress/evaluation processing activity occurred
   if (procurement.created_at && procurement.updated_at) {
     const created = new Date(procurement.created_at).getTime();

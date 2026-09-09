@@ -5,68 +5,37 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { ProcurementSummaryItem } from "@/types/procurement";
 
-export type ProjectCardStateTag = "NEW" | "DRAFT";
+export type ProjectCardStateTag = "NEW" | "UNDER PROCESS" | "ALMOST COMPLETED";
 
 export interface ProjectCardProps {
-  /** Project name or procurement title */
   title?: string;
-  /** Department or procuring organization */
   department?: string;
-  /** Formatted load date, e.g. "Loaded 6 Sep 2026" */
   loadedDate?: string;
-  /** Dynamic working-state tag: "NEW" | "DRAFT" */
   state?: ProjectCardStateTag;
-  /** Action triggered when the card is clicked/opened */
   onOpen?: () => void;
-  /** Optional procurement reference identifier */
   reference?: string;
-  /** Optional unique identifier */
   id?: string;
-  /** Optional canonical procurement item */
   procurement?: ProcurementSummaryItem;
-  /** Dynamic state tag alias */
   stateTag?: ProjectCardStateTag;
-  /** Optional custom href */
   href?: string;
-  /** Optional custom class name */
   className?: string;
 }
 
-/**
- * Helper to format date into human-readable text (e.g., "Loaded 14 Oct 2026").
- */
 function formatLoadedDate(dateString?: string): string {
   if (!dateString) return "Loaded recently";
   try {
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return "Loaded recently";
-    const formatted = d.toLocaleDateString("en-GB", {
+    return `Loaded ${d.toLocaleDateString("en-GB", {
       day: "numeric",
       month: "short",
       year: "numeric",
-    });
-    return `Loaded ${formatted}`;
-  } catch {
+    })}`;
+  } catch (e) {
     return "Loaded recently";
   }
 }
 
-/**
- * ProjectCard Component for Opal Workspace
- * 
- * Digital Case File Representation:
- * - Medium-sized, calm, premium card surface with comfortable internal padding.
- * - Clear 4-element typography hierarchy:
- *   1. PROJECT NAME: Dominant, largest text (2-line maximum with graceful wrap)
- *   2. DEPARTMENT / ORGANIZATION: Secondary, smaller text directly below
- *   3. LOADED DATE: Tertiary, small, quiet metadata at the bottom
- *   4. DYNAMIC STATE TAG: Exactly NEW or DRAFT (subtle, non-red/green semantics)
- * 
- * Invariants:
- * - Interactive, keyboard-accessible card with visible focus-ring.
- * - Zero KPI widgets, zero charts, zero progress bars, zero noise.
- * - Minimal hover and focus state transitions.
- */
 export default function ProjectCard({
   title,
   department,
@@ -80,115 +49,64 @@ export default function ProjectCard({
   href,
   className = "",
 }: ProjectCardProps) {
-  // Resolve title
   const resolvedTitle = title || procurement?.title || procurement?.external_reference || "Procurement Project";
-
-  // Resolve department / organization
-  const resolvedDepartment =
-    department || procurement?.organization || procurement?.source_system || "Department of Procurement";
-
-  // Resolve loaded date
-  const resolvedLoadedDate =
-    loadedDate || formatLoadedDate(procurement?.created_at || procurement?.updated_at);
-
-  // Resolve state tag
-  const resolvedState: ProjectCardStateTag =
-    state ||
-    stateTag ||
-    (() => {
-      const status = (procurement?.status || "").toUpperCase();
-      if (status === "READY" || status === "PROCESSING" || status === "COMPLETED") {
-        return "DRAFT";
-      }
-      return "NEW";
-    })();
+  const resolvedDepartment = department || procurement?.organization || procurement?.source_system || "Department of Procurement";
+  const resolvedLoadedDate = loadedDate || formatLoadedDate(procurement?.created_at || procurement?.updated_at);
+  const resolvedState: ProjectCardStateTag = state || stateTag || "NEW";
 
   const isNew = resolvedState === "NEW";
-  const resolvedId = id || procurement?.id || procurement?.procurement_id || "";
-  const targetHref = href || (resolvedId ? `/procurements/${encodeURIComponent(resolvedId)}` : undefined);
+  const tagClasses = isNew
+    ? "bg-[#edf2f5] text-[#1c3850] border-[#cbd9e2]"
+    : resolvedState === "UNDER PROCESS" 
+    ? "bg-amber-50 text-amber-800 border-amber-200"
+    : "bg-[#e8f1ec] text-[#2c5f43] border-[#a0c5b0]";
 
-  const handleClick = () => {
-    if (onOpen) {
-      onOpen();
-    }
-  };
-
-  const cardContent = (
-    <>
-      {/* Top Section: Project Name & Department Subtitle */}
-      <div className="space-y-2">
-        {/* 1. PROJECT NAME - Dominant Headline */}
-        <h2 className="text-base sm:text-lg font-semibold tracking-tight text-[#111827] group-hover:text-[#163a5f] transition-colors line-clamp-2">
-          {resolvedTitle}
-        </h2>
-
-        {/* 2. DEPARTMENT / ORGANIZATION - Secondary Subtitle directly below */}
-        <p className="text-xs sm:text-sm font-normal text-[#64748b] line-clamp-1">
-          {resolvedDepartment}
-        </p>
-
-        {reference && (
-          <p className="font-mono text-[11px] text-[#94a3b8] truncate">
-            {reference}
-          </p>
-        )}
-      </div>
-
-      {/* Bottom Section: Loaded Date & Dynamic State Tag */}
-      <div className="mt-8 flex items-center justify-between gap-3 pt-4 border-t border-[#f1f5f9]">
-        {/* 3. LOADED DATE - Small, Quiet Metadata */}
-        <span className="text-xs font-normal text-[#64748b]">
-          {resolvedLoadedDate}
-        </span>
-
-        {/* 4. DYNAMIC STATE TAG - Exactly NEW or DRAFT */}
-        <div className="flex items-center gap-2">
-          <span
-            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider ${
-              isNew
-                ? "border border-[#d1d5db] bg-[#f9fafb] text-[#374151]"
-                : "border border-[#fed7aa] bg-[#fff7ed] text-[#c2410c]"
-            }`}
-            aria-label={`Status: ${resolvedState}`}
-          >
+  const content = (
+    <div className="flex flex-col h-full justify-between p-6">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+        <div className="space-y-1 w-full max-w-xl">
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 group-hover:text-blue-700 transition-colors leading-snug break-words">
+            {resolvedTitle}
+          </h2>
+          <p className="text-sm font-medium text-slate-500 line-clamp-1">{resolvedDepartment}</p>
+          {reference && (
+            <p className="text-xs font-mono text-slate-400 mt-1">Ref: {reference}</p>
+          )}
+        </div>
+        
+        <div className="shrink-0 flex items-center gap-3">
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-widest border ${tagClasses}`}>
             {resolvedState}
           </span>
-
-          <span className="hidden sm:inline-flex items-center gap-1 text-xs font-medium text-[#111827] group-hover:text-[#163a5f] transition-colors">
-            <ArrowUpRight className="h-3.5 w-3.5 text-[#94a3b8] group-hover:text-[#163a5f] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-          </span>
+          <div className="flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 bg-white text-slate-400 group-hover:border-blue-300 group-hover:bg-blue-50 group-hover:text-blue-600 transition-all shadow-sm">
+            <ArrowUpRight className="w-4 h-4" />
+          </div>
         </div>
       </div>
-    </>
+      
+      <div className="mt-8 border-t border-slate-100 pt-4 flex items-center justify-between">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{resolvedLoadedDate}</p>
+      </div>
+    </div>
   );
 
-  if (targetHref && !onOpen) {
+  const cardClasses = `group block w-full bg-white border border-slate-200/90 rounded-xl shadow-sm hover:shadow-md hover:border-slate-300 transition-all focus-ring focus-within-ring cursor-pointer text-left min-h-[160px] ${className}`;
+
+  if (href) {
     return (
-      <Link
-        href={targetHref}
-        aria-label={`Open project case file: ${resolvedTitle}`}
-        className={`focus-ring group relative flex flex-col justify-between rounded-xl sm:rounded-2xl border border-[#e5e7eb] bg-white p-6 sm:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-all duration-200 hover:border-[#cbd5e1] hover:shadow-[0_4px_20px_rgba(0,0,0,0.05)] cursor-pointer text-left select-none ${className}`}
-      >
-        {cardContent}
+      <Link href={href} className={cardClasses}>
+        {content}
       </Link>
     );
   }
 
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={handleClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          handleClick();
-        }
-      }}
-      className={`focus-ring group relative flex flex-col justify-between rounded-xl sm:rounded-2xl border border-[#e5e7eb] bg-white p-6 sm:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-all duration-200 hover:border-[#cbd5e1] hover:shadow-[0_4px_20px_rgba(0,0,0,0.05)] cursor-pointer text-left select-none ${className}`}
-      aria-label={`Open project case file: ${resolvedTitle}`}
-    >
-      {cardContent}
-    </div>
-  );
+  if (onOpen) {
+    return (
+      <button type="button" onClick={onOpen} className={cardClasses}>
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={cardClasses}>{content}</div>;
 }
