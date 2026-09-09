@@ -34,6 +34,8 @@ export function TechnicalScrutinyView({
   const [isFullyComplete, setIsFullyComplete] = useState(false);
   const [logEntries, setLogEntries] = useState<DecisionLogEntry[]>([]);
   const [selectedClarificationCheck, setSelectedClarificationCheck] = useState<CheckResult | null>(null);
+  const [isOpeningCover2, setIsOpeningCover2] = useState(false);
+  const [cover2Error, setCover2Error] = useState<string | null>(null);
 
   // Identify findings that might need attention from the user
   const findingsNeedingAttention = useMemo(() => {
@@ -298,15 +300,28 @@ export function TechnicalScrutinyView({
                           </ul>
                         )}
                         <button
-                          onClick={() =>
-                            router.push(
-                              `/procurements/${data.procurementId}/financial-evaluation`
-                            )
-                          }
-                          className="inline-flex items-center gap-2 px-6 py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white text-sm font-medium rounded-full transition-colors"
+                          onClick={async () => {
+                            try {
+                              setIsOpeningCover2(true);
+                              const { openCover2 } = await import('@/services/api/financial');
+                              await openCover2(data.procurementId);
+                              router.push(`/procurements/${data.procurementId}/financial-evaluation`);
+                            } catch (err: unknown) {
+                              setCover2Error(err instanceof Error ? err.message : 'Failed to open Cover 2');
+                              setIsOpeningCover2(false);
+                            }
+                          }}
+                          disabled={isOpeningCover2}
+                          className="inline-flex items-center gap-2 px-6 py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white text-sm font-medium rounded-full transition-colors disabled:opacity-50"
                         >
-                          Proceed to Financial Scrutiny
+                          {isOpeningCover2 ? 'Opening Cover 2...' : 'Open Cover 2'}
                         </button>
+                        {cover2Error && (
+                          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700 flex items-start gap-2">
+                            <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                            <span>{cover2Error}</span>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="space-y-3">
