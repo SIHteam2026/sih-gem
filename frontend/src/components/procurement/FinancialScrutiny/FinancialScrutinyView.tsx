@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ProcurementFinancialEvaluationResponse, BidderFinancialEvaluation, FinancialAnomalySignal } from '@/types/financial';
 import { runFinancialEvaluation } from '@/services/api/financial';
-import { ShieldCheck, Users, Clock, CheckCircle2, AlertTriangle, Calculator, DollarSign, XCircle, ChevronRight, Activity, FileText } from 'lucide-react';
+import { checkActionStudioReadiness } from '@/services/api/action-studio';
+import type { ActionStudioReadinessResponse } from '@/types/action-studio';
+import { ShieldCheck, Users, Clock, CheckCircle2, AlertTriangle, Calculator, DollarSign, XCircle, ChevronRight, Activity, FileText, Lock } from 'lucide-react';
 
 interface FinancialScrutinyViewProps {
   data: ProcurementFinancialEvaluationResponse;
@@ -122,6 +124,15 @@ export function FinancialScrutinyView({
   const [evalStep, setEvalStep] = useState(0);
   const [selectedBidder, setSelectedBidder] = useState<BidderFinancialEvaluation | null>(null);
   const [isOfficerConfirmed, setIsOfficerConfirmed] = useState(false);
+  const [readiness, setReadiness] = useState<ActionStudioReadinessResponse | null>(null);
+
+  useEffect(() => {
+    if (data.procurement_id) {
+      checkActionStudioReadiness(data.procurement_id)
+        .then(setReadiness)
+        .catch(() => setReadiness(null));
+    }
+  }, [data.procurement_id]);
 
   const evaluationSteps = [
     "Reading commercial submissions...",
@@ -280,14 +291,33 @@ export function FinancialScrutinyView({
 
             {/* Officer Confirmation & Proceed */}
             <div className="p-6 bg-white border-2 border-slate-200 rounded-xl mt-12">
-              <h3 className="text-base font-bold text-slate-900 mb-2 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-emerald-600" /> Officer Commercial Review
-              </h3>
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600" /> Officer Commercial Review
+                </h3>
+                {readiness?.is_unlocked ? (
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-wider flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> COMMERCIAL REVIEW COMPLETE
+                  </span>
+                ) : readiness?.blocker_reason ? (
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 uppercase tracking-wider flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-amber-600" /> ACTION STUDIO BLOCKED
+                  </span>
+                ) : null}
+              </div>
+
               <p className="text-sm text-slate-600 leading-relaxed mb-6">
                 Commercial ranking calculated by Opal. Final procurement decision remains with the authorized officer. Anomaly signals must not alter ranking but require human determination.
               </p>
-              
-              <div className="flex items-center gap-4 border-t border-slate-100 pt-6">
+
+              {readiness && !readiness.is_unlocked && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 font-medium mb-4 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Action Studio Entry Blocker: {readiness.blocker_reason}</span>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-slate-100 pt-6">
                 <label className="flex items-center gap-2 cursor-pointer group">
                   <input 
                     type="checkbox" 
@@ -301,9 +331,9 @@ export function FinancialScrutinyView({
                 </label>
                 
                 <button
-                  disabled={!isOfficerConfirmed}
+                  disabled={!isOfficerConfirmed || (readiness !== null && !readiness.is_unlocked)}
                   onClick={() => router.push(`/procurements/${data.procurement_id}/action-studio`)}
-                  className="ml-auto inline-flex items-center gap-2 px-6 py-2.5 bg-[#0f172a] hover:bg-[#1e293b] text-white text-sm font-medium rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="sm:ml-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-[#0f172a] hover:bg-[#1e293b] text-white text-sm font-medium rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Proceed to Action Studio <ChevronRight className="w-4 h-4" />
                 </button>

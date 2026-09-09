@@ -389,6 +389,58 @@ class ActionStudioService:
         )
 
     @classmethod
+    async def check_readiness(cls, procurement_id: str) -> Dict[str, Any]:
+        """Checks whether Action Studio is unlocked based on backend workflow state."""
+        context = await ActionStudioContextService.build_evidence_context(procurement_id)
+        tech = context.get("technical", {})
+        fin = context.get("financial", {})
+
+        tech_freeze = tech.get("technical_freeze_completed", False)
+        fin_eval = fin.get("financial_evaluation_completed", False)
+        l1_bidder = fin.get("l1_bidder")
+        has_l1 = bool(l1_bidder)
+
+        if not tech_freeze:
+            return {
+                "procurement_id": procurement_id,
+                "is_unlocked": False,
+                "status": "TECHNICAL_FREEZE_PENDING",
+                "blocker_reason": "Technical evaluation freeze has not completed.",
+                "technical_freeze_completed": False,
+                "financial_evaluation_completed": fin_eval,
+                "has_l1_bidder": has_l1,
+            }
+
+        if not fin_eval:
+            return {
+                "procurement_id": procurement_id,
+                "is_unlocked": False,
+                "status": "FINANCIAL_EVALUATION_PENDING",
+                "blocker_reason": "Cover 2 commercial evaluation has not completed.",
+                "technical_freeze_completed": True,
+                "financial_evaluation_completed": False,
+                "has_l1_bidder": has_l1,
+            }
+
+        return {
+            "procurement_id": procurement_id,
+            "is_unlocked": True,
+            "status": "COMMERCIAL_REVIEW_COMPLETE",
+            "blocker_reason": None,
+            "technical_freeze_completed": True,
+            "financial_evaluation_completed": True,
+            "has_l1_bidder": has_l1,
+        }
+
+    @classmethod
+    async def get_audit_events(cls, procurement_id: str, document_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Lists audit events for a procurement or specific document."""
+        return [
+            log for log in _ACTION_STUDIO_AUDIT_LOGS
+            if log.get("procurement_id") == procurement_id and (not document_id or log.get("document_id") == document_id)
+        ]
+
+    @classmethod
     async def list_draft_versions(cls, draft_id: str) -> List[ActionStudioDocumentVersion]:
         """Lists all version snapshot entries for a draft document."""
         if draft_id not in _ACTION_STUDIO_VERSIONS:

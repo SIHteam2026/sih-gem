@@ -14,25 +14,88 @@ try:
         ActionStudioDocument,
         ActionStudioDocumentVersion,
         ActionStudioListResponse,
+        ActionStudioReadinessResponse,
         ApproveDraftRequest,
         CreateDraftRequest,
         UpdateDraftRequest,
     )
     from app.services.action_studio_service import ActionStudioService
+    from app.services.action_studio_context_service import ActionStudioContextService
 except ImportError:
     from app.models.action_studio import (
         ActionStudioDocument,
         ActionStudioDocumentVersion,
         ActionStudioListResponse,
+        ActionStudioReadinessResponse,
         ApproveDraftRequest,
         CreateDraftRequest,
         UpdateDraftRequest,
     )
     from app.services.action_studio_service import ActionStudioService
+    from app.services.action_studio_context_service import ActionStudioContextService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["Action Studio"])
+
+
+@router.get(
+    "/procurements/{procurement_id}/action-studio/readiness",
+    response_model=ActionStudioReadinessResponse,
+    summary="Check Action Studio Readiness & Gate",
+    description="Checks canonical workflow state to determine if Action Studio is unlocked for officer entry.",
+)
+async def get_action_studio_readiness(
+    procurement_id: str = Path(..., description="Canonical procurement UUID."),
+) -> ActionStudioReadinessResponse:
+    """Checks Action Studio readiness and entry gate."""
+    try:
+        data = await ActionStudioService.check_readiness(procurement_id)
+        return ActionStudioReadinessResponse.model_validate(data)
+    except Exception as exc:
+        logger.error("Failed to check Action Studio readiness for procurement '%s': %s", procurement_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal error checking Action Studio readiness.",
+        )
+
+
+@router.get(
+    "/procurements/{procurement_id}/action-studio/context",
+    summary="Get Action Studio Canonical Evidence Context",
+    description="Retrieves complete canonical evidence context for Action Studio workspace.",
+)
+async def get_action_studio_context(
+    procurement_id: str = Path(..., description="Canonical procurement UUID."),
+):
+    """Retrieves canonical evidence context."""
+    try:
+        return await ActionStudioContextService.build_evidence_context(procurement_id)
+    except Exception as exc:
+        logger.error("Failed to fetch Action Studio context for procurement '%s': %s", procurement_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal error building Action Studio context.",
+        )
+
+
+@router.get(
+    "/procurements/{procurement_id}/action-studio/audit",
+    summary="List Action Studio Audit Trail Events",
+    description="Retrieves historical audit trail events recorded during Action Studio workflow.",
+)
+async def list_action_studio_audit_events(
+    procurement_id: str = Path(..., description="Canonical procurement UUID."),
+):
+    """Lists audit events for procurement."""
+    try:
+        return await ActionStudioService.get_audit_events(procurement_id)
+    except Exception as exc:
+        logger.error("Failed to list audit events for procurement '%s': %s", procurement_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal error retrieving audit trail events.",
+        )
 
 
 @router.get(

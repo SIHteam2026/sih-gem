@@ -344,6 +344,11 @@ class TestActionStudioFoundation(unittest.TestCase):
 
     def test_15_api_endpoints_integration(self):
         """15. REST API Endpoints Integration Test."""
+        # 0. Check Readiness Endpoint
+        resp_ready = self.client.get(f"/api/procurements/{self.procurement_id}/action-studio/readiness")
+        self.assertEqual(resp_ready.status_code, 200)
+        self.assertTrue(resp_ready.json()["is_unlocked"])
+
         # 1. Create Draft
         resp_create = self.client.post(
             f"/api/procurements/{self.procurement_id}/action-studio/drafts",
@@ -382,6 +387,11 @@ class TestActionStudioFoundation(unittest.TestCase):
         resp_list = self.client.get(f"/api/procurements/{self.procurement_id}/action-studio")
         self.assertEqual(resp_list.status_code, 200)
         self.assertTrue(resp_list.json()["total"] >= 1)
+
+        # 7. List Audit Events
+        resp_audit = self.client.get(f"/api/procurements/{self.procurement_id}/action-studio/audit")
+        self.assertEqual(resp_audit.status_code, 200)
+        self.assertTrue(len(resp_audit.json()) >= 1)
 
 
 if __name__ == "__main__":

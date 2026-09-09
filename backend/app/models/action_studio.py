@@ -140,3 +140,14 @@ class ActionStudioListResponse(BaseModel):
     procurement_id: str
     total: int
     documents: List[ActionStudioDocumentSummary]
+
+
+class ActionStudioReadinessResponse(BaseModel):
+    """Payload representing Action Studio readiness and entry gate status."""
+    procurement_id: str = Field(..., description="Canonical procurement UUID.")
+    is_unlocked: bool = Field(..., description="Whether Action Studio is unlocked for officer access.")
+    status: str = Field(..., description="High-level readiness status code.")
+    blocker_reason: Optional[str] = Field(None, description="Human-readable reason if entry is blocked.")
+    technical_freeze_completed: bool = Field(default=False, description="Whether technical freeze is completed.")
+    financial_evaluation_completed: bool = Field(default=False, description="Whether Cover 2 financial evaluation is completed.")
+    has_l1_bidder: bool = Field(default=False, description="Whether a legitimate L1 bidder is identified.")
