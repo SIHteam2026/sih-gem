@@ -121,6 +121,24 @@ export function PersistentDecisionLog({ entries }: PersistentDecisionLogProps) {
               </div>
             )}
 
+            {/* Clarification Events */}
+            {entry.clarificationEvents && entry.clarificationEvents.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-slate-100 space-y-1.5">
+                {entry.clarificationEvents.map((ce, cIdx) => (
+                  <div key={cIdx} className="bg-slate-50 border border-slate-100 rounded p-1.5 text-[10px] leading-snug">
+                    <p className="font-semibold text-slate-700">Clarification: {ce.bidderName}</p>
+                    <p className="text-slate-500 mt-0.5">Status: <span className="font-medium">{ce.status.replace(/_/g, ' ')}</span></p>
+                    {ce.resultingStatus && (
+                      <p className="text-emerald-700 font-medium mt-0.5 flex items-center gap-1">
+                        <CheckCircle className="w-2.5 h-2.5" />
+                        Re-evaluated: {ce.resultingStatus}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Timestamp */}
             <div className="flex items-center gap-1 mt-2">
               <Clock className="w-3 h-3 text-slate-300" />

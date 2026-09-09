@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import type { TechnicalReviewResponse, DecisionLogEntry, ComplianceStatus } from '@/types/technical-review';
+import type { TechnicalReviewResponse, DecisionLogEntry, ComplianceStatus, CheckResult, ClarificationSummary } from '@/types/technical-review';
 import { TechnicalLayerSection } from './TechnicalLayerSection';
 import { PersistentDecisionLog } from './PersistentDecisionLog';
+import { FindingAttentionPanel } from './FindingAttentionPanel';
+import { ClarificationWorkflow } from './ClarificationWorkflow';
 import { AlertTriangle, CheckCircle2, Clock, Users, ShieldCheck, XCircle } from 'lucide-react';
 
 interface TechnicalScrutinyViewProps {
   data: TechnicalReviewResponse;
   /** Full procurement detail for richer context (org, status, etc.) */
   procurementOrganization?: string;
+  /** Callback to trigger a reload of canonical review data */
+  onReloadRequested?: () => void;
 }
 
 // Canonical status badge colors for the completion summary
@@ -23,11 +27,26 @@ const BIDDER_STATUS_COLORS: Record<string, { bg: string; text: string; border: s
 export function TechnicalScrutinyView({
   data,
   procurementOrganization,
+  onReloadRequested,
 }: TechnicalScrutinyViewProps) {
   const router = useRouter();
   const [activeLayerIndex, setActiveLayerIndex] = useState(0);
   const [isFullyComplete, setIsFullyComplete] = useState(false);
   const [logEntries, setLogEntries] = useState<DecisionLogEntry[]>([]);
+  const [selectedClarificationCheck, setSelectedClarificationCheck] = useState<CheckResult | null>(null);
+
+  // Identify findings that might need attention from the user
+  const findingsNeedingAttention = useMemo(() => {
+    const findings: CheckResult[] = [];
+    for (const layer of data.layers) {
+      for (const check of layer.checks) {
+        if (check.requiresClarification || check.clarificationId) {
+          findings.push(check);
+        }
+      }
+    }
+    return findings;
+  }, [data.layers]);
 
   const handleProceedToNext = (observationText: string, persisted: boolean) => {
     const layer = data.layers[activeLayerIndex];
@@ -178,8 +197,45 @@ export function TechnicalScrutinyView({
                   </h3>
                 </div>
 
+                {/* Clarification Workflow Overlay */}
+                {selectedClarificationCheck && (
+                  <div className="mb-8">
+                    <ClarificationWorkflow
+                      check={selectedClarificationCheck}
+                      bidderName={selectedClarificationCheck.bidderName || 'Unknown Bidder'}
+                      bidderSubmissionId={selectedClarificationCheck.submissionId || ''}
+                      procurementId={data.procurementId}
+                      onClose={() => setSelectedClarificationCheck(null)}
+                      onReEvaluationComplete={() => {
+                        setSelectedClarificationCheck(null);
+                        onReloadRequested?.();
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Findings needing attention / Clarification entry points */}
+                {findingsNeedingAttention.length > 0 && !selectedClarificationCheck && (
+                  <div className="mb-8 space-y-4">
+                    <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">
+                      Findings Requiring Officer Attention
+                    </h4>
+                    {findingsNeedingAttention.map((check) => (
+                      <FindingAttentionPanel
+                        key={check.id}
+                        check={check}
+                        bidderName={check.bidderName || 'Unknown Bidder'}
+                        procurementId={data.procurementId}
+                        existingClarificationId={check.clarificationId}
+                        existingClarificationStatus={check.clarificationStatus}
+                        onSeekClarification={setSelectedClarificationCheck}
+                      />
+                    ))}
+                  </div>
+                )}
+
                 {/* Bidder-level outcomes */}
-                {data.bidders.length > 0 && (
+                {data.bidders.length > 0 && !selectedClarificationCheck && (
                   <div className="mb-8">
                     <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">
                       Bidder Outcomes
@@ -215,72 +271,74 @@ export function TechnicalScrutinyView({
                 )}
 
                 {/* Cover-2 Gate — driven by backend cover2_readiness */}
-                <div className="mt-8 p-5 bg-slate-50 border border-slate-200 rounded-xl">
-                  <h4 className="text-sm font-bold text-slate-700 mb-3">
-                    Cover 2 — Financial Scrutiny Gate
-                  </h4>
+                {!selectedClarificationCheck && (
+                  <div className="mt-8 p-5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <h4 className="text-sm font-bold text-slate-700 mb-3">
+                      Cover 2 — Financial Scrutiny Gate
+                    </h4>
 
-                  {data.canOpenCover2 ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        <p className="text-sm text-slate-700">
-                          {data.cover2Readiness.eligibleBidderCount} eligible bidder
-                          {data.cover2Readiness.eligibleBidderCount !== 1 ? 's' : ''} cleared
-                          for financial evaluation.
-                        </p>
+                    {data.canOpenCover2 ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                          <p className="text-sm text-slate-700">
+                            {data.cover2Readiness.eligibleBidderCount} eligible bidder
+                            {data.cover2Readiness.eligibleBidderCount !== 1 ? 's' : ''} cleared
+                            for financial evaluation.
+                          </p>
+                        </div>
+                        {data.cover2Readiness.warnings.length > 0 && (
+                          <ul className="space-y-1">
+                            {data.cover2Readiness.warnings.map((w, i) => (
+                              <li key={i} className="flex items-start gap-2 text-sm text-amber-700">
+                                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                                {w}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <button
+                          onClick={() =>
+                            router.push(
+                              `/procurements/${data.procurementId}/financial-evaluation`
+                            )
+                          }
+                          className="inline-flex items-center gap-2 px-6 py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white text-sm font-medium rounded-full transition-colors"
+                        >
+                          Proceed to Financial Scrutiny
+                        </button>
                       </div>
-                      {data.cover2Readiness.warnings.length > 0 && (
-                        <ul className="space-y-1">
-                          {data.cover2Readiness.warnings.map((w, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-amber-700">
-                              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                              {w}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      <button
-                        onClick={() =>
-                          router.push(
-                            `/procurements/${data.procurementId}/financial-evaluation`
-                          )
-                        }
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white text-sm font-medium rounded-full transition-colors"
-                      >
-                        Proceed to Financial Scrutiny
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <XCircle className="w-4 h-4 text-red-500" />
-                        <p className="text-sm text-slate-700">
-                          Financial scrutiny cannot be opened yet.
-                        </p>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <XCircle className="w-4 h-4 text-red-500" />
+                          <p className="text-sm text-slate-700">
+                            Financial scrutiny cannot be opened yet.
+                          </p>
+                        </div>
+                        {data.cover2Readiness.blockers.length > 0 && (
+                          <ul className="space-y-1.5">
+                            {data.cover2Readiness.blockers.map((b, i) => (
+                              <li
+                                key={i}
+                                className="text-sm text-red-700 flex items-start gap-2"
+                              >
+                                <span className="text-red-400 mt-0.5">·</span>
+                                {b}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <button
+                          disabled
+                          className="inline-flex items-center gap-2 px-6 py-3 bg-slate-200 text-slate-400 text-sm font-medium rounded-full cursor-not-allowed"
+                        >
+                          Proceed to Financial Scrutiny (Blocked)
+                        </button>
                       </div>
-                      {data.cover2Readiness.blockers.length > 0 && (
-                        <ul className="space-y-1.5">
-                          {data.cover2Readiness.blockers.map((b, i) => (
-                            <li
-                              key={i}
-                              className="text-sm text-red-700 flex items-start gap-2"
-                            >
-                              <span className="text-red-400 mt-0.5">·</span>
-                              {b}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      <button
-                        disabled
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-slate-200 text-slate-400 text-sm font-medium rounded-full cursor-not-allowed"
-                      >
-                        Proceed to Financial Scrutiny (Blocked)
-                      </button>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </main>

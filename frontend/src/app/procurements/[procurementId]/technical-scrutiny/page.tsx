@@ -97,10 +97,20 @@ export default function TechnicalScrutinyPage() {
     );
   }
 
+  const reloadData = async () => {
+    try {
+      const reviewData = await fetchTechnicalReview(id);
+      setData(reviewData);
+    } catch (err) {
+      console.error('Failed to reload technical scrutiny data', err);
+    }
+  };
+
   return (
     <TechnicalScrutinyView
       data={data}
       procurementOrganization={organization}
+      onReloadRequested={reloadData}
     />
   );
 }

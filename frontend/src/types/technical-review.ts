@@ -41,6 +41,8 @@ export interface CheckResult {
   finding?: string;
   /** Bidder this finding belongs to (where applicable) */
   bidderName?: string;
+  /** Bidder submission ID (needed for clarification creation) */
+  submissionId?: string;
   /** Severity from backend (INFO / WARNING / CRITICAL / FATAL) — informational only */
   severity?: string;
   /** Evidence provenance references */
@@ -52,6 +54,18 @@ export interface CheckResult {
    * Must not conflict with the canonical status.
    */
   synthesis?: string;
+  /**
+   * Whether the canonical backend permits a clarification for this finding.
+   * The UI shows "Seek Clarification" only when this is true (or conservatively
+   * for REVIEW/UNVERIFIED status), never for every FAIL.
+   */
+  requiresClarification?: boolean;
+  /** UUID of an existing clarification if one has been opened */
+  clarificationId?: string;
+  /** Current status of the associated clarification */
+  clarificationStatus?: string;
+  /** Whether this finding is a qualification blocker */
+  isBlocking?: boolean;
 }
 
 export interface TechnicalLayer {
@@ -128,6 +142,17 @@ export interface OfficerObservationPayload {
   observation: string;
 }
 
+/** Brief clarification summary shown in the decision log */
+export interface ClarificationSummary {
+  clarificationId: string;
+  bidderName: string;
+  requirementId: string;
+  status: string;
+  createdAt: string;
+  resolvedAt?: string;
+  resultingStatus?: string;
+}
+
 /** Entry in the persistent Decision Log */
 export interface DecisionLogEntry {
   layerKey: string;
@@ -142,4 +167,6 @@ export interface DecisionLogEntry {
     review: number;
     unverified: number;
   };
+  /** Clarification lifecycle events associated with this layer's findings */
+  clarificationEvents?: ClarificationSummary[];
 }

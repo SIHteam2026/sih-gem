@@ -83,9 +83,14 @@ function mapFindingToCheck(f: RawFinding, idx: number): CheckResult {
     evidence: f.evidence_summary as string | undefined,
     finding: (f.detail as string) || (f.finding_detail as string) || undefined,
     bidderName: (f.bidder_name as string) || undefined,
+    submissionId: (f.submission_id as string) || undefined,
     synthesis: (f.detail as string) || undefined,
     evidenceRefs,
     sourceReference: (f.source_reference as string) || undefined,
+    requiresClarification: (f.requires_clarification as boolean) || false,
+    clarificationId: (f.clarification_id as string) || undefined,
+    clarificationStatus: (f.clarification_status as string) || undefined,
+    isBlocking: (f.is_blocking as boolean) || false,
   };
 }
 
