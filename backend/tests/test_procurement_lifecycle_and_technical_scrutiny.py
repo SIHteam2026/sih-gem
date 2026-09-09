@@ -196,6 +196,16 @@ def setup_lifecycle_test_workspace():
         "sub_1": sub_1,
         "sub_2": sub_2,
     }
+    
+    # Cleanup memory stores
+    _IN_MEMORY_PROCUREMENTS.pop(proc_id, None)
+    _IN_MEMORY_TENDERS.pop(tender_id, None)
+    _IN_MEMORY_BIDDERS.pop(bidder_1, None)
+    _IN_MEMORY_BIDDERS.pop(bidder_2, None)
+    _IN_MEMORY_SUBMISSIONS.pop(sub_1, None)
+    _IN_MEMORY_SUBMISSIONS.pop(sub_2, None)
+    _IN_MEMORY_DOCUMENTS.clear()
+    _IN_MEMORY_CLARIFICATIONS.clear()
 
 
 # ---------------------------------------------------------------------------

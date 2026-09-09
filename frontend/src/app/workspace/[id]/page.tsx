@@ -52,7 +52,7 @@ export default function WorkspaceDetailPage() {
 
   // Deadline from first tender created_at as proxy
   const firstTender = procurement?.tenders?.[0];
-  const deadlineDate = firstTender?.created_at ? new Date(firstTender.created_at) : null;
+  const deadlineDate = firstTender?.submission_deadline ? new Date(firstTender.submission_deadline) : null;
   const isDeadlinePast = deadlineDate ? deadlineDate < new Date() : false;
   const formattedDeadline = deadlineDate
     ? deadlineDate.toLocaleDateString("en-GB", {

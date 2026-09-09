@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from fastapi.testclient import TestClient
 from app.api.main import app
 from app.db.client import _load_local_store, _IN_MEMORY_PROCUREMENTS, _IN_MEMORY_OBSERVATIONS
@@ -6,10 +6,13 @@ from app.db.client import _load_local_store, _IN_MEMORY_PROCUREMENTS, _IN_MEMORY
 client = TestClient(app)
 
 def test_officer_observation_lifecycle():
-    _load_local_store()
-    
-    # Use canonical CPCL workspace UUID
-    procurement_id = "DEMO/CPCL/WQM/2026/017"
+    procurement_id = "test-obs-proc-001"
+    _IN_MEMORY_PROCUREMENTS[procurement_id] = {
+        "id": procurement_id,
+        "external_reference": "DEMO/CPCL/WQM/2026/OBS",
+        "title": "Observation Test Proc",
+        "status": "TECHNICAL_REVIEW"
+    }
     
     # 1. Create observation
     payload = {

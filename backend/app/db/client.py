@@ -86,25 +86,34 @@ async def insert_bid_evaluation(
     evaluation_data: Dict[str, Any] | None = None,
     bid_id: str | None = None,
 ) -> None:
-    """Inserts a bid evaluation record into Supabase (supporting bidder_evaluations and bid_evaluations)."""
-    try:
-        from fastapi.encoders import jsonable_encoder
-        db_client = get_supabase_client()
-        eval_payload = evaluation_data if evaluation_data is not None else {}
-        if isinstance(bidder_name, dict) and evaluation_data is None:
-            eval_payload = bidder_name
-            bidder_name = "Unknown"
+    """Inserts a bid evaluation record, always persisting to in-memory store first.
 
-        record = {
-            "tender_id": tender_id,
-            "bidder_name": bidder_name or "Unknown",
-            "bid_id": bid_id or tender_id,
-            "evaluation_data": jsonable_encoder(eval_payload),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        
-        _IN_MEMORY_EVALUATIONS.append(record)
-        
+    The in-memory store is updated unconditionally so that offline/test operation
+    (no Supabase) functions correctly. Supabase persistence is attempted as a
+    non-blocking best-effort after the in-memory write succeeds.
+    """
+    from fastapi.encoders import jsonable_encoder
+
+    eval_payload = evaluation_data if evaluation_data is not None else {}
+    # Support legacy call-site: insert_bid_evaluation(tender_id, {eval_dict})
+    if isinstance(bidder_name, dict) and evaluation_data is None:
+        eval_payload = bidder_name
+        bidder_name = "Unknown"
+
+    record = {
+        "tender_id": tender_id,
+        "bidder_name": bidder_name or "Unknown",
+        "bid_id": bid_id or tender_id,
+        "evaluation_data": jsonable_encoder(eval_payload),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Always persist to in-memory store first (works offline, always available).
+    _IN_MEMORY_EVALUATIONS.append(record)
+
+    # Non-blocking best-effort Supabase persistence.
+    try:
+        db_client = get_supabase_client()
         try:
             await asyncio.to_thread(
                 lambda: db_client.table("bidder_evaluations").insert(record).execute()
@@ -676,39 +685,46 @@ def _prune_old_procurements(max_items: int = 7) -> None:
     keep_procs = sorted_procs[:max_items]
     keep_proc_ids = {p["id"] for p in keep_procs if p.get("id")}
 
-    _IN_MEMORY_PROCUREMENTS = {p["id"]: p for p in keep_procs if p.get("id")}
+    _IN_MEMORY_PROCUREMENTS.clear()
+    _IN_MEMORY_PROCUREMENTS.update({p["id"]: p for p in keep_procs if p.get("id")})
 
     # Prune associated tenders, submissions, documents that belonged to removed procurements
     keep_tender_ids = set()
-    _IN_MEMORY_TENDERS = {
+    _IN_MEMORY_TENDERS.clear()
+    _IN_MEMORY_TENDERS.update({
         t_id: t for t_id, t in _IN_MEMORY_TENDERS.items()
         if t.get("procurement_id") in keep_proc_ids or not t.get("procurement_id")
-    }
+    })
     for t_id, t in _IN_MEMORY_TENDERS.items():
         keep_tender_ids.add(t_id)
         if t.get("external_reference"):
             keep_tender_ids.add(t["external_reference"])
 
-    _IN_MEMORY_SUBMISSIONS = {
+    _IN_MEMORY_SUBMISSIONS.clear()
+    _IN_MEMORY_SUBMISSIONS.update({
         s_id: s for s_id, s in _IN_MEMORY_SUBMISSIONS.items()
         if s.get("procurement_id") in keep_proc_ids or s.get("tender_id") in keep_tender_ids
-    }
-    _IN_MEMORY_DOCUMENTS = {
+    })
+    _IN_MEMORY_DOCUMENTS.clear()
+    _IN_MEMORY_DOCUMENTS.update({
         d_id: d for d_id, d in _IN_MEMORY_DOCUMENTS.items()
         if d.get("procurement_id") in keep_proc_ids or d.get("tender_id") in keep_tender_ids
-    }
-    _IN_MEMORY_REQUIREMENTS = {
+    })
+    _IN_MEMORY_REQUIREMENTS.clear()
+    _IN_MEMORY_REQUIREMENTS.update({
         t_id: reqs for t_id, reqs in _IN_MEMORY_REQUIREMENTS.items()
         if t_id in keep_proc_ids or t_id in keep_tender_ids
-    }
-    _IN_MEMORY_FINANCIAL_EVALUATIONS = {
+    })
+    _IN_MEMORY_FINANCIAL_EVALUATIONS.clear()
+    _IN_MEMORY_FINANCIAL_EVALUATIONS.update({
         f_id: f for f_id, f in _IN_MEMORY_FINANCIAL_EVALUATIONS.items()
         if f_id in keep_proc_ids
-    }
-    _IN_MEMORY_CLARIFICATIONS = {
+    })
+    _IN_MEMORY_CLARIFICATIONS.clear()
+    _IN_MEMORY_CLARIFICATIONS.update({
         c_id: c for c_id, c in _IN_MEMORY_CLARIFICATIONS.items()
         if isinstance(c, dict) and c.get("procurement_id") in keep_proc_ids
-    }
+    })
 
 
 async def clear_procurement_logs_db(keep_active_count: int = 2) -> Dict[str, Any]:
@@ -730,38 +746,57 @@ async def clear_procurement_logs_db(keep_active_count: int = 2) -> Dict[str, Any
     keep_proc_ids = {p["id"] for p in keep_procs if p.get("id")}
     pruned_count = max(0, len(_IN_MEMORY_PROCUREMENTS) - len(keep_procs))
 
-    _IN_MEMORY_PROCUREMENTS = {p["id"]: p for p in keep_procs if p.get("id")}
+    new_procs = {p["id"]: p for p in keep_procs if p.get("id")}
+    _IN_MEMORY_PROCUREMENTS.clear()
+    _IN_MEMORY_PROCUREMENTS.update(new_procs)
 
     keep_tender_ids = set()
-    _IN_MEMORY_TENDERS = {
+    new_tenders = {
         t_id: t for t_id, t in _IN_MEMORY_TENDERS.items()
         if t.get("procurement_id") in keep_proc_ids or not t.get("procurement_id")
     }
+    _IN_MEMORY_TENDERS.clear()
+    _IN_MEMORY_TENDERS.update(new_tenders)
+    
     for t_id, t in _IN_MEMORY_TENDERS.items():
         keep_tender_ids.add(t_id)
         if t.get("external_reference"):
             keep_tender_ids.add(t["external_reference"])
 
-    _IN_MEMORY_SUBMISSIONS = {
+    new_subs = {
         s_id: s for s_id, s in _IN_MEMORY_SUBMISSIONS.items()
         if s.get("procurement_id") in keep_proc_ids or s.get("tender_id") in keep_tender_ids
     }
-    _IN_MEMORY_DOCUMENTS = {
+    _IN_MEMORY_SUBMISSIONS.clear()
+    _IN_MEMORY_SUBMISSIONS.update(new_subs)
+    
+    new_docs = {
         d_id: d for d_id, d in _IN_MEMORY_DOCUMENTS.items()
         if d.get("procurement_id") in keep_proc_ids or d.get("tender_id") in keep_tender_ids
     }
-    _IN_MEMORY_REQUIREMENTS = {
+    _IN_MEMORY_DOCUMENTS.clear()
+    _IN_MEMORY_DOCUMENTS.update(new_docs)
+    
+    new_reqs = {
         t_id: reqs for t_id, reqs in _IN_MEMORY_REQUIREMENTS.items()
         if t_id in keep_proc_ids or t_id in keep_tender_ids
     }
-    _IN_MEMORY_FINANCIAL_EVALUATIONS = {
+    _IN_MEMORY_REQUIREMENTS.clear()
+    _IN_MEMORY_REQUIREMENTS.update(new_reqs)
+    
+    new_fins = {
         f_id: f for f_id, f in _IN_MEMORY_FINANCIAL_EVALUATIONS.items()
         if f_id in keep_proc_ids
     }
-    _IN_MEMORY_CLARIFICATIONS = {
+    _IN_MEMORY_FINANCIAL_EVALUATIONS.clear()
+    _IN_MEMORY_FINANCIAL_EVALUATIONS.update(new_fins)
+    
+    new_clars = {
         c_id: c for c_id, c in _IN_MEMORY_CLARIFICATIONS.items()
         if isinstance(c, dict) and c.get("procurement_id") in keep_proc_ids
     }
+    _IN_MEMORY_CLARIFICATIONS.clear()
+    _IN_MEMORY_CLARIFICATIONS.update(new_clars)
 
     _save_local_store()
 
