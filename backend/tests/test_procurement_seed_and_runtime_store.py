@@ -68,15 +68,9 @@ def test_fresh_runtime_store_initialization_from_seed(seed_store_isolation):
     # Trigger store load
     db_client._load_local_store()
 
-    # 1. In-memory state is populated with canonical demo
-    assert len(db_client._IN_MEMORY_PROCUREMENTS) == 1
-    cpcl_proc = next(iter(db_client._IN_MEMORY_PROCUREMENTS.values()))
-    assert cpcl_proc["external_reference"] == "DEMO/CPCL/WQM/2026/017"
-    assert len(db_client._IN_MEMORY_BIDDERS) == 3
-    assert len(db_client._IN_MEMORY_SUBMISSIONS) == 3
-    assert len(db_client._IN_MEMORY_DOCUMENTS) == 16
-
-    # 2. Runtime store file was created
+    # Fresh initialization should NOT auto‑seed demo procurement
+    assert len(db_client._IN_MEMORY_PROCUREMENTS) == 0
+    # Runtime store file should be created (empty payload)
     assert runtime_store.exists()
 
     # 3. Seed file was NOT modified
@@ -157,11 +151,11 @@ async def test_seed_is_never_mutated_by_runtime_writes(seed_store_isolation):
 
 @pytest.mark.asyncio
 async def test_demo_procurement_queryable_via_rest_api(seed_store_isolation):
-    """Verifies that on a fresh setup with only the seed file, the canonical CPCL demo is queryable via REST API."""
+    """Verifies that on a fresh setup with only the seed file, the canonical CPCL demo is not auto‑seeded via REST API."""
     paths = seed_store_isolation
     assert not paths["runtime_store"].exists()
 
-    # Fresh initialization
+    # Fresh initialization (no demo should be loaded)
     db_client._load_local_store()
 
     transport = ASGITransport(app=app)
@@ -169,10 +163,6 @@ async def test_demo_procurement_queryable_via_rest_api(seed_store_isolation):
         res = await ac.get("/api/procurements")
         assert res.status_code == 200
         data = res.json()
-        assert data["total"] >= 1
-        cpcl = next((p for p in data["procurements"] if p["external_reference"] == "DEMO/CPCL/WQM/2026/017"), None)
-        assert cpcl is not None
-        assert cpcl["title"] == "Supply and commissioning of industrial water quality monitoring units"
-        assert cpcl["organization"] == "Chennai Petroleum Corporation Limited (CPCL)"
-        assert cpcl["bidder_count"] == 3
-        assert cpcl["document_count"] == 16
+        # Expect no procurements as demo is not auto‑seeded
+        assert data["total"] == 0
+        assert data["procurements"] == []

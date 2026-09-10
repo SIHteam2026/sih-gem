@@ -844,9 +844,24 @@ def _load_local_store() -> None:
 
     if _LOCAL_STORE_PATH.exists():
         target_path = _LOCAL_STORE_PATH
-    elif _SEED_STORE_PATH.exists():
-        target_path = _SEED_STORE_PATH
-        is_seeding = True
+    else:
+        # Initialize empty store file for future persistence.
+        _DATA_DIR.mkdir(parents=True, exist_ok=True)
+        empty_payload = {
+            "procurements": {},
+            "tenders": {},
+            "bidders": {},
+            "submissions": {},
+            "documents": {},
+            "requirements": {},
+            "financial_evaluations": {},
+            "clarifications": [],
+            "audit_logs": [],
+            "observations": [],
+        }
+        with open(_LOCAL_STORE_PATH, "w", encoding="utf-8") as f:
+            json.dump(empty_payload, f, indent=2)
+        target_path = _LOCAL_STORE_PATH
 
     if not target_path:
         return
