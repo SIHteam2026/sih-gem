@@ -865,6 +865,11 @@ export async function ingestMockGeMFiles(tenderPdf, bidderZips, metadata = {}) {
   bidderZips.forEach((zip) => {
     formData.append('bidder_zips', zip);
   });
+  if (Array.isArray(metadata.bidder_names)) {
+    metadata.bidder_names.forEach((name) => {
+      formData.append('bidder_names', name);
+    });
+  }
   if (metadata.title) formData.append('title', metadata.title);
   if (metadata.organization) formData.append('organization', metadata.organization);
   if (metadata.estimated_value) formData.append('estimated_value', String(metadata.estimated_value));

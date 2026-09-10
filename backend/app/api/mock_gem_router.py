@@ -10,6 +10,7 @@ import io
 import json
 import logging
 import os
+import re
 import uuid
 import zipfile
 from datetime import datetime, timedelta, timezone
@@ -61,12 +62,128 @@ router = APIRouter(prefix="/api/ingest/mock-gem", tags=["Mock-GeM Ingestion"])
 _SAMPLE_DOCS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "sample_documents"
 
 
-import re
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def parse_deadline_str(raw: str) -> Optional[datetime]:
+    """Parses a raw date/time string into a timezone-aware datetime object."""
+    if not raw or not raw.strip():
+        return None
+    s = raw.strip()
+    s = re.sub(r"(\d+)(?:st|nd|rd|th)", r"\1", s, flags=re.IGNORECASE)
+    tz = timezone.utc
+    if "IST" in s.upper():
+        tz = IST
+        s = re.sub(r"\bIST\b", "", s, flags=re.IGNORECASE)
+    elif "UTC" in s.upper() or "GMT" in s.upper():
+        tz = timezone.utc
+        s = re.sub(r"\b(?:UTC|GMT)\b", "", s, flags=re.IGNORECASE)
+
+    s = re.sub(r"\b(?:hours|hrs|hr|at)\b", "", s, flags=re.IGNORECASE)
+    s = re.sub(r"[,;]+", " ", s)
+    s = re.sub(r"\s+", " ", s).strip(" -:")
+
+    formats = [
+        "%d-%B-%Y %H:%M:%S",
+        "%d-%B-%Y %H:%M",
+        "%d-%b-%Y %H:%M:%S",
+        "%d-%b-%Y %H:%M",
+        "%d-%B-%Y %I:%M %p",
+        "%d-%b-%Y %I:%M %p",
+        "%d-%B-%Y",
+        "%d-%b-%Y",
+        "%d/%m/%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M",
+        "%d/%m/%Y %I:%M %p",
+        "%d/%m/%Y",
+        "%d-%m-%Y %H:%M:%S",
+        "%d-%m-%Y %H:%M",
+        "%d-%m-%Y %I:%M %p",
+        "%d-%m-%Y",
+        "%d.%m.%Y %H:%M:%S",
+        "%d.%m.%Y %H:%M",
+        "%d.%m.%Y",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d",
+        "%B %d %Y %H:%M:%S",
+        "%B %d %Y %H:%M",
+        "%B %d %Y %I:%M %p",
+        "%B %d %Y",
+        "%b %d %Y %H:%M:%S",
+        "%b %d %Y %H:%M",
+        "%b %d %Y %I:%M %p",
+        "%b %d %Y",
+        "%d %B %Y %H:%M:%S",
+        "%d %B %Y %H:%M",
+        "%d %B %Y %I:%M %p",
+        "%d %B %Y",
+        "%d %b %Y %H:%M:%S",
+        "%d %b %Y %H:%M",
+        "%d %b %Y %I:%M %p",
+        "%d %b %Y",
+    ]
+
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(s, fmt)
+            return dt.replace(tzinfo=tz)
+        except ValueError:
+            continue
+    return None
+
+
+def extract_tender_deadline_from_text(text: str) -> Optional[datetime]:
+    """Extracts explicit bidder submission deadline from tender specification text.
+    Never invents, defaults, or backdates a deadline. Returns None if absent.
+    """
+    if not text or not text.strip():
+        return None
+    patterns = [
+        r"(?:bid\s+submission\s+end\s+date|bid\s+submission\s+closing\s+date|bid\s+end\s+date(?:\s*/\s*time)?|submission\s+deadline|closing\s+date|due\s+date|last\s+date\s+(?:and\s+time\s+)?(?:for|of)\s+(?:bid\s+)?submission|last\s+date\s+of\s+receipt\s+of\s+tenders?|bid\s+closing\s+date(?:\s*/\s*time)?|date\s+of\s+closing)\s*[:\-–]?\s*([^\n\r]{4,50})",
+        r"(\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[,\s]+\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*(?:IST|UTC|AM|PM|Hours|hrs))?)?)",
+    ]
+    for pattern in patterns:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            raw_val = match.group(1).strip()
+            parsed = parse_deadline_str(raw_val)
+            if parsed:
+                return parsed
+    return None
+
+
+def extract_estimated_value_from_text(text: str) -> Optional[float]:
+    """Extracts estimated tender value from tender specification text."""
+    if not text or not text.strip():
+        return None
+    m_cr = re.search(r"(?:Estimated\s+(?:Tender\s+)?Value|Estimated\s+Cost|Tender\s+Value)[^.\n]*?(?:INR|Rs\.?|₹)?\s*([\d.]+)\s*(?:Crores?|Cr)\b", text, re.IGNORECASE)
+    if m_cr:
+        try:
+            return float(m_cr.group(1)) * 10000000.0
+        except ValueError:
+            pass
+    m_lakh = re.search(r"(?:Estimated\s+(?:Tender\s+)?Value|Estimated\s+Cost|Tender\s+Value)[^.\n]*?(?:INR|Rs\.?|₹)?\s*([\d.]+)\s*(?:Lakhs?|L)\b", text, re.IGNORECASE)
+    if m_lakh:
+        try:
+            return float(m_lakh.group(1)) * 100000.0
+        except ValueError:
+            pass
+    m_num = re.search(r"(?:Estimated\s+(?:Tender\s+)?Value|Estimated\s+Cost|Tender\s+Value)\s*[:\-–]?\s*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)\s*(?:/-)?", text, re.IGNORECASE)
+    if m_num:
+        val_str = m_num.group(1).replace(",", "")
+        try:
+            val = float(val_str)
+            if val > 1000:
+                return val
+        except ValueError:
+            pass
+    return None
 
 
 def extract_tender_metadata_from_text(text: str, filename: str = "") -> Dict[str, Any]:
-    """Dynamically extracts tender title, issuing organization, and requirement summary
-    from the raw text of an ingested tender specification document.
+    """Dynamically extracts tender title, issuing organization, requirements summary,
+    submission deadline, and estimated value from the raw text of an ingested tender document.
     """
     if not text or not text.strip():
         clean_fn = Path(filename).stem.replace("_", " ").replace("-", " ") if filename else "Tender Specification"
@@ -75,7 +192,9 @@ def extract_tender_metadata_from_text(text: str, filename: str = "") -> Dict[str
             "organization": "Government Procuring Entity",
             "description": f"Turnkey procurement and compliance verification for {clean_fn}.",
             "category": "GOODS_AND_SERVICES",
-            "requirements_summary": ""
+            "requirements_summary": "",
+            "submission_deadline": None,
+            "estimated_value": None,
         }
 
     lines = [line.strip() for line in text.split("\n") if line.strip()]
@@ -161,11 +280,16 @@ def extract_tender_metadata_from_text(text: str, filename: str = "") -> Dict[str
     else:
         description = f"Procurement specification and technical compliance criteria for {title}."
 
+    extracted_deadline = extract_tender_deadline_from_text(text)
+    extracted_est_val = extract_estimated_value_from_text(text)
+
     return {
         "title": title,
         "organization": org,
         "description": description,
         "requirements_summary": req_summary_str,
+        "submission_deadline": extracted_deadline,
+        "estimated_value": extracted_est_val,
     }
 
 
@@ -521,7 +645,14 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
                 payload_dict["source_system"] = "MOCK_GEM"
                 payload = ProcurementIngestionPayload.model_validate(payload_dict)
                 if payload.tender and not payload.tender.submission_deadline:
-                    payload.tender.submission_deadline = datetime(2026, 9, 2, 18, 0, tzinfo=timezone.utc)
+                    # Attempt extraction from tender document text if present
+                    if payload.tender.documents:
+                        for t_doc in payload.tender.documents:
+                            if t_doc.content_text:
+                                extracted_dl = extract_tender_deadline_from_text(t_doc.content_text)
+                                if extracted_dl:
+                                    payload.tender.submission_deadline = extracted_dl
+                                    break
 
                 # Extract live PDF text from ZIP entries if present
                 if payload.tender and payload.tender.documents:
@@ -643,7 +774,8 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
                         tender_reference=f"TND-ZIP-{uuid.uuid4().hex[:6].upper()}",
                         title=t_meta["title"],
                         description=t_meta["description"],
-                        submission_deadline=datetime(2026, 9, 2, 18, 0, tzinfo=timezone.utc),
+                        estimated_value=t_meta.get("estimated_value"),
+                        submission_deadline=t_meta.get("submission_deadline"),
                         documents=tender_docs or [IngestionDocumentInput(
                             filename="Default_Tender_Notice.pdf",
                             document_type=DocumentType.TENDER_SPECIFICATION,
@@ -682,14 +814,15 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
 async def ingest_mock_gem_files(
     tender_pdf: UploadFile = File(..., description="Tender RFP / Specification PDF file"),
     bidder_zips: List[UploadFile] = File(..., description="One or more Bidder Submission ZIP archives"),
+    bidder_names: Optional[List[str]] = Form(None),
     organization: Optional[str] = Form(None),
     title: Optional[str] = Form(None),
     estimated_value: Optional[float] = Form(None),
 ):
     """Ingests a procurement package composed of a Tender RFP PDF and one or more Bidder Submission ZIPs.
 
-    Supports multi-bidder ingestion, dynamically extracts text using PyMuPDF, derives metadata,
-    enforces deadline gate readiness, and persists the canonical procurement case via the Ingestion Service.
+    Supports multi-bidder ingestion, dynamically extracts text using PyMuPDF, derives metadata and
+    submission deadline directly from the document truth, and persists the canonical procurement case via the Ingestion Service.
     """
     if not tender_pdf or not tender_pdf.filename:
         raise HTTPException(
@@ -811,19 +944,26 @@ async def ingest_mock_gem_files(
                 ]
 
                 # Determine bidder legal name
-                stem = Path(b_file.filename).stem
-                clean_name = (
-                    stem.replace("Bidder_", "")
-                    .replace("bidder_", "")
-                    .replace("Package_", "")
-                    .replace("_Package", "")
-                    .replace("_", " ")
-                    .strip()
-                )
-                if not clean_name or clean_name.isdigit():
-                    clean_name = f"Bidder {idx}"
+                custom_name = None
+                if bidder_names and idx - 1 < len(bidder_names) and bidder_names[idx - 1] and bidder_names[idx - 1].strip():
+                    custom_name = bidder_names[idx - 1].strip()
 
-                bidder_legal_name = f"{clean_name} Pvt Ltd" if not clean_name.lower().endswith(("ltd", "limited", "inc", "corp")) else clean_name
+                if custom_name:
+                    bidder_legal_name = custom_name
+                else:
+                    stem = Path(b_file.filename).stem
+                    clean_name = (
+                        stem.replace("Bidder_", "")
+                        .replace("bidder_", "")
+                        .replace("Package_", "")
+                        .replace("_Package", "")
+                        .replace("_", " ")
+                        .strip()
+                    )
+                    if not clean_name or clean_name.isdigit():
+                        clean_name = f"Bidder {idx}"
+
+                    bidder_legal_name = f"{clean_name} Pvt Ltd" if not clean_name.lower().endswith(("ltd", "limited", "inc", "corp", "llp", "pvt ltd")) else clean_name
 
                 # Extract bidder documents
                 b_docs: List[IngestionDocumentInput] = []
@@ -863,7 +1003,7 @@ async def ingest_mock_gem_files(
                         detail=f"Bidder archive '{b_file.filename}' contains no PDF evidence documents.",
                     )
 
-                clean_slug = re.sub(r"[^a-zA-Z0-9]", "", clean_name).lower() or f"bidder{idx}"
+                clean_slug = re.sub(r"[^a-zA-Z0-9]", "", bidder_legal_name).lower() or f"bidder{idx}"
                 bidders_list.append(IngestionBidderPackageInput(
                     bidder=IngestionBidderInfo(
                         legal_name=bidder_legal_name,
@@ -884,7 +1024,6 @@ async def ingest_mock_gem_files(
                 detail=f"File '{b_file.filename}' is not a valid or readable ZIP archive.",
             )
 
-    past_deadline = datetime(2026, 9, 2, 18, 0, tzinfo=timezone.utc)
     unique_suffix = uuid.uuid4().hex[:6].upper()
 
     payload = ProcurementIngestionPayload(
@@ -898,9 +1037,9 @@ async def ingest_mock_gem_files(
             tender_reference=f"TND-GEM-{unique_suffix}",
             title=proc_title,
             description=t_meta["description"],
-            estimated_value=estimated_value or 45000000.0,
+            estimated_value=estimated_value or t_meta.get("estimated_value"),
             category="GOODS_AND_SERVICES",
-            submission_deadline=past_deadline,
+            submission_deadline=t_meta.get("submission_deadline"),
             documents=tender_docs,
         ),
         bidders=bidders_list,

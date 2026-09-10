@@ -309,22 +309,26 @@ async def run_technical_scrutiny_command(
 
     # Check Submission Deadline
     tenders = proc.get("tenders", []) or []
-    if tenders:
-        # Check first tender's deadline
-        submission_deadline = tenders[0].get("submission_deadline")
-        if not submission_deadline:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Technical scrutiny cannot be executed: the submission deadline is not established."
-            )
-        
-        # Parse and compare
-        deadline_dt = datetime.fromisoformat(submission_deadline.replace('Z', '+00:00'))
-        if datetime.now(timezone.utc) < deadline_dt and not force:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Technical scrutiny is locked: the submission deadline has not yet passed."
-            )
+    if not tenders:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Technical scrutiny cannot be executed: no tender specification document found."
+        )
+
+    submission_deadline = tenders[0].get("submission_deadline")
+    if not submission_deadline:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Technical scrutiny cannot be executed: the submission deadline is not established from the tender document."
+        )
+    
+    # Parse and compare
+    deadline_dt = datetime.fromisoformat(submission_deadline.replace('Z', '+00:00'))
+    if datetime.now(timezone.utc) < deadline_dt and not force:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Technical scrutiny is locked: the submission deadline has not yet passed."
+        )
 
     # Transition to TECHNICAL_SCRUTINY_RUNNING
     await transition_procurement_state(

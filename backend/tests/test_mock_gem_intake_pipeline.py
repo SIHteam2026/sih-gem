@@ -58,17 +58,15 @@ def mock_gem_test_env(tmp_path, monkeypatch):
     }
 
 
+import fitz
+
+
 def _create_dummy_pdf(text: str = "Sample PDF text") -> bytes:
-    """Returns a minimal valid PDF byte string."""
-    return (
-        b"%PDF-1.4\n"
-        b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
-        b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-        b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>\nendobj\n"
-        b"4 0 obj\n<< /Length 44 >>\nstream\nBT\n/F1 12 Tf\n100 700 Td\n(" + text.encode("latin-1") + b") Tj\nET\nendstream\nendobj\n"
-        b"xref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000204 00000 n \n"
-        b"trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n299\n%%EOF"
-    )
+    """Returns a valid PDF byte string containing the specified text."""
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((50, 72), text)
+    return doc.write()
 
 
 def _create_bidder_zip(bidder_name: str, doc_names: list) -> bytes:
@@ -168,15 +166,25 @@ async def test_second_tender_creates_second_independent_procurement_card(mock_ge
 
 
 @pytest.mark.asyncio
-async def test_procurement_detail_connects_to_command_page_and_deadline_gate(mock_gem_test_env):
-    """Verifies that ingested procurement has valid deadline date in the past, satisfying the deadline gate for scrutiny."""
+async def test_procurement_with_extracted_deadline_and_explicit_bidder_names(mock_gem_test_env):
+    """Verifies that tender with explicit deadline text extracts submission_deadline and applies explicit bidder names."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        tender_text = (
+            "NOTICE INVITING TENDER\n"
+            "Tender Ref: CPCL/WQM/2026/017\n"
+            "Closing Date: 15-September-2026 15:00 IST\n"
+            "Estimated Value: Rs. 4,50,00,000\n"
+            "Clause 1: Valid GST Registration required.\n"
+        )
         files = [
-            ("tender_pdf", ("Tender_Spec.pdf", _create_dummy_pdf("Tender Spec with Clause 1 GST"), "application/pdf")),
+            ("tender_pdf", ("Tender_Spec.pdf", _create_dummy_pdf(tender_text), "application/pdf")),
             ("bidder_zips", ("Bidder_1.zip", _create_bidder_zip("Bidder1", ["GST.pdf", "MII.pdf"]), "application/zip")),
         ]
-        res = await ac.post("/api/ingest/mock-gem/upload", files=files, data={"title": "Command Page Test"})
+        data = {
+            "bidder_names": ["HydroTech Environmental Solutions Pvt Ltd"],
+        }
+        res = await ac.post("/api/ingest/mock-gem/upload", files=files, data=data)
         assert res.status_code == 200
         proc_id = res.json()["procurement_id"]
 
@@ -189,8 +197,38 @@ async def test_procurement_detail_connects_to_command_page_and_deadline_gate(moc
         assert len(detail["tenders"]) == 1
         tender = detail["tenders"][0]
         assert tender["submission_deadline"] is not None
-        # Verify submissions exist under tender
+        assert "2026-09-15" in tender["submission_deadline"]
+        # Verify explicit bidder legal name
         assert len(tender["submissions"]) == 1
+        assert tender["submissions"][0]["bidder"]["legal_name"] == "HydroTech Environmental Solutions Pvt Ltd"
+
+
+@pytest.mark.asyncio
+async def test_procurement_without_deadline_locks_technical_scrutiny(mock_gem_test_env):
+    """Verifies that a tender without any deadline text results in submission_deadline=None,
+    and attempting technical scrutiny is rejected with 400.
+    """
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        tender_text = "Notice Inviting Tender without any closing date or deadline mentioned."
+        files = [
+            ("tender_pdf", ("Tender_No_Deadline.pdf", _create_dummy_pdf(tender_text), "application/pdf")),
+            ("bidder_zips", ("Bidder_A.zip", _create_bidder_zip("BidderA", ["GST.pdf"]), "application/zip")),
+        ]
+        res = await ac.post("/api/ingest/mock-gem/upload", files=files)
+        assert res.status_code == 200
+        proc_id = res.json()["procurement_id"]
+
+        # Detail endpoint
+        detail_res = await ac.get(f"/api/procurements/{proc_id}")
+        assert detail_res.status_code == 200
+        detail = detail_res.json()
+        assert detail["tenders"][0]["submission_deadline"] is None
+
+        # Attempt to run technical scrutiny must be rejected with 400
+        scrutiny_res = await ac.post(f"/api/procurements/{proc_id}/technical-scrutiny/run")
+        assert scrutiny_res.status_code == 400
+        assert "deadline" in scrutiny_res.json()["detail"].lower()
 
 
 @pytest.mark.asyncio

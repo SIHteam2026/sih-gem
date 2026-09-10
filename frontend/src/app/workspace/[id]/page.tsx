@@ -154,18 +154,25 @@ export default function WorkspaceDetailPage() {
                     </p>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-400">No deadline recorded.</p>
+                  <div>
+                    <p className="text-sm text-slate-600">Submission deadline</p>
+                    <p className="font-semibold text-sm text-amber-700 mt-0.5">
+                      Deadline unavailable. Scrutiny locked.
+                    </p>
+                  </div>
                 )}
 
                 {/* Situational message */}
                 <p className="text-xs sm:text-sm text-slate-700 leading-snug max-w-[260px]">
-                  {isDeadlinePast
+                  {!formattedDeadline
+                    ? "Sir, no valid submission deadline was found in the tender specification document. Technical scrutiny is locked."
+                    : isDeadlinePast
                     ? "Sir, you are clear for the Technical Scrutiny of all the submitted bidders!"
                     : "Sir, the submission deadline has not yet passed. Technical scrutiny is not yet available."}
                 </p>
 
                 {/* Technical Scrutiny button */}
-                {isDeadlinePast ? (
+                {formattedDeadline && isDeadlinePast ? (
                   <Link
                     href={`/procurements/${procurement.id}`}
                     className="inline-flex items-center justify-center font-bold text-xs tracking-wider uppercase text-white px-5 py-2.5 rounded-xl transition-all shadow-xs hover:shadow-md hover:brightness-105 active:scale-[0.98] w-fit"
@@ -176,7 +183,7 @@ export default function WorkspaceDetailPage() {
                 ) : (
                   <span
                     aria-disabled="true"
-                    title="Deadline has not passed yet"
+                    title={!formattedDeadline ? "Deadline unavailable" : "Deadline has not passed yet"}
                     className="inline-flex items-center justify-center font-bold text-xs tracking-wider uppercase text-white px-5 py-2.5 rounded-xl cursor-not-allowed select-none w-fit bg-slate-300"
                   >
                     Technical Scrutiny
