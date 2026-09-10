@@ -18,46 +18,37 @@ export default function ProcurementCarousel({
   const router = useRouter();
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
 
-  // Fallback demo items if backend has no records yet
-  const defaultItems = [
-    {
-      id: "PROC-GEM-001",
-      title: "Cloud Infrastructure",
-      subtitle: "Tier-1 Cluster",
-      organization: "Amazon Web Services • PO-89241",
-      amount: "$420,000",
-      commitment: "Q3 Annual Commitment",
-      statusText: "Approved",
-      dispatched: "Dispatched 2h ago",
-      requester: "Req: DevOps Lead",
-    },
-    {
-      id: "PROC-GEM-002",
-      title: "Enterprise Storage Suite",
-      subtitle: "High-Density SAN",
-      organization: "Dell Technologies • PO-89218",
-      amount: "$280,000",
-      commitment: "Q3 Project Allocation",
-      statusText: "Under Review",
-      dispatched: "Dispatched 5h ago",
-      requester: "Req: Infrastructure Lead",
-    },
-  ];
+  if (!procurements || procurements.length === 0) {
+    return (
+      <div className={`w-full max-w-[460px] p-5 rounded-2xl border border-dashed border-slate-200 bg-white/60 text-left space-y-3 ${className}`}>
+        <div>
+          <p className="text-xs font-bold text-slate-800">No Active Cases</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            No procurement packages have been ingested yet. Import a tender package through the GeM Gateway to begin evaluation.
+          </p>
+        </div>
+        <Link
+          href="/mock-gem"
+          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#111827] text-white text-xs font-semibold hover:bg-[#163a5f] transition-colors"
+        >
+          <span>GeM Gateway</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+    );
+  }
 
-  const displayList =
-    procurements && procurements.length > 0
-      ? procurements.map((p, i) => ({
-          id: p.id || p.procurement_id || `PROC-${i}`,
-          title: p.title || "Procurement Case",
-          subtitle: p.category || (p.tender_count ? `${p.tender_count} Tender Requirements` : "Standard Procurement"),
-          organization: p.organization ? `${p.organization} • ${p.external_reference || `PO-${1000 + i}`}` : p.external_reference || "Government Authority",
-          amount: p.estimated_value ? `₹${p.estimated_value}` : "$420,000",
-          commitment: "Annual Contract",
-          statusText: p.status === "ACTIVE" || p.status === "READY" ? "Approved" : "Under Review",
-          dispatched: "Updated recently",
-          requester: `Bidders: ${p.bidder_count ?? 1}`,
-        }))
-      : defaultItems;
+  const displayList = procurements.map((p, i) => ({
+    id: p.id || p.procurement_id || `PROC-${i}`,
+    title: p.title || "Procurement Case",
+    subtitle: p.category || (p.tender_count ? `${p.tender_count} Tender Requirements` : "Standard Procurement"),
+    organization: p.organization ? `${p.organization} • ${p.external_reference || `PO-${1000 + i}`}` : p.external_reference || "Government Authority",
+    amount: p.estimated_value ? `₹${p.estimated_value}` : "Standard Tender Value",
+    commitment: "Annual Contract",
+    statusText: p.status === "ACTIVE" || p.status === "READY" ? "Ready" : (p.status || "Under Review"),
+    dispatched: "Updated recently",
+    requester: `Bidders: ${p.bidder_count ?? 1}`,
+  }));
 
   const currentItem = displayList[selectedIndex] || displayList[0];
 

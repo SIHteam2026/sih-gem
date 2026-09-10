@@ -12,11 +12,11 @@ import logging
 import os
 import uuid
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
 try:
@@ -520,6 +520,8 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
 
                 payload_dict["source_system"] = "MOCK_GEM"
                 payload = ProcurementIngestionPayload.model_validate(payload_dict)
+                if payload.tender and not payload.tender.submission_deadline:
+                    payload.tender.submission_deadline = datetime(2026, 9, 2, 18, 0, tzinfo=timezone.utc)
 
                 # Extract live PDF text from ZIP entries if present
                 if payload.tender and payload.tender.documents:
@@ -641,6 +643,7 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
                         tender_reference=f"TND-ZIP-{uuid.uuid4().hex[:6].upper()}",
                         title=t_meta["title"],
                         description=t_meta["description"],
+                        submission_deadline=datetime(2026, 9, 2, 18, 0, tzinfo=timezone.utc),
                         documents=tender_docs or [IngestionDocumentInput(
                             filename="Default_Tender_Notice.pdf",
                             document_type=DocumentType.TENDER_SPECIFICATION,
@@ -673,3 +676,248 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process Mock-GeM ZIP package: {str(err)}",
         )
+
+
+@router.post("/upload", response_model=ProcurementIngestionResult)
+async def ingest_mock_gem_files(
+    tender_pdf: UploadFile = File(..., description="Tender RFP / Specification PDF file"),
+    bidder_zips: List[UploadFile] = File(..., description="One or more Bidder Submission ZIP archives"),
+    organization: Optional[str] = Form(None),
+    title: Optional[str] = Form(None),
+    estimated_value: Optional[float] = Form(None),
+):
+    """Ingests a procurement package composed of a Tender RFP PDF and one or more Bidder Submission ZIPs.
+
+    Supports multi-bidder ingestion, dynamically extracts text using PyMuPDF, derives metadata,
+    enforces deadline gate readiness, and persists the canonical procurement case via the Ingestion Service.
+    """
+    if not tender_pdf or not tender_pdf.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tender specification PDF document is required.",
+        )
+    if not tender_pdf.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid tender document format: '{tender_pdf.filename}'. Only .pdf files are accepted for tender specification.",
+        )
+
+    if not bidder_zips or len(bidder_zips) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one Bidder Submission ZIP archive is required.",
+        )
+
+    for b_file in bidder_zips:
+        if not b_file.filename or not b_file.filename.lower().endswith(".zip"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid bidder package format: '{b_file.filename or 'unnamed'}'. Only .zip archives are accepted for bidder submissions.",
+            )
+
+    try:
+        tender_bytes = await tender_pdf.read()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to read uploaded tender PDF: {str(e)}",
+        )
+
+    if len(tender_bytes) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded tender PDF is empty (0 bytes).",
+        )
+
+    def extract_pdf_stream_text(raw_b: bytes) -> str:
+        try:
+            import pymupdf
+            doc = pymupdf.open(stream=raw_b, filetype="pdf")
+            pages_text = [page.get_text() for page in doc]
+            doc.close()
+            return "\n\n".join(t.strip() for t in pages_text if t.strip())
+        except Exception as ex:
+            logger.warning("Failed to extract PDF stream text with pymupdf: %s", ex)
+            try:
+                import pypdf
+                reader = pypdf.PdfReader(io.BytesIO(raw_b))
+                return "\n\n".join(page.extract_text() or "" for page in reader.pages)
+            except Exception as ex2:
+                logger.warning("Failed to extract PDF text with pypdf: %s", ex2)
+                return ""
+
+    tender_text = extract_pdf_stream_text(tender_bytes)
+    t_meta = extract_tender_metadata_from_text(tender_text, tender_pdf.filename)
+
+    proc_title = (title or "").strip() or t_meta["title"]
+    proc_org = (organization or "").strip() or t_meta["organization"]
+
+    tender_docs = [
+        IngestionDocumentInput(
+            filename=tender_pdf.filename,
+            document_type=DocumentType.TENDER_SPECIFICATION,
+            mime_type="application/pdf",
+            file_size=len(tender_bytes),
+            content_text=tender_text,
+        )
+    ]
+
+    bidders_list: List[IngestionBidderPackageInput] = []
+    MAX_UNCOMPRESSED_SIZE = 50 * 1024 * 1024  # 50 MB
+    MAX_FILE_COUNT = 200
+
+    for idx, b_file in enumerate(bidder_zips, start=1):
+        try:
+            zip_bytes = await b_file.read()
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to read bidder package '{b_file.filename}': {str(e)}",
+            )
+
+        if len(zip_bytes) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Bidder package '{b_file.filename}' is empty (0 bytes).",
+            )
+
+        try:
+            with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zip_ref:
+                infolist = zip_ref.infolist()
+                if len(infolist) > MAX_FILE_COUNT:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Bidder archive '{b_file.filename}' contains too many files ({len(infolist)} > {MAX_FILE_COUNT}).",
+                    )
+
+                total_uncompressed_size = 0
+                for info in infolist:
+                    total_uncompressed_size += info.file_size
+                    if total_uncompressed_size > MAX_UNCOMPRESSED_SIZE:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Bidder archive '{b_file.filename}' exceeds allowable uncompressed size (50 MB).",
+                        )
+                    norm_path = os.path.normpath(info.filename)
+                    if norm_path.startswith("..") or os.path.isabs(norm_path):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Insecure path detected in bidder archive: {info.filename}",
+                        )
+
+                file_list = [
+                    name for name in zip_ref.namelist()
+                    if not name.startswith("__MACOSX/") and not Path(name).name.startswith("._")
+                ]
+
+                # Determine bidder legal name
+                stem = Path(b_file.filename).stem
+                clean_name = (
+                    stem.replace("Bidder_", "")
+                    .replace("bidder_", "")
+                    .replace("Package_", "")
+                    .replace("_Package", "")
+                    .replace("_", " ")
+                    .strip()
+                )
+                if not clean_name or clean_name.isdigit():
+                    clean_name = f"Bidder {idx}"
+
+                bidder_legal_name = f"{clean_name} Pvt Ltd" if not clean_name.lower().endswith(("ltd", "limited", "inc", "corp")) else clean_name
+
+                # Extract bidder documents
+                b_docs: List[IngestionDocumentInput] = []
+                for entry in file_list:
+                    if not entry.lower().endswith(".pdf"):
+                        continue
+                    raw_b = zip_ref.read(entry)
+                    fname = Path(entry).name
+                    extracted = extract_pdf_stream_text(raw_b)
+
+                    fname_lower = fname.lower()
+                    doc_type = DocumentType.OTHER
+                    if "gst" in fname_lower:
+                        doc_type = DocumentType.GST_CERTIFICATE
+                    elif "mii" in fname_lower or "local" in fname_lower:
+                        doc_type = DocumentType.LOCAL_CONTENT_CERTIFICATE
+                    elif "turnover" in fname_lower or "financial" in fname_lower or "balance" in fname_lower or "audit" in fname_lower:
+                        doc_type = DocumentType.TURNOVER_CERTIFICATE
+                    elif "oem" in fname_lower or "maf" in fname_lower or "auth" in fname_lower:
+                        doc_type = DocumentType.OEM_AUTHORIZATION
+                    elif "boq" in fname_lower or "commercial" in fname_lower or "price" in fname_lower:
+                        doc_type = DocumentType.COMMERCIAL_BID
+                    elif "tender" in fname_lower or "rfp" in fname_lower:
+                        doc_type = DocumentType.TENDER_SPECIFICATION
+
+                    b_docs.append(IngestionDocumentInput(
+                        filename=fname,
+                        document_type=doc_type,
+                        mime_type="application/pdf",
+                        file_size=len(raw_b),
+                        content_text=extracted,
+                    ))
+
+                if not b_docs:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Bidder archive '{b_file.filename}' contains no PDF evidence documents.",
+                    )
+
+                clean_slug = re.sub(r"[^a-zA-Z0-9]", "", clean_name).lower() or f"bidder{idx}"
+                bidders_list.append(IngestionBidderPackageInput(
+                    bidder=IngestionBidderInfo(
+                        legal_name=bidder_legal_name,
+                        gstin=None,
+                        email=f"bids@{clean_slug}.com",
+                    ),
+                    submission=IngestionSubmissionInfo(
+                        external_submission_reference=f"GEM-SUB-{clean_slug.upper()[:8]}-{uuid.uuid4().hex[:4].upper()}",
+                        status="SUBMITTED",
+                        submitted_at=datetime.now(timezone.utc) - timedelta(days=2),
+                    ),
+                    documents=b_docs,
+                ))
+
+        except zipfile.BadZipFile:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File '{b_file.filename}' is not a valid or readable ZIP archive.",
+            )
+
+    past_deadline = datetime(2026, 9, 2, 18, 0, tzinfo=timezone.utc)
+    unique_suffix = uuid.uuid4().hex[:6].upper()
+
+    payload = ProcurementIngestionPayload(
+        source_system="MOCK_GEM",
+        external_reference=f"GEM/2026/WB-{unique_suffix}",
+        procurement=IngestionProcurementInfo(
+            title=proc_title,
+            organization=proc_org,
+        ),
+        tender=IngestionTenderInfo(
+            tender_reference=f"TND-GEM-{unique_suffix}",
+            title=proc_title,
+            description=t_meta["description"],
+            estimated_value=estimated_value or 45000000.0,
+            category="GOODS_AND_SERVICES",
+            submission_deadline=past_deadline,
+            documents=tender_docs,
+        ),
+        bidders=bidders_list,
+    )
+
+    try:
+        result = await ingest_procurement(payload)
+        return result
+    except ProcurementIngestionError as pie:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(pie),
+        )
+    except Exception as err:
+        logger.error("Failed to ingest Mock-GeM multipart files: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to ingest procurement package: {str(err)}",
+        )
+

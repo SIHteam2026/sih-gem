@@ -97,7 +97,7 @@ export default function WorkspaceShelfPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = (await fetchProcurements(5, 0)) as ProcurementListResponse;
+      const data = (await fetchProcurements(50, 0)) as ProcurementListResponse;
       setProcurements(data?.procurements || []);
       setDecisions(getOfficerDecisions());
     } catch {
@@ -111,7 +111,7 @@ export default function WorkspaceShelfPage() {
     let isMounted = true;
     async function loadInitial() {
       try {
-        const data = (await fetchProcurements(5, 0)) as ProcurementListResponse;
+        const data = (await fetchProcurements(50, 0)) as ProcurementListResponse;
         if (isMounted) {
           setProcurements(data?.procurements || []);
           setDecisions(getOfficerDecisions());
@@ -145,7 +145,7 @@ export default function WorkspaceShelfPage() {
               Procurements
             </h1>
             <p className="mt-1 text-sm text-[#64748b]">
-              Active government procurement cases registered for officer review (latest 2 displayed).
+              Active government procurement cases registered for officer review.
             </p>
           </div>
 
@@ -221,11 +221,11 @@ export default function WorkspaceShelfPage() {
           </div>
         )}
 
-        {/* Desktop 2-Column Grid (Latest 2 Procurements for the Officer) */}
+        {/* Desktop 2-Column Grid of Procurements for the Officer */}
         {!loading && !error && procurements.length > 0 && (
           <div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-              {procurements.slice(0, 2).map((item) => {
+              {procurements.map((item) => {
                 const id = item.id || item.procurement_id || item.external_reference;
                 const decision = id ? decisions[id] : null;
                 const cardState = deriveProjectState(item, decision);
@@ -249,7 +249,7 @@ export default function WorkspaceShelfPage() {
             </div>
 
             <div className="mt-8 flex items-center justify-between border-t border-slate-200/80 pt-5 text-xs text-slate-500">
-              <span>Displaying {Math.min(procurements.length, 2)} active officer cases.</span>
+              <span>Displaying {procurements.length} active officer case{procurements.length === 1 ? "" : "s"}.</span>
               <Link
                 href="/history"
                 className="inline-flex items-center gap-1 font-semibold text-[#163a5f] hover:text-[#0f2842] hover:underline"

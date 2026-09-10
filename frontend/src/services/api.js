@@ -845,6 +845,57 @@ export async function ingestMockGeMZip(zipFile) {
 }
 
 /**
+ * Ingests a tender specification PDF and one or more bidder submission ZIP packages.
+ * 
+ * @param {File} tenderPdf - Tender specification PDF.
+ * @param {File[]} bidderZips - Array of one or more bidder submission ZIP files.
+ * @param {Object} [metadata] - Optional metadata (title, organization, estimated_value).
+ * @returns {Promise<any>} The canonical ProcurementIngestionResult.
+ */
+export async function ingestMockGeMFiles(tenderPdf, bidderZips, metadata = {}) {
+  if (!tenderPdf) {
+    throw new Error('A valid Tender Specification PDF file is required.');
+  }
+  if (!bidderZips || bidderZips.length === 0) {
+    throw new Error('At least one Bidder Submission ZIP package is required.');
+  }
+
+  const formData = new FormData();
+  formData.append('tender_pdf', tenderPdf);
+  bidderZips.forEach((zip) => {
+    formData.append('bidder_zips', zip);
+  });
+  if (metadata.title) formData.append('title', metadata.title);
+  if (metadata.organization) formData.append('organization', metadata.organization);
+  if (metadata.estimated_value) formData.append('estimated_value', String(metadata.estimated_value));
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/ingest/mock-gem/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody && (errorBody.detail || errorBody.message || errorBody.error)) {
+          errorMessage = typeof errorBody.detail === 'string'
+            ? errorBody.detail
+            : (errorBody.detail ? JSON.stringify(errorBody.detail) : (errorBody.message || errorBody.error));
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error in Mock-GeM files ingestion:', error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
  * Fetches paginated procurement workspace summaries.
  * 
  * @param {number} [limit=50] - Max records to return.
@@ -1120,6 +1171,7 @@ const api = {
   ingestMockGeMPackage,
   ingestMockGeMDemo,
   ingestMockGeMZip,
+  ingestMockGeMFiles,
   fetchProcurements,
   fetchProcurementList: fetchProcurements,
   clearProcurementLogs,
