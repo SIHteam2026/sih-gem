@@ -62,26 +62,9 @@ class TestCover2FinancialEvaluation(unittest.TestCase):
     """Unit and integration tests for Cover 2 financial evaluation."""
 
     def setUp(self):
-        from app.db.client import (
-            _IN_MEMORY_EVALUATIONS,
-            _IN_MEMORY_FINANCIAL_EVALUATIONS,
-            _IN_MEMORY_PROCUREMENTS,
-            _IN_MEMORY_TENDERS,
-            _IN_MEMORY_SUBMISSIONS,
-            _IN_MEMORY_BIDDERS,
-            _IN_MEMORY_DOCUMENTS,
-            _IN_MEMORY_CLARIFICATIONS,
-            _IN_MEMORY_AUDIT_LOGS,
-        )
+        from app.db.client import _IN_MEMORY_EVALUATIONS, _IN_MEMORY_FINANCIAL_EVALUATIONS
         _IN_MEMORY_EVALUATIONS.clear()
         _IN_MEMORY_FINANCIAL_EVALUATIONS.clear()
-        _IN_MEMORY_PROCUREMENTS.clear()
-        _IN_MEMORY_TENDERS.clear()
-        _IN_MEMORY_SUBMISSIONS.clear()
-        _IN_MEMORY_BIDDERS.clear()
-        _IN_MEMORY_DOCUMENTS.clear()
-        _IN_MEMORY_CLARIFICATIONS.clear()
-        _IN_MEMORY_AUDIT_LOGS.clear()
 
 
     def test_01_technically_failed_bidder_excluded(self):
@@ -504,29 +487,7 @@ class TestCover2FinancialEvaluation(unittest.TestCase):
         """14. Verify extraction of real physical BOQ PDF from disk via boq_parser.
 
         Requires pdfplumber or pymupdf to be available and functional.
-        This test is skipped in environments where neither library can be loaded
-        (e.g., MSYS2 with DLL resolution issues for the _extra extension).
         """
-        # Verify at runtime that at least one PDF library actually works.
-        _any_pdf_lib = False
-        try:
-            import pdfplumber  # noqa: F401
-            _any_pdf_lib = True
-        except Exception:
-            pass
-        if not _any_pdf_lib:
-            try:
-                import pymupdf  # noqa: F401  # type: ignore
-                _any_pdf_lib = True
-            except Exception:
-                try:
-                    import fitz  # noqa: F401  # type: ignore
-                    _any_pdf_lib = True
-                except Exception:
-                    pass
-        if not _any_pdf_lib:
-            self.skipTest("Neither pdfplumber nor pymupdf/fitz is functional in this environment (DLL load may fail).")
-
         from pathlib import Path
         sample_path = Path(__file__).resolve().parent.parent / "data" / "sample_documents" / "CleanFlow_Commercial_BOQ_Bid.pdf"
         self.assertTrue(sample_path.exists(), f"Sample PDF must exist at {sample_path}")

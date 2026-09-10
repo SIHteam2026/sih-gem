@@ -149,8 +149,6 @@ class TestActionStudioFoundation(unittest.TestCase):
     def tearDown(self):
         """Cleanup synthetic test records."""
         db_client._IN_MEMORY_PROCUREMENTS.pop(self.procurement_id, None)
-        db_client._IN_MEMORY_TENDERS.pop(self.tender_id, None)
-        db_client._IN_MEMORY_EVALUATIONS.clear()
 
     def test_01_action_context_consumes_canonical_technical_results(self):
         """1. Action context correctly consumes canonical technical results."""

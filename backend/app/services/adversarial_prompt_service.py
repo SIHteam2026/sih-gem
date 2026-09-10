@@ -9,7 +9,12 @@ try:
     from google.genai import types
 except ImportError:
     genai = None
-    types = None
+    
+    class DummyTypes:
+        class GenerateContentConfig:
+            def __init__(self, **kwargs):
+                pass
+    types = DummyTypes()
 
 logger = logging.getLogger(__name__)
 

@@ -127,8 +127,8 @@ def extract_financial_tables_sync(file_bytes: bytes) -> List[Dict[str, Any]]:
         except Exception as e:
             logger.error("Failed to extract financial tables via PyMuPDF: %s", e)
 
-    logger.warning("No PDF library available for table extraction (pdfplumber and pymupdf both absent/failed).")
-    return []
+    logger.error("No PDF library available for table extraction (pdfplumber and pymupdf both absent/failed).")
+    raise RuntimeError("Required PDF extraction dependency unavailable or failed.")
 
 
 async def extract_financial_tables(file_bytes: bytes) -> List[Dict[str, Any]]:
