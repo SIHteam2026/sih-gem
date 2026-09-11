@@ -265,28 +265,32 @@ async def ingest_procurement(
 
         # 6. Process Multiple Bidders & Submissions
         for pkg in validated_payload.bidders:
-        # Promote identity identifiers from bidder documents into the canonical
-        # bidder record when they were not supplied by the upstream source.
-            extracted_gstin, extracted_pan = _extract_bidder_identity_from_documents(
-            pkg.documents
-        )
-
-        canonical_gstin = pkg.bidder.gstin or extracted_gstin
-        canonical_pan = pkg.bidder.pan or extracted_pan
-
-        if extracted_gstin and not pkg.bidder.gstin:
             logger.info(
-                "Extracted GSTIN from bidder documents for '%s': %s",
+                "Processing canonical bidder: '%s'",
                 pkg.bidder.legal_name,
-                extracted_gstin,
-             )
-
-        if extracted_pan and not pkg.bidder.pan:
-            logger.info(
-                "Extracted PAN from bidder documents for '%s': %s",
-                pkg.bidder.legal_name,
-                extracted_pan,
             )
+            # Promote identity identifiers from bidder documents into the canonical
+            # bidder record when they were not supplied by the upstream source.
+            extracted_gstin, extracted_pan = _extract_bidder_identity_from_documents(
+                pkg.documents
+            )
+
+            canonical_gstin = pkg.bidder.gstin or extracted_gstin
+            canonical_pan = pkg.bidder.pan or extracted_pan
+
+            if extracted_gstin and not pkg.bidder.gstin:
+                logger.info(
+                    "Extracted GSTIN from bidder documents for '%s': %s",
+                    pkg.bidder.legal_name,
+                    extracted_gstin,
+                )
+
+            if extracted_pan and not pkg.bidder.pan:
+                logger.info(
+                    "Extracted PAN from bidder documents for '%s': %s",
+                    pkg.bidder.legal_name,
+                    extracted_pan,
+                )
 
             # Create Bidder
             bidder_id = str(uuid.uuid4())
@@ -310,9 +314,21 @@ async def ingest_procurement(
                 "id": sub_id,
                 "tender_id": tender_id,
                 "bidder_id": bidder_id,
-                "external_submission_reference": sub_info.external_submission_reference if sub_info else None,
-                "submitted_at": sub_info.submitted_at.isoformat() if (sub_info and sub_info.submitted_at) else now_iso,
-                "status": sub_info.status if sub_info else "SUBMITTED",
+                "external_submission_reference": (
+                                    sub_info.external_submission_reference 
+                                    if sub_info 
+                                    else None
+                                ),
+                "submitted_at": (
+                            sub_info.submitted_at.isoformat()
+                            if (sub_info and sub_info.submitted_at) 
+                            else now_iso
+                        ),
+                "status": (
+                    sub_info.status 
+                    if sub_info
+                    else "SUBMITTED"
+                ),
                 "created_at": now_iso,
                 "updated_at": now_iso,
             }
@@ -328,7 +344,10 @@ async def ingest_procurement(
                     "tender_id": tender_id,
                     "bid_submission_id": sub_id,
                     "filename": b_doc.filename,
-                    "document_type": b_doc.document_type.value if hasattr(b_doc.document_type, "value") else (b_doc.document_type or "OTHER"),
+                    "document_type": (b_doc.document_type.value 
+                                      if hasattr(b_doc.document_type, "value") 
+                                      else (b_doc.document_type or "OTHER")
+                    ),
                     "mime_type": b_doc.mime_type or "application/pdf",
                     "file_size": b_doc.file_size,
                     "storage_path": b_doc.storage_path,

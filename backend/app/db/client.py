@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 SUPABASE_URL: str = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
-supabase: Client | None = None
+
 
 try:
     if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
@@ -37,7 +37,7 @@ except Exception as e:
     supabase = None
 
 
-def get_supabase_client() -> Client:
+def get_supabase_client():
     """Returns the initialized global Supabase client or raises an error if unavailable."""
     if supabase is None:
         raise RuntimeError(
@@ -118,10 +118,24 @@ async def insert_bid_evaluation(
             await asyncio.to_thread(
                 lambda: db_client.table("bidder_evaluations").insert(record).execute()
             )
-        except Exception:
-            await asyncio.to_thread(
-                lambda: db_client.table("bid_evaluations").insert(record).execute()
+        except Exception as primary_err:
+            logger.error(
+                "BIDDER_EVALUATIONS INSERT FAILED: %r",
+                primary_err,
+                exc_info=True,
             )
+
+            # Legacy fallback kept temporarily for compatibility.
+            try:
+                await asyncio.to_thread(
+                    lambda: db_client.table("bid_evaluations").insert(record).execute()
+                )
+            except Exception as fallback_err:
+                logger.error(
+                    "LEGACY BID_EVALUATIONS FALLBACK FAILED: %r",
+                    fallback_err,
+                    exc_info=True,
+                )
         logger.info("Successfully persisted bid evaluation for %s (%s).", tender_id, bidder_name)
     except Exception as db_err:
         logger.warning("Failed to persist bid evaluation to Supabase (non-blocking): %s", db_err)

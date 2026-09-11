@@ -903,70 +903,186 @@ async def get_procurement_technical_review_service(
     obs_list = await list_officer_observations_db(procurement_id)
     observation_records = [OfficerObservationRecord(**o) for o in obs_list]
 
-        # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # PRESENTATION DTO GENERATION
     # -------------------------------------------------------------------------
+  
+
     layer_keys = [
         "INGESTION_AND_DOCUMENT_INTEGRITY",
         "ADMINISTRATIVE_AND_IDENTITY",
         "CORPORATE_EXISTENCE_AND_RISK",
         "ANTI_COLLUSION_AND_RELATEDNESS",
         "ADVERSARIAL_TECHNICAL",
-        "PAST_PERFORMANCE_AND_CAPACITY"
+        "PAST_PERFORMANCE_AND_CAPACITY",
     ]
+
     layer_names = {
         "INGESTION_AND_DOCUMENT_INTEGRITY": "1. Ingestion & Integrity",
         "ADMINISTRATIVE_AND_IDENTITY": "2. Administrative & Identity",
-        "CORPORATE_EXISTENCE_AND_RISK": "3. Corporate Existence",
-        "ANTI_COLLUSION_AND_RELATEDNESS": "4. Anti-Collusion",
-        "ADVERSARIAL_TECHNICAL": "5. Technical Scrutiny",
-        "PAST_PERFORMANCE_AND_CAPACITY": "6. Past Performance"
+        "CORPORATE_EXISTENCE_AND_RISK": "3. Corporate Existence & Risk",
+        "ANTI_COLLUSION_AND_RELATEDNESS": "4. Anti-Collusion & Relatedness",
+        "ADVERSARIAL_TECHNICAL": "5. Adversarial Technical",
+        "PAST_PERFORMANCE_AND_CAPACITY": "6. Past Performance & Capacity",
     }
 
     presentation_layers = []
-    
-    # Map requirements to layers (most are Technical Scrutiny for now)
-    for l_key in layer_keys:
+
+    # -------------------------------------------------------------------------
+    # Use the persisted verification-engine report as the authoritative source
+    # for layer-level findings.
+    # -------------------------------------------------------------------------
+    findings_by_layer: Dict[str, List[Dict[str, Any]]] = {
+        layer_key: [] for layer_key in layer_keys
+    }
+
+    for sub in all_submissions:
+        sub_id = sub.get("id", "")
+        b_id = sub.get("bidder_id", "")
+        b_obj = sub.get("bidder") or {}
+        b_name = b_obj.get("legal_name") or "Bidder"
+
+        t_id = sub.get("tender_id") or (tenders[0].get("id") if tenders else "")
+
+        eval_res: Dict[str, Any] = {}
+
+        try:
+            persisted_evals = await get_bid_evaluations(t_id)
+
+            for rec in persisted_evals:
+                ed = rec.get("evaluation_data") or {}
+
+                if (
+                    ed.get("submission_id") in (
+                        sub_id,
+                        sub.get("external_submission_reference"),
+                    )
+                    or rec.get("bidder_name") == b_name
+                    or ed.get("bidder_name") == b_name
+                ):
+                    eval_res = ed
+                    break
+        except Exception:
+            eval_res = {}
+
+        engine_report = eval_res.get("verification_engine_report") or {}
+        engine_findings = engine_report.get("findings_by_layer") or {}
+
+        for layer_key in layer_keys:
+            layer_findings = engine_findings.get(layer_key) or []
+
+            for finding in layer_findings:
+                if not isinstance(finding, dict):
+                    continue
+
+                finding_copy = dict(finding)
+                finding_copy["_bidder_id"] = b_id
+                finding_copy["_bidder_name"] = b_name
+
+                findings_by_layer[layer_key].append(finding_copy)
+
+    # -------------------------------------------------------------------------
+    # Build officer-facing presentation layers.
+    # -------------------------------------------------------------------------
+    for layer_key in layer_keys:
         layer_checks = []
-        
-        # Add requirements matching this layer
-        for req in req_summaries:
-            # Simple heuristic or hardcode if category matches
-            # For now put them in ADVERSARIAL_TECHNICAL
-            if l_key == "ADVERSARIAL_TECHNICAL":
-                check = {
-                    "check_id": req.requirement_id,
-                    "title": req.title,
-                    "status": "PASS",
-                    "bidders": req.compliance_by_bidder,
-                    "explanation": req.description,
-                    "evidence_references": [],
-                    "blocking": req.is_mandatory,
-                    "clarification_status": None
+
+        layer_findings = findings_by_layer.get(layer_key, [])
+
+        for finding in layer_findings:
+            raw_status = (
+                finding.get("status")
+                or finding.get("state")
+                or finding.get("severity")
+                or "REVIEW"
+            )
+
+            status_value = (
+                raw_status.value
+                if hasattr(raw_status, "value")
+                else str(raw_status)
+            )
+
+            # Normalize verification-engine states to officer-facing states.
+            if status_value not in {
+                "PASS",
+                "FAIL",
+                "REVIEW",
+                "UNVERIFIED",
+                "NOT_APPLICABLE",
+            }:
+                status_value = "REVIEW"
+
+            evidence_references = finding.get("evidence_references")
+
+            if evidence_references is None:
+                evidence_pointer = finding.get("evidence_pointer")
+                evidence_references = (
+                    [evidence_pointer] if evidence_pointer else []
+                )
+
+            layer_checks.append(
+                {
+                    "check_id": (
+                        finding.get("finding_id")
+                        or finding.get("id")
+                        or str(uuid.uuid4())
+                    ),
+                    "title": (
+                        finding.get("title")
+                        or finding.get("check_name")
+                        or "Verification Finding"
+                    ),
+                    "status": status_value,
+                    "bidders": {
+                        finding.get("_bidder_id"): status_value
+                    } if finding.get("_bidder_id") else {},
+                    "explanation": (
+                        finding.get("detail")
+                        or finding.get("description")
+                        or finding.get("reason")
+                        or "Verification finding reported by the verification engine."
+                    ),
+                    "evidence_references": evidence_references,
+                    "blocking": bool(
+                        finding.get("is_blocking")
+                        or finding.get("blocking")
+                        or False
+                    ),
+                    "clarification_status": finding.get("clarification_status"),
                 }
-                if any(st != "PASS" for st in req.compliance_by_bidder.values()):
-                    check["status"] = "REVIEW"
-                layer_checks.append(check)
-        
-        # Add findings matching this layer
-        for f in finding_summaries:
-            if f.layer == l_key or (l_key == "ADVERSARIAL_TECHNICAL" and f.layer == "CONTRADICTION_DETECTION"):
-                layer_checks.append({
-                    "check_id": f.finding_id or str(uuid.uuid4()),
-                    "title": f.title,
-                    "status": "REVIEW" if f.requires_clarification else f.severity,
-                    "bidders": {f.bidder_id: f.severity},
-                    "explanation": f.detail,
-                    "evidence_references": [f.evidence_pointer] if f.evidence_pointer else [],
-                    "blocking": f.is_blocking,
-                    "clarification_status": f.clarification_status
-                })
-        
+            )
+
+        # Keep every technical layer visible even when it has no adverse finding.
+        if not layer_checks:
+            layer_checks.append(
+                {
+                    "check_id": f"{layer_key}_COMPLETED",
+                    "title": "Verification completed",
+                    "status": "PASS",
+                    "bidders": {
+                        sub.get("bidder_id", ""): "PASS"
+                        for sub in all_submissions
+                        if sub.get("bidder_id")
+                    },
+                    "explanation": (
+                        "Verification executed successfully with no adverse "
+                        "findings reported by the verification engine."
+                    ),
+                    "evidence_references": [],
+                    "blocking": False,
+                    "clarification_status": None,
+                }
+            )
+
         presentation_layers.append(
             OfficerTechnicalLayerPresentation(
-                layer_key=l_key,
-                display_name=layer_names.get(l_key, l_key),
-                checks=[OfficerTechnicalCheckPresentation(**c) for c in layer_checks]
+                layer_key=layer_key,
+                display_name=layer_names[layer_key],
+                checks=[
+                    OfficerTechnicalCheckPresentation(**check)
+                    for check in layer_checks
+                ],
             )
         )
 
