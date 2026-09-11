@@ -307,27 +307,31 @@ async def run_technical_scrutiny_command(
     except ValueError:
         current_status = ProcurementStatus.IMPORTED
 
-    # Check Submission Deadline
+    # Check effective technical scrutiny deadline.
+    # In demo mode, demo_effective_deadline takes precedence over the real tender deadline.
     tenders = proc.get("tenders", []) or []
     if not tenders:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Technical scrutiny cannot be executed: no tender specification document found."
+            detail="Technical scrutiny cannot be executed: no tender specification document found.",
         )
 
     submission_deadline = tenders[0].get("submission_deadline")
-    if not submission_deadline:
+    demo_effective_deadline = tenders[0].get("demo_effective_deadline")
+    gate_deadline_str = demo_effective_deadline or submission_deadline
+
+    if not gate_deadline_str:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Technical scrutiny cannot be executed: the submission deadline is not established from the tender document."
+            detail="Technical scrutiny cannot be executed: the submission deadline is not established.",
         )
-    
-    # Parse and compare
-    deadline_dt = datetime.fromisoformat(submission_deadline.replace('Z', '+00:00'))
+
+    deadline_dt = datetime.fromisoformat(gate_deadline_str.replace("Z", "+00:00"))
+
     if datetime.now(timezone.utc) < deadline_dt and not force:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Technical scrutiny is locked: the submission deadline has not yet passed."
+            detail="Technical scrutiny is locked: the submission deadline has not yet passed.",
         )
 
     # Transition to TECHNICAL_SCRUTINY_RUNNING
@@ -376,6 +380,31 @@ async def run_technical_scrutiny_command(
             if b and b not in all_bidders:
                 all_bidders.append(b)
 
+    # HARD GATE: Technical Scrutiny cannot produce meaningful findings without requirements.
+    # 0 requirements almost certainly means Tender Intelligence failed during ingestion.
+    # Block here rather than produce a misleadingly successful run with all bidders showing UNVERIFIED.
+    if not all_requirements and not force:
+        await transition_procurement_state(
+            procurement_id=procurement_id,
+            target_status=ProcurementStatus.FAILED,
+            actor=actor,
+            reason="Technical Scrutiny aborted: no requirements were extracted from the tender. "
+                   "Re-ingest the tender document to trigger Tender Intelligence.",
+        )
+        await insert_audit_log_db({
+            "event_type": "TECHNICAL_SCRUTINY_ABORTED_NO_REQUIREMENTS",
+            "procurement_id": procurement_id,
+            "actor": actor,
+            "details": {"tender_ids": tender_ids, "force": force},
+        })
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Technical Scrutiny cannot proceed: 0 compliance requirements were found for this tender. "
+                "This indicates Tender Intelligence (requirement extraction) did not run or failed during ingestion. "
+                "Re-upload the tender PDF to re-trigger requirement analysis."
+            ),
+        )
     # Ingest claims and observations for verification engine context
     all_claims: List[BidderClaim] = []
     all_observations: List[EvidenceObservation] = []
@@ -709,7 +738,7 @@ async def get_procurement_technical_review_service(
                         bidder_id=b_id,
                         bidder_name=b_name,
                         layer="CONTRADICTION_DETECTION",
-                        severity=FindingSeverity.WARNING.value if getattr(c_f, "severity", None) is None else getattr(c_f, "severity"),
+                        severity=FindingSeverity.MEDIUM.value if getattr(c_f, "severity", None) is None else getattr(c_f, "severity"),
                         title=f"Contradiction in {req_id}",
                         detail=getattr(c_f, "description", str(c_f)),
                         evidence_pointer=getattr(c_f, "evidence_pointer", None),
@@ -906,28 +935,30 @@ async def get_procurement_technical_review_service(
                 checks=[OfficerTechnicalCheckPresentation(**c) for c in layer_checks]
             )
         )
-        return ProcurementTechnicalReviewResponse(
-            procurement_id=procurement_id,
-            external_reference=proc.get("external_reference", ""),
-            title=proc.get("title", "Procurement Workspace"),
-            status=proc_status,
-            total_bidders=len(all_submissions),
-            qualified_bidders_count=len(qualified_bidder_names),
-            excluded_bidders_count=len(disqualified_bidder_names),
-            review_required_bidders_count=len([b for b in bidder_summaries if b.compliance_status in ("REVIEW", "UNVERIFIED")]),
-            unresolved_blockers=global_blockers,
-            can_freeze=can_freeze,
-            can_open_cover2=is_cover2_ready,
-            bidders=bidder_summaries,
-            requirements=req_summaries,
-            key_findings=finding_summaries,
-            clarifications=clarification_summaries,
-            observations=observation_records,
-            presentation_layers=presentation_layers,
-            freeze_status=freeze_summary,
-            cover2_readiness=cover2_summary,
-            decision_authority="HUMAN_PROCUREMENT_OFFICER",
-            last_evaluated_at=last_eval_time,    )
+
+    return ProcurementTechnicalReviewResponse(
+        procurement_id=procurement_id,
+        external_reference=proc.get("external_reference", ""),
+        title=proc.get("title", "Procurement Workspace"),
+        status=proc_status,
+        total_bidders=len(all_submissions),
+        qualified_bidders_count=len(qualified_bidder_names),
+        excluded_bidders_count=len(disqualified_bidder_names),
+        review_required_bidders_count=len([b for b in bidder_summaries if b.compliance_status in ("REVIEW", "UNVERIFIED")]),
+        unresolved_blockers=global_blockers,
+        can_freeze=can_freeze,
+        can_open_cover2=is_cover2_ready,
+        bidders=bidder_summaries,
+        requirements=req_summaries,
+        key_findings=finding_summaries,
+        clarifications=clarification_summaries,
+        observations=observation_records,
+        presentation_layers=presentation_layers,
+        freeze_status=freeze_summary,
+        cover2_readiness=cover2_summary,
+        decision_authority="HUMAN_PROCUREMENT_OFFICER",
+        last_evaluated_at=last_eval_time,
+    )
 
 
 # ---------------------------------------------------------------------------

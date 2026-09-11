@@ -176,6 +176,9 @@ class TenderBase(BaseModel):
     description: Optional[str] = Field(None, description="Detailed RFP summary or scope of work.")
     estimated_value: Optional[float] = Field(None, description="Benchmark budget / estimated value in INR.")
     category: Optional[str] = Field(None, description="Procurement category (e.g. IT_INFRASTRUCTURE, GOODS, SERVICES).")
+    submission_deadline: Optional[datetime] = Field(None, description="Bidder submission deadline.")
+    bid_opening_date: Optional[datetime] = Field(None, description="Official date/time when bids will be opened.")
+    demo_effective_deadline: Optional[datetime] = Field(None, description="Demo override deadline for testing.")
 
 
 class TenderCreate(TenderBase):
@@ -262,6 +265,8 @@ class IngestionTenderInfo(BaseModel):
     estimated_value: Optional[float] = Field(None, description="Estimated budget in INR.")
     category: Optional[str] = Field(None, description="Procurement category.")
     submission_deadline: Optional[datetime] = Field(None, description="Bidder submission deadline.")
+    bid_opening_date: Optional[datetime] = Field(None, description="Official date/time when bids will be opened.")
+    demo_effective_deadline: Optional[datetime] = Field(None, description="Demo override deadline for testing.")
     documents: List[IngestionDocumentInput] = Field(default_factory=list, description="Tender specification documents.")
 
 
@@ -380,6 +385,8 @@ class TenderSummaryResponse(BaseModel):
     estimated_value: Optional[float] = Field(None, description="Estimated budget in INR.")
     category: Optional[str] = Field(None, description="Procurement category.")
     submission_deadline: Optional[datetime] = Field(None, description="Bidder submission deadline.")
+    bid_opening_date: Optional[datetime] = Field(None, description="Official date/time when bids will be opened.")
+    demo_effective_deadline: Optional[datetime] = Field(None, description="Demo override deadline for testing.")
     status: str = Field(default="READY", description="Tender status.")
     requirement_count: int = Field(default=0, description="Extracted requirement criteria count.")
     document_count: int = Field(default=0, description="Tender specification document count.")
@@ -450,6 +457,8 @@ class TenderWorkspaceDetailResponse(BaseModel):
     estimated_value: Optional[float] = Field(None, description="Estimated budget in INR.")
     category: Optional[str] = Field(None, description="Procurement category.")
     submission_deadline: Optional[datetime] = Field(None, description="Bidder submission deadline.")
+    bid_opening_date: Optional[datetime] = Field(None, description="Official date/time when bids will be opened.")
+    demo_effective_deadline: Optional[datetime] = Field(None, description="Demo override deadline for testing.")
     status: str = Field(default="READY", description="Processing status.")
     requirement_count: int = Field(default=0, description="Total requirement criteria.")
     document_count: int = Field(default=0, description="Tender specification documents.")

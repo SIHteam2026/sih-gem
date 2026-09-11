@@ -13,6 +13,7 @@ import os
 import re
 import uuid
 import zipfile
+import dateutil.parser
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -181,9 +182,16 @@ def extract_estimated_value_from_text(text: str) -> Optional[float]:
     return None
 
 
+
+
+
+
+
+
+
 def extract_tender_metadata_from_text(text: str, filename: str = "") -> Dict[str, Any]:
-    """Dynamically extracts tender title, issuing organization, requirements summary,
-    submission deadline, and estimated value from the raw text of an ingested tender document.
+    """Dynamically extracts tender title, issuing organization, requirement summary,
+    and submission deadline from the raw text of an ingested tender specification document.
     """
     if not text or not text.strip():
         clean_fn = Path(filename).stem.replace("_", " ").replace("-", " ") if filename else "Tender Specification"
@@ -282,6 +290,65 @@ def extract_tender_metadata_from_text(text: str, filename: str = "") -> Dict[str
 
     extracted_deadline = extract_tender_deadline_from_text(text)
     extracted_est_val = extract_estimated_value_from_text(text)
+    # 4. Deadline and Bid Opening Extraction
+    # Patterns searched in order of specificity.  All matches are stored separately
+    # so submission_deadline and bid_opening_date are NEVER confused.
+    IST_OFFSET = timezone(timedelta(hours=5, minutes=30))
+
+    def _parse_date_string(raw: str) -> Optional[datetime]:
+        """Parse a free-form date/time string to an aware UTC datetime."""
+        raw = raw.strip().rstrip(".,;)")
+        try:
+            # Provide IST explicitly so dateutil resolves it to +05:30 rather than warning.
+            dt = dateutil.parser.parse(raw, dayfirst=True, fuzzy=True, tzinfos={"IST": IST_OFFSET})
+            # If still naive (no tz in the string), treat as IST (most Indian tender docs are in IST).
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=IST_OFFSET)
+            return dt.astimezone(timezone.utc)
+        except (ValueError, OverflowError):
+            return None
+
+    # Submission deadline: look for labelled lines only — never take bid opening as submission deadline.
+    SUBMISSION_LABELS = [
+        r"(?:submission|bid\s*submission|last\s*date\s*(?:for\s*)?(?:submission|bid|receipt)|closing\s*date"
+        r"|due\s*date|bid\s*due|tender\s*closing|deadline(?:\s*for\s*submission)?)\s*[:\-–]?\s*(.*)",
+    ]
+    BID_OPENING_LABELS = [
+        r"(?:bid\s*opening|tender\s*opening|opening\s*of\s*(?:bids|tenders)|price\s*bid\s*opening"
+        r"|financial\s*bid\s*opening|technical\s*bid\s*opening)\s*[:\-–]?\s*(.*)",
+    ]
+
+    submission_deadline: Optional[datetime] = None
+    bid_opening_date: Optional[datetime] = None
+
+    for index, line in enumerate(lines):
+        line_stripped = line.strip()
+        if submission_deadline is None:
+            for pat in SUBMISSION_LABELS:
+                m = re.search(pat, line_stripped, re.IGNORECASE)
+                if m:
+                    # PDF extractors often put a label such as "Closing Date:"
+                    # on one line and the actual date on the following line.
+                    raw_candidate = m.group(1).strip()
+                    if not raw_candidate and index + 1 < len(lines):
+                        raw_candidate = lines[index + 1]
+                    candidate = _parse_date_string(raw_candidate)
+                    if candidate:
+                        submission_deadline = candidate
+                        break
+        if bid_opening_date is None:
+            for pat in BID_OPENING_LABELS:
+                m = re.search(pat, line_stripped, re.IGNORECASE)
+                if m:
+                    raw_candidate = m.group(1).strip()
+                    if not raw_candidate and index + 1 < len(lines):
+                        raw_candidate = lines[index + 1]
+                    candidate = _parse_date_string(raw_candidate)
+                    if candidate:
+                        bid_opening_date = candidate
+                        break
+        if submission_deadline and bid_opening_date:
+            break
 
     return {
         "title": title,
@@ -291,6 +358,73 @@ def extract_tender_metadata_from_text(text: str, filename: str = "") -> Dict[str
         "submission_deadline": extracted_deadline,
         "estimated_value": extracted_est_val,
     }
+
+
+async def _run_tender_intelligence_or_fail(
+    *,
+    procurement_id: str,
+    tender_id: Optional[str],
+    file_bytes: Optional[bytes],
+    filename: str,
+) -> None:
+    """Extract and persist a non-empty tender requirement set, or fail the procurement.
+
+    Ingestion persists the procurement hierarchy before Tender Intelligence runs.  This
+    helper makes that ordering safe: a later analysis/persistence failure leaves the
+    persisted procurement explicitly FAILED instead of apparently ready for scrutiny.
+    """
+    try:
+        if not tender_id:
+            raise ValueError("The ingested procurement has no canonical tender ID.")
+        if not file_bytes or not file_bytes.strip():
+            raise ValueError("Tender document text could not be extracted for requirement analysis.")
+
+        from app.services.tender_service import (
+            analyze_tender,
+            get_requirements_for_tender,
+            persist_tender_requirements,
+        )
+
+        analysis_result = await analyze_tender(
+            file_bytes=file_bytes,
+            tender_id=tender_id,
+            filename=filename or "tender.pdf",
+        )
+        if not analysis_result.requirements:
+            raise ValueError(
+                "Tender Intelligence completed without extracting any compliance requirements."
+            )
+
+        await persist_tender_requirements(tender_id, analysis_result)
+        persisted_requirements = await get_requirements_for_tender(tender_id)
+        if not persisted_requirements:
+            raise ValueError(
+                "Tender Intelligence extracted requirements, but none could be retrieved after persistence."
+            )
+    except Exception as analysis_error:
+        logger.error(
+            "Tender Intelligence failed for procurement %s / tender %s: %s",
+            procurement_id,
+            tender_id,
+            analysis_error,
+        )
+        from app.services.procurement_lifecycle_service import transition_procurement_state
+
+        # Do not swallow a state-transition error: successful-looking ingestion is
+        # never an acceptable outcome after Tender Intelligence has failed.
+        await transition_procurement_state(
+            procurement_id=procurement_id,
+            target_status=ProcurementStatus.FAILED,
+            actor="SYSTEM",
+            reason=f"Tender Intelligence (requirement extraction) failed: {analysis_error}",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Procurement was ingested but Tender Intelligence failed: {analysis_error}. "
+                "Technical Scrutiny is unavailable until requirements are extracted. Re-upload to retry."
+            ),
+        ) from analysis_error
 
 
 def _get_sample_path(filename: str, fallback: str) -> str:
@@ -323,7 +457,7 @@ def create_cpcl_demo_payload() -> ProcurementIngestionPayload:
             description="Turnkey procurement of online water quality sensors and analyzer units with mandatory GST, >=20% Local Content, >=Rs 10 Cr Turnover, and OEM MAF.",
             estimated_value=45000000.0,
             category="INDUSTRIAL_EQUIPMENT",
-            submission_deadline=datetime(2026, 9, 2, 18, 0, tzinfo=timezone.utc),
+            submission_deadline=datetime.now(timezone.utc) - timedelta(days=5),
             documents=[
                 IngestionDocumentInput(
                     filename="RFP_Specification_WQM_2026_017.pdf",
@@ -522,6 +656,20 @@ async def ingest_mock_gem_package(payload: ProcurementIngestionPayload):
             result.was_created,
             result.bidder_count,
         )
+
+        # Tender Intelligence is mandatory: a persisted hierarchy without a
+        # meaningful requirement set is not a usable procurement.
+        tender_documents = payload.tender.documents if payload.tender else []
+        combined_text = "\n".join(
+            document.content_text for document in tender_documents if document.content_text
+        )
+        await _run_tender_intelligence_or_fail(
+            procurement_id=result.procurement_id,
+            tender_id=result.tender_id,
+            file_bytes=combined_text.encode("utf-8") if combined_text else None,
+            filename=(tender_documents[0].filename if tender_documents else "tender.pdf"),
+        )
+
         return result
     except ProcurementIngestionError as pie:
         logger.error("Mock-GeM ingestion validation error: %s", pie)
@@ -529,6 +677,8 @@ async def ingest_mock_gem_package(payload: ProcurementIngestionPayload):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(pie),
         )
+    except HTTPException:
+        raise
     except Exception as err:
         logger.error("Mock-GeM ingestion unexpected error: %s", err)
         raise HTTPException(
@@ -653,6 +803,9 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
                                 if extracted_dl:
                                     payload.tender.submission_deadline = extracted_dl
                                     break
+                # Do NOT inject any hardcoded fallback deadline here.
+                # If the JSON manifest omits submission_deadline, we attempt to
+                # derive it from the embedded tender PDF text below.
 
                 # Extract live PDF text from ZIP entries if present
                 if payload.tender and payload.tender.documents:
@@ -664,7 +817,7 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
                             if extracted:
                                 t_doc.content_text = extracted
 
-                    # Dynamically enrich title/organization if default/generic
+                    # Dynamically enrich title/organization/deadline from PDF text
                     first_t_doc = payload.tender.documents[0]
                     if first_t_doc.content_text:
                         meta = extract_tender_metadata_from_text(first_t_doc.content_text, first_t_doc.filename)
@@ -674,6 +827,11 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
                             payload.procurement.organization = meta["organization"]
                         if not payload.tender.description:
                             payload.tender.description = meta["description"]
+                        # Enrich deadline from PDF only if not already provided in the JSON manifest
+                        if not payload.tender.submission_deadline and meta.get("submission_deadline"):
+                            payload.tender.submission_deadline = meta["submission_deadline"]
+                        if not payload.tender.bid_opening_date and meta.get("bid_opening_date"):
+                            payload.tender.bid_opening_date = meta["bid_opening_date"]
 
                 for b_pkg in payload.bidders:
                     for b_doc in b_pkg.documents:
@@ -776,6 +934,7 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
                         description=t_meta["description"],
                         estimated_value=t_meta.get("estimated_value"),
                         submission_deadline=t_meta.get("submission_deadline"),
+                        bid_opening_date=t_meta.get("bid_opening_date"),
                         documents=tender_docs or [IngestionDocumentInput(
                             filename="Default_Tender_Notice.pdf",
                             document_type=DocumentType.TENDER_SPECIFICATION,
@@ -788,6 +947,21 @@ async def ingest_mock_gem_zip(file: UploadFile = File(...)):
 
             # Process ingestion via canonical service
             result = await ingest_procurement(payload)
+
+            # Prefer the original PDF bytes, while retaining extracted text as a
+            # fallback for structured ZIP manifests that carry no binary entry.
+            tender_documents = payload.tender.documents if payload.tender else []
+            first_tdoc = tender_documents[0] if tender_documents else None
+            tender_bytes_for_analysis = (
+                get_entry_bytes(first_tdoc.filename) if first_tdoc else None
+            ) or (first_tdoc.content_text.encode("utf-8") if first_tdoc and first_tdoc.content_text else None)
+            await _run_tender_intelligence_or_fail(
+                procurement_id=result.procurement_id,
+                tender_id=result.tender_id,
+                file_bytes=tender_bytes_for_analysis,
+                filename=first_tdoc.filename if first_tdoc else "tender.pdf",
+            )
+
             return result
 
     except json.JSONDecodeError as jde:
@@ -818,6 +992,7 @@ async def ingest_mock_gem_files(
     organization: Optional[str] = Form(None),
     title: Optional[str] = Form(None),
     estimated_value: Optional[float] = Form(None),
+    demo_mode: bool = Form(True, description="Enable 3-minute demo gate")
 ):
     """Ingests a procurement package composed of a Tender RFP PDF and one or more Bidder Submission ZIPs.
 
@@ -1024,6 +1199,10 @@ async def ingest_mock_gem_files(
                 detail=f"File '{b_file.filename}' is not a valid or readable ZIP archive.",
             )
 
+    demo_effective_deadline = None
+    if demo_mode:
+        demo_effective_deadline = datetime.now(timezone.utc) + timedelta(minutes=3)
+
     unique_suffix = uuid.uuid4().hex[:6].upper()
 
     payload = ProcurementIngestionPayload(
@@ -1040,6 +1219,7 @@ async def ingest_mock_gem_files(
             estimated_value=estimated_value or t_meta.get("estimated_value"),
             category="GOODS_AND_SERVICES",
             submission_deadline=t_meta.get("submission_deadline"),
+            demo_effective_deadline=demo_effective_deadline,
             documents=tender_docs,
         ),
         bidders=bidders_list,
@@ -1047,12 +1227,22 @@ async def ingest_mock_gem_files(
 
     try:
         result = await ingest_procurement(payload)
+        
+        await _run_tender_intelligence_or_fail(
+            procurement_id=result.procurement_id,
+            tender_id=result.tender_id,
+            file_bytes=tender_bytes,
+            filename=tender_pdf.filename,
+        )
+        
         return result
     except ProcurementIngestionError as pie:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(pie),
         )
+    except HTTPException:
+        raise
     except Exception as err:
         logger.error("Failed to ingest Mock-GeM multipart files: %s", err)
         raise HTTPException(

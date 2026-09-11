@@ -197,6 +197,8 @@ async def ingest_procurement(
             "estimated_value": validated_payload.tender.estimated_value,
             "category": validated_payload.tender.category,
             "submission_deadline": validated_payload.tender.submission_deadline.isoformat() if validated_payload.tender.submission_deadline else None,
+            "bid_opening_date": validated_payload.tender.bid_opening_date.isoformat() if validated_payload.tender.bid_opening_date else None,
+            "demo_effective_deadline": validated_payload.tender.demo_effective_deadline.isoformat() if validated_payload.tender.demo_effective_deadline else None,
             "created_at": now_iso,
             "updated_at": now_iso,
         }

@@ -54,8 +54,8 @@ def test_mock_gem_idempotency_end_to_end():
     print("[PASS] Test 2: Mock-GeM Idempotency End-to-End Test Validated (was_created=False on second call)")
 
 
-def test_custom_mock_gem_payload_ingestion():
-    """Test 3: Ingest a custom multi-bidder payload via POST /api/ingest/mock-gem."""
+def test_custom_mock_gem_payload_without_requirements_is_rejected():
+    """A persisted package with no extracted requirements must not look usable."""
     custom_ref = f"DEMO/TEST/WQM/{uuid.uuid4().hex[:8]}"
     payload = {
         "source_system": "SOME_OTHER_SOURCE",  # Should be overridden to MOCK_GEM
@@ -106,14 +106,9 @@ def test_custom_mock_gem_payload_ingestion():
     }
 
     response = client.post("/api/ingest/mock-gem", json=payload)
-    assert response.status_code == 200, f"Expected 200 OK, got {response.status_code}: {response.text}"
-
-    data = response.json()
-    assert data["source_system"] == "MOCK_GEM"  # Enforced by adapter!
-    assert data["external_reference"] == custom_ref
-    assert data["bidder_count"] == 1
-    assert data["was_created"] is True
-    print("[PASS] Test 3: Custom Mock-GeM Payload Ingestion Endpoint Validated (Source System Enforced)")
+    assert response.status_code == 422, f"Expected 422, got {response.status_code}: {response.text}"
+    assert "without extracting any compliance requirements" in response.json()["detail"]
+    print("[PASS] Test 3: Empty Tender Intelligence Result Is Rejected")
 
 
 def test_malformed_mock_gem_payload_rejection():

@@ -50,16 +50,24 @@ export default function WorkspaceDetailPage() {
     }
   }
 
-  // Deadline from first tender created_at as proxy
+  // Deadline from first tender
   const firstTender = procurement?.tenders?.[0];
-  const deadlineDate = firstTender?.submission_deadline ? new Date(firstTender.submission_deadline) : null;
-  const isDeadlinePast = deadlineDate ? deadlineDate < new Date() : false;
-  const formattedDeadline = deadlineDate
-    ? deadlineDate.toLocaleDateString("en-GB", {
+  const submissionDeadline = firstTender?.submission_deadline ? new Date(firstTender.submission_deadline) : null;
+  const demoDeadline = firstTender?.demo_effective_deadline ? new Date(firstTender.demo_effective_deadline) : null;
+  
+  // Use demo deadline if available for the lock condition, otherwise use real submission deadline
+  const gateDeadline = demoDeadline || submissionDeadline;
+  const isDeadlinePast = gateDeadline ? gateDeadline < new Date() : false;
+  
+  // Always display the true document deadline
+  const formattedDeadline = submissionDeadline
+    ? submissionDeadline.toLocaleDateString("en-GB", {
         day: "numeric",
         month: "long",
         year: "numeric",
-      })
+        hour: "2-digit",
+        minute: "2-digit",
+      }) + " IST"
     : null;
 
   // Dynamic description summarizing requirements if available
