@@ -41,6 +41,8 @@ try:
         OfficerFindingSummary,
         OfficerFreezeSummary,
         OfficerRequirementSummary,
+        OfficerObservationCreate,
+        OfficerObservationRecord,
         OfficerTechnicalCheckPresentation,
         OfficerTechnicalLayerPresentation,
         ProcurementStatus,
@@ -494,7 +496,23 @@ async def run_technical_scrutiny_command(
                 qualified_count += 1
 
         except Exception as eval_exc:
-            logger.warning("Error evaluating submission '%s': %s", sub_id, eval_exc)
+            logger.exception(
+                "Canonical evaluation FAILED for submission '%s' (tender '%s').",
+                sub_id,
+                t_id,
+            )
+
+            await insert_audit_log_db({
+                "event_type": "TECHNICAL_SUBMISSION_EVALUATION_FAILED",
+                "procurement_id": procurement_id,
+                "actor": actor,
+                "details": {
+                    "submission_id": sub_id,
+                    "tender_id": t_id,
+                    "error": str(eval_exc),
+                },
+            })
+
             review_count += 1
 
     # Check open clarifications
@@ -687,9 +705,25 @@ async def get_procurement_technical_review_service(
 
         if not eval_res:
             try:
-                eval_res = await evaluate_canonical_submission_by_id(submission_id=sub_id, tender_id_or_ref=t_id)
-            except Exception:
-                eval_res = {}
+                eval_res = await evaluate_canonical_submission_by_id(
+                    submission_id=sub_id,
+                    tender_id_or_ref=t_id,
+                )
+            except Exception as eval_exc:
+                logger.exception(
+                    "Failed to reconstruct evaluation for submission '%s'.",
+                    sub_id,
+                )
+                eval_res = {
+                    "submission_id": sub_id,
+                    "bidder_id": b_id,
+                    "machine_review_summary": {
+                        ComplianceState.UNVERIFIED.value: 1
+                    },
+                    "requirement_results": [],
+                    "review_required": True,
+                    "evaluation_error": str(eval_exc),
+                }
 
         machine_summary = eval_res.get("machine_review_summary", {})
         pass_count = machine_summary.get(ComplianceState.PASS.value, 0)

@@ -11,7 +11,8 @@ import sys
 import uuid
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+import re
 
 # Ensure project root and backend paths are available for imports
 _current_file = Path(__file__).resolve()
@@ -74,6 +75,44 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+GSTIN_EXTRACT_REGEX = re.compile(
+    r"\b[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b",
+    re.IGNORECASE,
+)
+
+PAN_EXTRACT_REGEX = re.compile(
+    r"\b[A-Z]{5}[0-9]{4}[A-Z]\b",
+    re.IGNORECASE,
+)
+
+
+def _extract_bidder_identity_from_documents(
+    documents: List[Any],
+) -> Tuple[Optional[str], Optional[str]]:
+    """Extract GSTIN and PAN from bidder submission document text."""
+    gstin = None
+    pan = None
+
+    for document in documents or []:
+        text = str(getattr(document, "content_text", "") or "")
+
+        if not text:
+            continue
+
+        if not gstin:
+            gst_match = GSTIN_EXTRACT_REGEX.search(text)
+            if gst_match:
+                gstin = gst_match.group(0).upper()
+
+        if not pan:
+            pan_match = PAN_EXTRACT_REGEX.search(text)
+            if pan_match:
+                pan = pan_match.group(0).upper()
+
+        if gstin and pan:
+            break
+
+    return gstin, pan
 
 class ProcurementIngestionError(Exception):
     """Custom exception raised when procurement ingestion fails."""
@@ -226,17 +265,41 @@ async def ingest_procurement(
 
         # 6. Process Multiple Bidders & Submissions
         for pkg in validated_payload.bidders:
+        # Promote identity identifiers from bidder documents into the canonical
+        # bidder record when they were not supplied by the upstream source.
+            extracted_gstin, extracted_pan = _extract_bidder_identity_from_documents(
+            pkg.documents
+        )
+
+        canonical_gstin = pkg.bidder.gstin or extracted_gstin
+        canonical_pan = pkg.bidder.pan or extracted_pan
+
+        if extracted_gstin and not pkg.bidder.gstin:
+            logger.info(
+                "Extracted GSTIN from bidder documents for '%s': %s",
+                pkg.bidder.legal_name,
+                extracted_gstin,
+             )
+
+        if extracted_pan and not pkg.bidder.pan:
+            logger.info(
+                "Extracted PAN from bidder documents for '%s': %s",
+                pkg.bidder.legal_name,
+                extracted_pan,
+            )
+
             # Create Bidder
             bidder_id = str(uuid.uuid4())
             bidder_record = {
                 "id": bidder_id,
                 "legal_name": pkg.bidder.legal_name,
-                "gstin": pkg.bidder.gstin,
-                "pan": pkg.bidder.pan,
+                "gstin": canonical_gstin,
+                "pan": canonical_pan,
                 "email": pkg.bidder.email,
                 "created_at": now_iso,
                 "updated_at": now_iso,
             }
+            
             await insert_bidder(bidder_record)
             bidder_count += 1
 

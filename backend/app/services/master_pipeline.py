@@ -305,6 +305,9 @@ async def evaluate_canonical_submission_by_id(
     eval_context = dict(context or {})
     if isinstance(sub_data, dict) and "bidder" in sub_data and isinstance(sub_data["bidder"], dict):
         eval_context.setdefault("bidder_profile", sub_data["bidder"])
+    eval_context.setdefault("documents", raw_docs)
+    eval_context.setdefault("bidder_id", bidder_id)
+    eval_context.setdefault("submission_id", submission_id)
 
     return evaluate_canonical_submission(
         tender_id=str(resolved_tender_id),
